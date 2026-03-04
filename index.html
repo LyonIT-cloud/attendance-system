@@ -14,10 +14,12 @@
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; min-height: 100vh; overflow: hidden; }
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.2s; }
+        .btn-lang:hover { background: #f8fafc; border-color: var(--primary); }
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; }
         .sidebar h1 { font-size: 22px; margin-bottom: 40px; border-left: 5px solid var(--primary); padding-left: 15px; }
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
-        .nav-item.active { background: var(--primary); color: white; }
+        .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+        .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
         .main-content { flex: 1; padding: 40px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; }
@@ -27,11 +29,11 @@
         .btn { padding: 12px 24px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; justify-content: center; }
         .btn-excel { background: #16a34a; color: white; }
-        .btn-page { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
-        .btn-page:disabled { opacity: 0.5; cursor: not-allowed; }
         table { width: 100%; border-collapse: collapse; background: white; }
         th, td { padding: 16px; text-align: left; border-bottom: 1px solid #f1f5f9; }
-        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
+        .status-badge { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+        .status-pending { background: #fff7ed; color: #c2410c; }
+        .status-confirmed { background: #f0fdf4; color: #15803d; }
     </style>
 </head>
 <body>
@@ -90,11 +92,6 @@
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
-                <div class="pagination-ctrl">
-                    <button id="prevBtn" class="btn-page" onclick="changePage(-1)" data-vi="Trang trước">上一頁</button>
-                    <span id="pageInfo" style="font-size: 14px; color: #64748b;">第 1 頁 / 共 1 頁</span>
-                    <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
-                </div>
             </div>
             <div style="margin-top:20px; display:flex; gap:10px; align-items:center;">
                 <input type="month" id="exportMonth" style="width:200px;">
@@ -118,42 +115,47 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // --- 分頁變數 ---
-    let allRecords = [];
-    let currentPage = 1;
-    const rowsPerPage = 10;
-
+    // 強制語系切換邏輯
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
             if (!el.dataset.zh) el.dataset.zh = el.innerText;
             el.innerText = (lang === 'vi') ? el.dataset.vi : el.dataset.zh;
         });
+        document.querySelectorAll('input[placeholder]').forEach(el => {
+            if (el.dataset.vi) {
+                if (!el.dataset.zh) el.dataset.zh = el.placeholder;
+                el.placeholder = (lang === 'vi') ? el.dataset.vi : el.dataset.zh;
+            }
+        });
     };
 
+    // Excel 導出邏輯
     window.exportMonthExcel = async () => {
         const month = document.getElementById('exportMonth').value;
-        if (!month) return alert("請選擇月份！");
+        if (!month) return alert("請先選擇月份！Please select month!");
+        
         try {
             const snap = await getDocs(collection(db, "formEntries"));
-            const data = snap.docs.map(d => d.data()).filter(item => item.sDate && item.sDate.startsWith(month));
-            if (data.length === 0) return alert("無資料！");
+            const data = snap.docs.map(d => d.data())
+                             .filter(item => item.sDate && item.sDate.startsWith(month));
+
+            if (data.length === 0) return alert("該月份無資料！No data found!");
+
             const wsData = [["部門", "工號", "姓名", "假別", "日期", "時數", "狀態"]];
             data.forEach(r => wsData.push([r.dept, r.id, r.name, r.leaveType, r.sDate, r.duration, r.status]));
+
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, "Records");
             XLSX.writeFile(wb, `Attendence_${month}.xlsx`);
-        } catch (e) { alert(e.message); }
+        } catch (e) { alert("Error: " + e.message); }
     };
 
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
         document.getElementById('nav-'+id).classList.add('active');
-        if(id === 'search') {
-            currentPage = 1; // 重置為第一頁
-            loadAllData();
-        }
+        if(id === 'search') loadAllData();
     };
 
     window.searchPersonalRecords = () => {
@@ -163,63 +165,21 @@
         switchPage('search');
     };
 
-    // --- 核心：分頁載入邏輯 ---
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = "<tr><td colspan='7'>Loading...</td></tr>";
+        tbody.innerHTML = "Loading...";
         const filterId = sessionStorage.getItem('targetFilterId');
-
         try {
-            // 從 Firebase 抓取所有資料
             const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-            allRecords = snap.docs.map(d => d.data());
-
-            // 如果有工號篩選
-            if(filterId) {
-                allRecords = allRecords.filter(r => r.id === filterId);
-            }
-
-            renderTable();
-        } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>Error loading data.</td></tr>"; }
+            let docs = snap.docs.map(d => d.data());
+            if(filterId) docs = docs.filter(r => r.id === filterId);
+            
+            tbody.innerHTML = docs.map(r => `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}</td><td>${r.duration}</td><td>${r.status}</td></tr>`).join('');
+        } catch (e) { tbody.innerHTML = "Error loading data."; }
     };
 
-    // 渲染表格內容
-    function renderTable() {
-        const tbody = document.getElementById('allTableBody');
-        const totalPages = Math.ceil(allRecords.length / rowsPerPage) || 1;
-
-        // 計算目前頁面要顯示的區間
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        const pageData = allRecords.slice(start, end);
-
-        if (pageData.length === 0) {
-            tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>查無資料</td></tr>";
-        } else {
-            tbody.innerHTML = pageData.map(r => `
-                <tr>
-                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td>
-                    <td>${r.leaveType}</td><td>${r.sDate}</td>
-                    <td>${r.duration}</td><td>${r.status}</td>
-                </tr>`).join('');
-        }
-
-        // 更新分頁資訊
-        document.getElementById('pageInfo').innerText = `第 ${currentPage} 頁 / 共 ${totalPages} 頁`;
-        document.getElementById('prevBtn').disabled = (currentPage === 1);
-        document.getElementById('nextBtn').disabled = (currentPage === totalPages);
-    }
-
-    // 切換分頁按鈕
-    window.changePage = (dir) => {
-        currentPage += dir;
-        renderTable();
-        // 畫面自動捲動回表格頂部，方便查看
-        document.querySelector('.main-content').scrollTop = 0;
-    };
-
-    window.autoCalc = () => { /* ...計算邏輯... */ };
-    window.saveToCloud = async () => { /* ...儲存邏輯... */ alert("已送出"); location.reload(); };
+    window.autoCalc = () => { /* 保留原本計算邏輯... */ };
+    window.saveToCloud = async () => { /* 保留原本儲存邏輯... */ alert("已送出"); location.reload(); };
 
     window.addEventListener('DOMContentLoaded', () => switchPage('dashboard'));
 </script>
