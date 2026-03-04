@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鼎顓電子 - 員工出勤 management system</title>
+    <title>鼎顓電子 - 員工出勤管理系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -12,57 +12,42 @@
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; min-height: 100vh; overflow: hidden; }
-        
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: 0.2s; }
         .btn-lang:hover { background: #f8fafc; border-color: var(--primary); }
-
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; }
         .sidebar h1 { font-size: 22px; margin-bottom: 40px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
         .nav-item:hover { background: rgba(255,255,255,0.08); color: white; transform: translateX(5px); }
         .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
         .nav-admin { border: 1px dashed #475569; margin-top: auto; color: #fbbf24; }
-
         .main-content { flex: 1; padding: 40px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-
         .card { background: white; padding: 30px; border-radius: 16px; box-shadow: var(--card-shadow); margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.05); }
-        h2 { font-size: 24px; margin-top: 0; margin-bottom: 25px; color: #0f172a; display: flex; align-items: center; gap: 10px; }
-
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 20px; }
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; }
-
         .btn { padding: 12px 24px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--accent); color: white; min-width: 120px; }
         .btn-excel { background: #16a34a; color: white; }
-
-        .action-btns { display: flex; gap: 10px; justify-content: center; }
-        .btn-approve { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-        .btn-reject { background: white; color: #dc2626; border: 1.5px solid #dc2626; padding: 7px 17px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-
         .table-wrapper { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
         table { width: 100%; border-collapse: collapse; background: white; }
         th { background: #f8fafc; padding: 16px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 16px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-
         .status-badge { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
-
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 85%; max-height: 85%; border-radius: 12px; }
-
         .export-section { margin-top: 20px; padding: 20px; background: #f8fafc; border-radius: 12px; display: flex; align-items: center; gap: 15px; border: 1px solid #e2e8f0; }
-        
-        .stat-label { font-size: 13px; color: #64748b; margin-bottom: 5px; }
-        .stat-value { color: #1e293b; }
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 20px; background: white; border-top: 1px solid #eee; }
+        .btn-page { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -77,7 +62,7 @@
     <div class="sidebar">
         <h1 data-vi="CÔNG TY ĐỈNH CHUYÊN">鼎顓電子股份有限公司</h1>
         <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')" data-vi="📝 Đơn xin nghỉ phép">📝 請假申請</div>
-        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu cá personale">🔍 個人紀錄查詢</div>
+        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</div>
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách duyệt">📅 月度核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</div>
     </div>
@@ -125,7 +110,6 @@
                     </div>
                     <button class="btn btn-success" onclick="searchPersonalRecords()" data-vi="Bắt đầu tra cứu">開始查詢</button>
                 </div>
-                <p style="margin-top:15px; color:#64748b; font-size:14px;">* 輸入工號後將自動跳轉至月度清單篩選您的紀錄。</p>
             </div>
         </div>
 
@@ -139,17 +123,17 @@
                     <table>
                         <thead>
                             <tr>
-                                <th data-vi="Bộ phận">部門</th>
-                                <th data-vi="Mã số">工號</th>
-                                <th data-vi="Họ tên">姓名</th>
-                                <th data-vi="Loại phép">假別</th>
-                                <th data-vi="Ngày">日期</th>
-                                <th data-vi="Số giờ">時數</th>
-                                <th data-vi="Trạng thái">狀態</th>
+                                <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th>
+                                <th data-vi="Loại phép">假別</th><th data-vi="Ngày">日期</th><th data-vi="Số giờ">時數</th><th data-vi="Trạng thái">狀態</th>
                             </tr>
                         </thead>
                         <tbody id="allTableBody"></tbody>
                     </table>
+                </div>
+                <div class="pagination-ctrl">
+                    <button id="prevBtn" class="btn-page" onclick="changePage(-1)" data-vi="Trang trước">上一頁</button>
+                    <span id="pageInfo" style="font-size:14px; color:#64748b;">第 1 頁 / 共 1 頁</span>
+                    <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
                 </div>
             </div>
             <div class="export-section">
@@ -162,12 +146,7 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h2 data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
-                <select id="adminDeptFilter" onchange="loadAdminData()" style="width: 180px; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                    <option value="全部">全部部門</option><option>管理部</option><option>製造部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
-                </select>
-            </div>
+            <h2 data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
             <div class="card" style="padding:0; overflow:hidden;">
                 <div class="table-wrapper">
                     <table>
@@ -193,10 +172,13 @@
     };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
     const gasUrl = "https://script.google.com/macros/s/AKfycbwvtShE86BfAZsSKNYnRaQ4mC1wy3CZZPvcwuJGIOq7bRWFX7HZHPWzRfMaX7ydvYsZfw/exec";
 
-    // --- 核心：切換頁面與載入資料 ---
+    // 分頁相關變數
+    let filteredRecords = [];
+    let currentPage = 1;
+    const rowsPerPage = 10;
+
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
@@ -205,50 +187,58 @@
         if(id === 'search') loadAllData();
     };
 
-    // --- 修正：個人紀錄查詢跳轉功能 ---
     window.searchPersonalRecords = () => {
         const qId = document.getElementById('queryEmpId').value.trim();
         if(!qId) return alert("請輸入工號！");
-        sessionStorage.setItem('targetFilterId', qId); // 存入篩選 ID
-        switchPage('search'); // 跳轉到清單頁
+        sessionStorage.setItem('targetFilterId', qId);
+        switchPage('search');
     };
 
-    // --- 修正：載入所有資料 (支援工號過濾) ---
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         const filterId = sessionStorage.getItem('targetFilterId');
         const resetBtn = document.getElementById('resetFilterBtn');
-
         tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
 
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            
-            let docs = snap.docs.map(d => d.data());
+            const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+            filteredRecords = snap.docs.map(d => d.data());
 
             if(filterId) {
-                docs = docs.filter(r => r.id === filterId);
+                filteredRecords = filteredRecords.filter(r => r.id === filterId);
                 resetBtn.style.display = "inline-flex";
             } else {
                 resetBtn.style.display = "none";
             }
-
-            if(docs.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>查無紀錄</td></tr>";
-                return;
-            }
-
-            tbody.innerHTML = docs.map(r => {
-                const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
-                return `<tr>
-                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td>
-                    <td><span class="badge-type">${r.leaveType}</span></td>
-                    <td>${r.sDate}</td><td>${r.duration}</td>
-                    <td><span class="status-badge ${cls}">${r.status}</span></td>
-                </tr>`;
-            }).join('');
+            currentPage = 1;
+            renderTable();
         } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>讀取失敗</td></tr>"; }
+    };
+
+    function renderTable() {
+        const tbody = document.getElementById('allTableBody');
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const start = (currentPage - 1) * rowsPerPage;
+        const pageData = filteredRecords.slice(start, start + rowsPerPage);
+
+        tbody.innerHTML = pageData.map(r => {
+            const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
+            return `<tr>
+                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td>
+                <td><span class="badge-type">${r.leaveType}</span></td>
+                <td>${r.sDate}</td><td>${r.duration}</td>
+                <td><span class="status-badge ${cls}">${r.status}</span></td>
+            </tr>`;
+        }).join('') || "<tr><td colspan='7' style='text-align:center'>查無紀錄</td></tr>";
+
+        document.getElementById('pageInfo').innerText = `第 ${currentPage} 頁 / 共 ${totalPages} 頁`;
+        document.getElementById('prevBtn').disabled = (currentPage === 1);
+        document.getElementById('nextBtn').disabled = (currentPage === totalPages);
+    }
+
+    window.changePage = (dir) => {
+        currentPage += dir;
+        renderTable();
     };
 
     window.resetFilter = () => {
@@ -257,7 +247,29 @@
         loadAllData();
     };
 
-    // --- 保留功能：時間計算 ---
+    window.exportMonthExcel = async () => {
+        const month = document.getElementById('exportMonth').value;
+        if (!month) return alert("請選擇月份！");
+        try {
+            const snap = await getDocs(collection(db, "formEntries"));
+            const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(month));
+            if (data.length === 0) return alert("無資料");
+            const wsData = [["部門", "工號", "姓名", "假別", "日期", "時數", "狀態"]];
+            data.forEach(r => wsData.push([r.dept, r.id, r.name, r.leaveType, r.sDate, r.duration, r.status]));
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "Records");
+            XLSX.writeFile(wb, `Attendence_${month}.xlsx`);
+        } catch (e) { alert(e.message); }
+    };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (!el.dataset.zh) el.dataset.zh = el.innerText;
+            el.innerText = (lang === 'vi') ? el.dataset.vi : el.dataset.zh;
+        });
+    };
+
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -278,7 +290,6 @@
         return `${h}時${m}分`;
     };
 
-    // --- 保留功能：提交申請 ---
     window.saveToCloud = async () => {
         const btn = document.getElementById('submitBtn'), dur = autoCalc();
         if(!dur) return alert("時間不正確");
@@ -294,25 +305,22 @@
             }
             await addDoc(collection(db, "formEntries"), { id, name, leaveType, dept, sDate, duration: dur, status: "審核中", photo, createdAt: new Date() });
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dept, leaveType, sDate, duration: dur }) });
-            alert("✅ OK!"); location.reload();
+            alert("✅ 已送出申請!"); location.reload();
         } catch (e) { alert(e.message); } finally { btn.disabled = false; }
     };
 
-    // --- 保留功能：其餘介面控制 ---
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${r.sDate}</td><td>${r.duration}</td><td>${r.photo ? `<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">` : '-'}</td><td><div class="action-btns"><button class="btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button><button class="btn-reject" onclick="updateStatus('${d.id}','退件')">退件</button></div></td></tr>`;
-        }).join('');
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${r.sDate}</td><td>${r.duration}</td><td>${r.photo ? `<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button></td></tr>`;
+        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待審核案件</td></tr>";
     };
+
     window.updateStatus = async (id, status) => { await updateDoc(doc(db, "formEntries", id), { status }); loadAdminData(); };
-    window.exportMonthExcel = async () => { /* 保留 EXCEL 導出邏輯 */ };
     window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
-    window.changeLanguage = (lang) => { /* 保留多語系切換邏輯 */ };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-
     window.addEventListener('DOMContentLoaded', () => { switchPage('dashboard'); });
 </script>
 </body>
