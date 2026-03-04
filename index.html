@@ -77,7 +77,7 @@
     <div class="sidebar">
         <h1 data-vi="CÔNG TY ĐỈNH CHUYÊN">鼎顓電子股份有限公司</h1>
         <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')" data-vi="📝 Đơn xin nghỉ phép">📝 請假申請</div>
-        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu cá personale">🔍 個人紀錄查詢</div>
+        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</div>
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách duyệt">📅 月度核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</div>
     </div>
@@ -154,10 +154,10 @@
             </div>
             <div class="export-section">
                 <div style="flex:1">
-                    <label style="margin-bottom:5px">選擇月份導出 EXCEL</label>
+                    <label style="margin-bottom:5px" data-vi="Chọn tháng xuất Excel">選擇月份導出 EXCEL</label>
                     <input type="month" id="exportMonth" style="width: 200px;">
                 </div>
-                <button class="btn btn-excel" onclick="exportMonthExcel()">📥 導出 EXCEL</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" data-vi="📥 Xuất EXCEL">📥 導出 EXCEL</button>
             </div>
         </div>
 
@@ -171,7 +171,7 @@
             <div class="card" style="padding:0; overflow:hidden;">
                 <div class="table-wrapper">
                     <table>
-                        <thead><tr><th>部門</th><th>姓名/假別</th><th>日期</th><th>時數</th><th>證明</th><th style="text-align: center;">動作</th></tr></thead>
+                        <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Họ tên/Loại phép">姓名/假別</th><th data-vi="Ngày">日期</th><th data-vi="Số giờ">時數</th><th data-vi="Chứng minh">證明</th><th style="text-align: center;" data-vi="Hành động">動作</th></tr></thead>
                         <tbody id="adminTableBody"></tbody>
                     </table>
                 </div>
@@ -196,6 +196,29 @@
 
     const gasUrl = "https://script.google.com/macros/s/AKfycbwvtShE86BfAZsSKNYnRaQ4mC1wy3CZZPvcwuJGIOq7bRWFX7HZHPWzRfMaX7ydvYsZfw/exec";
 
+    // --- 核心：多語系切換功能 ---
+    window.changeLanguage = (lang) => {
+        const elements = document.querySelectorAll('[data-vi]');
+        elements.forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                el.innerText = el.dataset.zh || el.innerText;
+            }
+        });
+        // 處理 input placeholder
+        const inputs = document.querySelectorAll('input[data-vi]');
+        inputs.forEach(input => {
+             if (lang === 'vi') {
+                if (!input.dataset.zhPlace) input.dataset.zhPlace = input.placeholder;
+                input.placeholder = input.dataset.vi;
+            } else {
+                input.placeholder = input.dataset.zhPlace || input.placeholder;
+            }
+        });
+    };
+
     // --- 核心：切換頁面與載入資料 ---
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
@@ -205,15 +228,13 @@
         if(id === 'search') loadAllData();
     };
 
-    // --- 修正：個人紀錄查詢跳轉功能 ---
     window.searchPersonalRecords = () => {
         const qId = document.getElementById('queryEmpId').value.trim();
         if(!qId) return alert("請輸入工號！");
-        sessionStorage.setItem('targetFilterId', qId); // 存入篩選 ID
-        switchPage('search'); // 跳轉到清單頁
+        sessionStorage.setItem('targetFilterId', qId);
+        switchPage('search');
     };
 
-    // --- 修正：載入所有資料 (支援工號過濾) ---
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         const filterId = sessionStorage.getItem('targetFilterId');
@@ -224,7 +245,6 @@
         try {
             const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
             const snap = await getDocs(q);
-            
             let docs = snap.docs.map(d => d.data());
 
             if(filterId) {
@@ -257,7 +277,37 @@
         loadAllData();
     };
 
-    // --- 保留功能：時間計算 ---
+    // --- 核心：Excel 匯出功能 ---
+    window.exportMonthExcel = async () => {
+        const month = document.getElementById('exportMonth').value;
+        if (!month) return alert("請先選擇月份！");
+
+        try {
+            const snap = await getDocs(collection(db, "formEntries"));
+            const allData = snap.docs.map(d => d.data());
+            
+            // 篩選月份 (格式如 2024-05)
+            const filtered = allData.filter(item => item.sDate && item.sDate.startsWith(month));
+
+            if (filtered.length === 0) return alert("該月份沒有資料可供導出。");
+
+            // 整理成 Excel 格式
+            const wsData = [
+                ["部門", "工號", "姓名", "假別", "開始日期", "時數", "狀態", "申請時間"]
+            ];
+            filtered.forEach(r => {
+                wsData.push([r.dept, r.id, r.name, r.leaveType, r.sDate, r.duration, r.status, r.createdAt?.toDate().toLocaleString()]);
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "請假紀錄");
+            XLSX.writeFile(wb, `鼎顓電子_請假紀錄_${month}.xlsx`);
+        } catch (e) {
+            alert("導出失敗：" + e.message);
+        }
+    };
+
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -278,7 +328,6 @@
         return `${h}時${m}分`;
     };
 
-    // --- 保留功能：提交申請 ---
     window.saveToCloud = async () => {
         const btn = document.getElementById('submitBtn'), dur = autoCalc();
         if(!dur) return alert("時間不正確");
@@ -298,7 +347,6 @@
         } catch (e) { alert(e.message); } finally { btn.disabled = false; }
     };
 
-    // --- 保留功能：其餘介面控制 ---
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
@@ -307,9 +355,7 @@
         }).join('');
     };
     window.updateStatus = async (id, status) => { await updateDoc(doc(db, "formEntries", id), { status }); loadAdminData(); };
-    window.exportMonthExcel = async () => { /* 保留 EXCEL 導出邏輯 */ };
     window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
-    window.changeLanguage = (lang) => { /* 保留多語系切換邏輯 */ };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
 
