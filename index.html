@@ -49,10 +49,8 @@
         .btn-page { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; cursor: pointer; }
         .btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-approve { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-        /* 新增退件按鈕顏色 */
         .btn-reject { background: var(--danger); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 5px; }
-        .btn-reject:hover { opacity: 0.8; }
-        .btn-approve:hover { opacity: 0.8; }
+        .btn-reject:hover, .btn-approve:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -83,10 +81,10 @@
                             <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                         </select>
                     </div>
-                    <div><label data-vi="Mã số nhân viên">人員工號</label><input type="text" id="empId" placeholder="例如: D220119"></div>
+                    <div><label data-vi="Mã số nhân viên">人員工號</label><input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()"></div>
                 </div>
                 <div class="form-grid">
-                    <div><label data-vi="Họ và tên">員工姓名</label><input type="text" id="empName"></div>
+                    <div><label data-vi="Họ và tên">員工姓名</label><input type="text" id="empName" readonly placeholder="輸入正確工號後自動帶入"></div>
                     <div><label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
@@ -165,7 +163,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -182,6 +180,25 @@
     let filteredRecords = [];
     let currentPage = 1;
     const rowsPerPage = 10;
+
+    // --- 新增：自動抓取姓名功能 ---
+    window.autoFetchName = async () => {
+        const id = document.getElementById('empId').value.trim();
+        const nameInput = document.getElementById('empName');
+        if (id.length < 5) return; // 長度不足不執行
+
+        try {
+            const docRef = doc(db, "employees", id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                nameInput.value = docSnap.data().name;
+                nameInput.style.backgroundColor = "#f0fdf4"; // 綠色背景代表成功
+            } else {
+                nameInput.value = "";
+                nameInput.style.backgroundColor = ""; 
+            }
+        } catch (e) { console.error("Fetch name error:", e); }
+    };
 
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
@@ -204,9 +221,7 @@
         const eDate = document.getElementById('endDate').value;
         const eTime = document.getElementById('endTime').value;
 
-        const empIdRegex = /^[Dhgf].{6}$/i; 
-        if(!id || !name) return alert("資料不完整");
-        if(!empIdRegex.test(id)) return alert("❌ 工號格式錯誤！\n必須以 D、h、g 或 f 開頭，總長度 7 位。");
+        if(!id || !name) return alert("❌ 找不到該工號對應的員工，請檢查工號！");
 
         try {
             btn.disabled = true;
@@ -328,7 +343,7 @@
                 <td style="font-size:12px;">${timeRange}</td>
                 <td>${r.duration}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; object-fit:cover; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-                <td style="text-align: center; min-width: 140px;">
+                <td style="text-align:center;">
                     <button class="btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button>
                     <button class="btn-reject" onclick="updateStatus('${d.id}','退件')">退件</button>
                 </td>
@@ -337,14 +352,10 @@
     };
 
     window.updateStatus = async (id, status) => { 
-        try {
-            await updateDoc(doc(db, "formEntries", id), { status }); 
-            alert(`已成功標記為：${status}`);
-            loadAdminData(); 
-        } catch (e) {
-            alert("更新失敗: " + e.message);
-        }
+        await updateDoc(doc(db, "formEntries", id), { status }); 
+        loadAdminData(); 
     };
+    
     window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
