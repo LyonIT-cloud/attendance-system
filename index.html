@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鼎顓電子 - 員工出勤管理系統</title>
+    <title>鼎顓電子 - 員工出勤管理 system</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -77,11 +77,12 @@
                 <div class="form-grid">
                     <div><label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
+                            <option value="">--請輸入工號自動帶入--</option>
                             <option>管理部</option><option>製造部</option><option>SMT</option>
                             <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                         </select>
                     </div>
-                    <div><label data-vi="Mã số nhân viên">人員工號</label><input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()"></div>
+                    <div><label data-vi="Mã số nhân viên">人員工號</label><input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()" style="text-transform: uppercase;"></div>
                 </div>
                 <div class="form-grid">
                     <div><label data-vi="Họ và tên">員工姓名</label><input type="text" id="empName" readonly placeholder="輸入正確工號後自動帶入"></div>
@@ -102,7 +103,6 @@
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:30px; width: 100%;" data-vi="Xác nhận gửi đơn">確認送出申請</button>
             </div>
         </div>
-
         <div id="page-personal" class="page-content">
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
@@ -181,23 +181,34 @@
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // --- 新增：自動抓取姓名功能 ---
+    // --- 修改：自動抓取姓名與部門功能 ---
     window.autoFetchName = async () => {
-        const id = document.getElementById('empId').value.trim();
+        // 自動轉大寫進行搜尋
+        const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
-        if (id.length < 5) return; // 長度不足不執行
+        const deptSelect = document.getElementById('dept');
+        
+        if (id.length < 5) return; 
 
         try {
             const docRef = doc(db, "employees", id);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
-                nameInput.value = docSnap.data().name;
-                nameInput.style.backgroundColor = "#f0fdf4"; // 綠色背景代表成功
+                const data = docSnap.data();
+                // 填入姓名
+                nameInput.value = data.name || "";
+                nameInput.style.backgroundColor = "#f0fdf4"; 
+                // 填入部門
+                if (data.dept) {
+                    deptSelect.value = data.dept;
+                    deptSelect.style.backgroundColor = "#f0fdf4";
+                }
             } else {
                 nameInput.value = "";
-                nameInput.style.backgroundColor = ""; 
+                nameInput.style.backgroundColor = "";
+                deptSelect.style.backgroundColor = "";
             }
-        } catch (e) { console.error("Fetch name error:", e); }
+        } catch (e) { console.error("Fetch employee error:", e); }
     };
 
     window.switchPage = (id) => {
@@ -212,7 +223,7 @@
         const btn = document.getElementById('submitBtn'), dur = autoCalc();
         if(!dur) return alert("時間不正確");
 
-        const id = document.getElementById('empId').value.trim();
+        const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
         const dept = document.getElementById('dept').value;
         const leaveType = document.getElementById('leaveType').value;
