@@ -49,6 +49,10 @@
         .btn-page { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; cursor: pointer; }
         .btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-approve { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        /* 新增退件按鈕顏色 */
+        .btn-reject { background: var(--danger); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 5px; }
+        .btn-reject:hover { opacity: 0.8; }
+        .btn-approve:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -323,13 +327,24 @@
                 <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
                 <td style="font-size:12px;">${timeRange}</td>
                 <td>${r.duration}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-                <td><button class="btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button></td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; object-fit:cover; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+                <td style="text-align: center; min-width: 140px;">
+                    <button class="btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button>
+                    <button class="btn-reject" onclick="updateStatus('${d.id}','退件')">退件</button>
+                </td>
             </tr>`;
         }).join('') || "<tr><td colspan='6' style='text-align:center'>無待審核案件</td></tr>";
     };
 
-    window.updateStatus = async (id, status) => { await updateDoc(doc(db, "formEntries", id), { status }); loadAdminData(); };
+    window.updateStatus = async (id, status) => { 
+        try {
+            await updateDoc(doc(db, "formEntries", id), { status }); 
+            alert(`已成功標記為：${status}`);
+            loadAdminData(); 
+        } catch (e) {
+            alert("更新失敗: " + e.message);
+        }
+    };
     window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
