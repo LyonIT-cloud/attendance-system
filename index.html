@@ -201,12 +201,11 @@
     const db = getFirestore(app);
     const gasUrl = "https://script.google.com/macros/s/AKfycbwvtShE86BfAZsSKNYnRaQ4mC1wy3CZZPvcwuJGIOq7bRWFX7HZHPWzRfMaX7ydvYsZfw/exec";
 
-    let allRecords = []; // 存放所有從 Firebase 抓下的資料
-    let filteredRecords = []; // 存放經過過濾後的資料
+    let allRecords = []; 
+    let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // --- 自動抓取姓名與部門 ---
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
@@ -240,6 +239,7 @@
         if(id === 'search') loadAllData();
     };
 
+    // --- 修改後的儲存函數：含圖片壓縮 ---
     window.saveToCloud = async () => {
         const btn = document.getElementById('submitBtn'), dur = autoCalc();
         if(!dur) return alert("時間不正確");
@@ -258,42 +258,82 @@
 
         try {
             btn.disabled = true;
-            const file = document.getElementById('leaveImg').files[0];
+            btn.innerText = "處理中 (Compressing)..."; 
+            
+            const fileInput = document.getElementById('leaveImg');
+            const file = fileInput.files[0];
             let photo = "";
+
             if(file) {
-                const reader = new FileReader();
-                photo = await new Promise(r => { reader.onload=()=>r(reader.result); reader.readAsDataURL(file); });
+                photo = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const max_size = 800; 
+
+                            if (width > height) {
+                                if (width > max_size) {
+                                    height *= max_size / width;
+                                    width = max_size;
+                                }
+                            } else {
+                                if (height > max_size) {
+                                    width *= max_size / height;
+                                    height = max_size;
+                                }
+                            }
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7)); // 壓縮為 JPEG 品質 0.7
+                        };
+                        img.onerror = (err) => reject(err);
+                    };
+                    reader.onerror = (err) => reject(err);
+                });
             }
+
             await addDoc(collection(db, "formEntries"), { 
                 id, name, leaveType, dept, sDate, sTime, eDate, eTime, 
                 duration: dur, reason, status: "審核中", photo, createdAt: new Date() 
             });
+
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dept, leaveType, sDate, duration: dur }) });
-            alert("✅ 已送出申請!"); location.reload();
-        } catch (e) { alert(e.message); } finally { btn.disabled = false; }
+            alert("✅ 已送出申請 (圖片已自動壓縮)!"); location.reload();
+        } catch (e) { 
+            console.error(e);
+            alert("上傳失敗: " + e.message); 
+        } finally { 
+            btn.disabled = false; 
+            btn.innerText = "確認送出申請";
+        }
     };
 
-    // --- 載入所有數據並套用過濾 ---
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
         try {
             const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
             allRecords = snap.docs.map(d => d.data());
-            applyFilters(); // 載入後直接執行過濾
+            applyFilters(); 
         } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>讀取失敗</td></tr>"; }
     };
 
-    // --- 核心篩選邏輯 ---
     window.applyFilters = () => {
-        const filterId = sessionStorage.getItem('targetFilterId'); // 個人查詢傳過來的 ID
-        const filterMonth = document.getElementById('filterMonth').value; // 選取的月份
-        const filterDept = document.getElementById('filterDept').value; // 選取的部門
+        const filterId = sessionStorage.getItem('targetFilterId'); 
+        const filterMonth = document.getElementById('filterMonth').value; 
+        const filterDept = document.getElementById('filterDept').value; 
         const resetBtn = document.getElementById('resetFilterBtn');
 
         filteredRecords = allRecords;
 
-        // 1. 如果有個人查詢 ID
         if (filterId) {
             filteredRecords = filteredRecords.filter(r => r.id === filterId);
             resetBtn.style.display = "inline-flex";
@@ -301,12 +341,10 @@
             resetBtn.style.display = "none";
         }
 
-        // 2. 套用月份篩選
         if (filterMonth) {
             filteredRecords = filteredRecords.filter(r => r.sDate && r.sDate.startsWith(filterMonth));
         }
 
-        // 3. 套用部門篩選
         if (filterDept) {
             filteredRecords = filteredRecords.filter(r => r.dept === filterDept);
         }
@@ -344,7 +382,6 @@
         const qId = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!qId) return alert("請輸入工號！");
         sessionStorage.setItem('targetFilterId', qId);
-        // 跳轉到搜尋頁並自動帶入
         switchPage('search');
     };
     
@@ -356,7 +393,6 @@
         applyFilters(); 
     };
     
-    // --- 計算時數邏輯 (略，與原版同) ---
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -377,7 +413,6 @@
         return `${h}時${m}分`;
     };
 
-    // --- 導出 EXCEL ---
     window.exportMonthExcel = async () => {
         const month = document.getElementById('exportMonth').value;
         if (!month) return alert("請選擇導出月份！");
