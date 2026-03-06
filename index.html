@@ -258,30 +258,72 @@
 
         try {
             btn.disabled = true;
-            const file = document.getElementById('leaveImg').files[0];
+            btn.innerText = "處理中 (Compressing)..."; // 視覺反饋
+            
+            const fileInput = document.getElementById('leaveImg');
+            const file = fileInput.files[0];
             let photo = "";
+
             if(file) {
-                const reader = new FileReader();
-                photo = await new Promise(r => { reader.onload=()=>r(reader.result); reader.readAsDataURL(file); });
+                // --- 📸 圖片前端壓縮處理邏輯 ---
+                photo = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.src = event.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const max_size = 800; // 限制最大邊長為 800px
+
+                            // 計算縮放比例
+                            if (width > height) {
+                                if (width > max_size) {
+                                    height *= max_size / width;
+                                    width = max_size;
+                                }
+                            } else {
+                                if (height > max_size) {
+                                    width *= max_size / height;
+                                    height = max_size;
+                                }
+                            }
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            // 輸出壓縮後的 Base64 (JPEG 格式, 品質 0.7)
+                            // 這對於證明文件來說清晰度足夠，但體積大幅縮小
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                        img.onerror = (err) => reject(err);
+                    };
+                    reader.onerror = (err) => reject(err);
+                });
             }
+
+            // 儲存至 Firebase
             await addDoc(collection(db, "formEntries"), { 
                 id, name, leaveType, dept, sDate, sTime, eDate, eTime, 
                 duration: dur, reason, status: "審核中", photo, createdAt: new Date() 
             });
-            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dept, leaveType, sDate, duration: dur }) });
-            alert("✅ 已送出申請!"); location.reload();
-        } catch (e) { alert(e.message); } finally { btn.disabled = false; }
-    };
 
-    // --- 載入所有數據並套用過濾 ---
-    window.loadAllData = async () => {
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
-        try {
-            const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-            allRecords = snap.docs.map(d => d.data());
-            applyFilters(); // 載入後直接執行過濾
-        } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>讀取失敗</td></tr>"; }
+            // 同步發送至 GAS (Google Sheets)
+            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dept, leaveType, sDate, duration: dur }) });
+            
+            alert("✅ 已送出申請 (圖片已自動壓縮)!"); 
+            location.reload();
+        } catch (e) { 
+            console.error(e);
+            alert("上傳失敗: " + e.message); 
+        } finally { 
+            btn.disabled = false; 
+            btn.innerText = "確認送出申請";
+        }
     };
 
     // --- 核心篩選邏輯 ---
@@ -434,3 +476,4 @@
 </script>
 </body>
 </html>
+
