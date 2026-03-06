@@ -51,6 +51,11 @@
         .btn-approve { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
         .btn-reject { background: var(--danger); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-left: 5px; }
         .btn-reject:hover, .btn-approve:hover { opacity: 0.8; }
+        
+        /* 篩選器樣式 */
+        .filter-bar { display: flex; gap: 15px; background: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; align-items: center; }
+        .filter-group { display: flex; align-items: center; gap: 10px; }
+        .filter-group label { margin-bottom: 0; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -95,7 +100,7 @@
                 </div>
                 <div class="form-grid">
                     <div><label data-vi="Thời gian bắt đầu">起始時間</label><div style="display:flex; gap:10px;"><input type="date" id="startDate" onchange="autoCalc()"><input type="time" id="startTime" value="08:30" onchange="autoCalc()"></div></div>
-                    <div><label data-vi="Thời gian kết結束">結束時間</label><div style="display:flex; gap:10px;"><input type="date" id="endDate" onchange="autoCalc()"><input type="time" id="endTime" value="17:30" onchange="autoCalc()"></div></div>
+                    <div><label data-vi="Thời gian kết thúc">結束時間</label><div style="display:flex; gap:10px;"><input type="date" id="endDate" onchange="autoCalc()"><input type="time" id="endTime" value="17:30" onchange="autoCalc()"></div></div>
                 </div>
                 <div id="durationText" data-vi="Vui lòng chọn thời gian để tính số giờ" style="color:var(--primary); font-weight:600; padding: 15px; background: #eff6ff; border-radius: 10px; margin: 20px 0; text-align: center; border: 1px dashed var(--primary);">請選擇時間以計算時數</div>
                 <div><label data-vi="Lý do xin nghỉ">請假事由</label><input type="text" id="reason" placeholder="請輸入詳細原因"></div>
@@ -103,6 +108,7 @@
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:30px; width: 100%;" data-vi="Xác nhận gửi đơn">確認送出申請</button>
             </div>
         </div>
+
         <div id="page-personal" class="page-content">
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
@@ -117,10 +123,27 @@
         </div>
 
         <div id="page-search" class="page-content">
-            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h2 data-vi="📅 Danh sách duyệt tháng">📅 月度核准清單</h2>
                 <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="background:#64748b; color:white; padding:8px 15px; display:none;">顯示全部 (Show All)</button>
             </div>
+
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <label data-vi="Tháng">月份:</label>
+                    <input type="month" id="filterMonth" onchange="applyFilters()" style="width:160px; padding:8px;">
+                </div>
+                <div class="filter-group">
+                    <label data-vi="Bộ phận">部門:</label>
+                    <select id="filterDept" onchange="applyFilters()" style="width:140px; padding:8px;">
+                        <option value="">全部部門</option>
+                        <option>管理部</option><option>製造部</option><option>SMT</option>
+                        <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                    </select>
+                </div>
+                <span id="filterCount" style="font-size:13px; color:#64748b; margin-left:auto;"></span>
+            </div>
+
             <div class="card" style="padding:0; overflow:hidden;">
                 <div class="table-wrapper">
                     <table>
@@ -139,6 +162,7 @@
                     <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
                 </div>
             </div>
+            
             <div class="export-section">
                 <div style="flex:1">
                     <label style="margin-bottom:5px">選擇月份導出 EXCEL</label>
@@ -177,17 +201,16 @@
     const db = getFirestore(app);
     const gasUrl = "https://script.google.com/macros/s/AKfycbwvtShE86BfAZsSKNYnRaQ4mC1wy3CZZPvcwuJGIOq7bRWFX7HZHPWzRfMaX7ydvYsZfw/exec";
 
-    let filteredRecords = [];
+    let allRecords = []; // 存放所有從 Firebase 抓下的資料
+    let filteredRecords = []; // 存放經過過濾後的資料
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // --- 修改：自動抓取姓名與部門功能 ---
+    // --- 自動抓取姓名與部門 ---
     window.autoFetchName = async () => {
-        // 自動轉大寫進行搜尋
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
         const deptSelect = document.getElementById('dept');
-        
         if (id.length < 5) return; 
 
         try {
@@ -195,10 +218,8 @@
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // 填入姓名
                 nameInput.value = data.name || "";
                 nameInput.style.backgroundColor = "#f0fdf4"; 
-                // 填入部門
                 if (data.dept) {
                     deptSelect.value = data.dept;
                     deptSelect.style.backgroundColor = "#f0fdf4";
@@ -231,6 +252,7 @@
         const sTime = document.getElementById('startTime').value;
         const eDate = document.getElementById('endDate').value;
         const eTime = document.getElementById('endTime').value;
+        const reason = document.getElementById('reason').value.trim();
 
         if(!id || !name) return alert("❌ 找不到該工號對應的員工，請檢查工號！");
 
@@ -244,28 +266,54 @@
             }
             await addDoc(collection(db, "formEntries"), { 
                 id, name, leaveType, dept, sDate, sTime, eDate, eTime, 
-                duration: dur, status: "審核中", photo, createdAt: new Date() 
+                duration: dur, reason, status: "審核中", photo, createdAt: new Date() 
             });
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dept, leaveType, sDate, duration: dur }) });
             alert("✅ 已送出申請!"); location.reload();
         } catch (e) { alert(e.message); } finally { btn.disabled = false; }
     };
 
+    // --- 載入所有數據並套用過濾 ---
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
-        const filterId = sessionStorage.getItem('targetFilterId');
-        const resetBtn = document.getElementById('resetFilterBtn');
         tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
         try {
             const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-            filteredRecords = snap.docs.map(d => d.data());
-            if(filterId) {
-                filteredRecords = filteredRecords.filter(r => r.id === filterId);
-                resetBtn.style.display = "inline-flex";
-            } else { resetBtn.style.display = "none"; }
-            currentPage = 1;
-            renderTable();
+            allRecords = snap.docs.map(d => d.data());
+            applyFilters(); // 載入後直接執行過濾
         } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>讀取失敗</td></tr>"; }
+    };
+
+    // --- 核心篩選邏輯 ---
+    window.applyFilters = () => {
+        const filterId = sessionStorage.getItem('targetFilterId'); // 個人查詢傳過來的 ID
+        const filterMonth = document.getElementById('filterMonth').value; // 選取的月份
+        const filterDept = document.getElementById('filterDept').value; // 選取的部門
+        const resetBtn = document.getElementById('resetFilterBtn');
+
+        filteredRecords = allRecords;
+
+        // 1. 如果有個人查詢 ID
+        if (filterId) {
+            filteredRecords = filteredRecords.filter(r => r.id === filterId);
+            resetBtn.style.display = "inline-flex";
+        } else {
+            resetBtn.style.display = "none";
+        }
+
+        // 2. 套用月份篩選
+        if (filterMonth) {
+            filteredRecords = filteredRecords.filter(r => r.sDate && r.sDate.startsWith(filterMonth));
+        }
+
+        // 3. 套用部門篩選
+        if (filterDept) {
+            filteredRecords = filteredRecords.filter(r => r.dept === filterDept);
+        }
+
+        document.getElementById('filterCount').innerText = `找到 ${filteredRecords.length} 筆資料`;
+        currentPage = 1;
+        renderTable();
     };
 
     function renderTable() {
@@ -273,17 +321,19 @@
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         const start = (currentPage - 1) * rowsPerPage;
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
+        
         tbody.innerHTML = pageData.map(r => {
             const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
             const timeRange = `${r.sDate} ${r.sTime || ''} ~ ${r.eDate || r.sDate} ${r.eTime || ''}`;
             return `<tr>
-                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td>
+                <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px; color:#475569;">${timeRange}</td>
                 <td>${r.duration}</td>
                 <td><span class="status-badge ${cls}">${r.status}</span></td>
             </tr>`;
-        }).join('') || "<tr><td colspan='7' style='text-align:center'>查無紀錄</td></tr>";
+        }).join('') || "<tr><td colspan='7' style='text-align:center'>目前篩選條件下無紀錄</td></tr>";
+        
         document.getElementById('pageInfo').innerText = `第 ${currentPage} 頁 / 共 ${totalPages} 頁`;
         document.getElementById('prevBtn').disabled = (currentPage === 1);
         document.getElementById('nextBtn').disabled = (currentPage === totalPages);
@@ -291,13 +341,22 @@
 
     window.changePage = (dir) => { currentPage += dir; renderTable(); };
     window.searchPersonalRecords = () => {
-        const qId = document.getElementById('queryEmpId').value.trim();
+        const qId = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!qId) return alert("請輸入工號！");
         sessionStorage.setItem('targetFilterId', qId);
+        // 跳轉到搜尋頁並自動帶入
         switchPage('search');
     };
-    window.resetFilter = () => { sessionStorage.removeItem('targetFilterId'); document.getElementById('queryEmpId').value = ""; loadAllData(); };
     
+    window.resetFilter = () => { 
+        sessionStorage.removeItem('targetFilterId'); 
+        document.getElementById('queryEmpId').value = ""; 
+        document.getElementById('filterMonth').value = ""; 
+        document.getElementById('filterDept').value = ""; 
+        applyFilters(); 
+    };
+    
+    // --- 計算時數邏輯 (略，與原版同) ---
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -318,13 +377,14 @@
         return `${h}時${m}分`;
     };
 
+    // --- 導出 EXCEL ---
     window.exportMonthExcel = async () => {
         const month = document.getElementById('exportMonth').value;
-        if (!month) return alert("請選擇月份！");
+        if (!month) return alert("請選擇導出月份！");
         try {
             const snap = await getDocs(collection(db, "formEntries"));
             const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(month));
-            if (data.length === 0) return alert("無資料");
+            if (data.length === 0) return alert("該月份無資料");
             const wsData = [["部門", "工號", "姓名", "假別", "時間區間", "時數", "狀態"]];
             data.forEach(r => {
                 const timeRange = `${r.sDate} ${r.sTime || ''} ~ ${r.eDate || r.sDate} ${r.eTime || ''}`;
@@ -350,7 +410,7 @@
             const r = d.data();
             const timeRange = `${r.sDate} ${r.sTime || ''}<br>~ ${r.eDate || r.sDate} ${r.eTime || ''}`;
             return `<tr>
-                <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
+                <td>${r.dept || '-'}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
                 <td style="font-size:12px;">${timeRange}</td>
                 <td>${r.duration}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; object-fit:cover; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
@@ -374,4 +434,3 @@
 </script>
 </body>
 </html>
-
