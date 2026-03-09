@@ -12,12 +12,8 @@
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; flex-direction: row; min-height: 100vh; }
-        
-        /* 側邊欄與導航 */
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 100; transition: all 0.3s; }
         .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
-        
-        /* 響應式佈局設定 */
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
@@ -25,50 +21,38 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
-            .lang-switcher { top: 10px; right: 10px; }
             .export-section { flex-direction: column; align-items: stretch !important; }
         }
-
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
         .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
         .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
         .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
-
         .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
-        
         .card { background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow); margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.05); }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
-        
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
-        
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
         .btn-excel { background: #16a34a; color: white; }
-        
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-
         .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
-
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
-
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -180,7 +164,7 @@
             </div>
             <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 依照範本導出 EXCEL</button>
             </div>
         </div>
 
@@ -292,33 +276,27 @@
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
-        
         if(!d1 || !t1 || !d2 || !t2) return null;
-        
         let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
         if(isNaN(start) || isNaN(end) || end <= start) return null;
 
         let totalMins = 0;
         let cur = new Date(start);
-
         while(cur < end) {
             const day = cur.getDay(); 
             const h = cur.getHours();
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
-
             if(day !== 0 && day !== 6) {
                 const isRestTime = (timeInMinutes >= 0 && timeInMinutes < 30);
-                if (!isRestTime) {
-                    totalMins++;
-                }
+                if (!isRestTime) { totalMins++; }
             }
             cur.setMinutes(cur.getMinutes() + 1);
         }
-
         const hour = Math.floor(totalMins / 60), min = totalMins % 60;
         document.getElementById('durationText').innerText = `🕒 計算結果：${hour} 小時 ${min} 分鐘`;
-        return `${hour}時${min}分`;
+        // 返回純數字時數以便其他程式匯入，範例中為 "8.5" 或 "8"
+        return (totalMins / 60).toFixed(1); 
     };
 
     window.loadAllData = async () => {
@@ -357,7 +335,7 @@
                 <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime} ~ ${r.eDate}</td>
-                <td>${r.duration}</td>
+                <td>${r.duration} 小時</td>
                 <td><span class="status-badge ${cls}">${r.status}</span></td>
             </tr>`;
         }).join('') || "<tr><td colspan='7' style='text-align:center'>無紀錄</td></tr>";
@@ -379,7 +357,7 @@
             return `<tr>
                 <td>${r.dept}</td><td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
-                <td>${r.duration}</td>
+                <td>${r.duration} 小時</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
                 <td>
                     <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','批准')" style="border:none; cursor:pointer;">批准</button>
@@ -394,40 +372,54 @@
         loadAdminData();
     };
 
-    // --- 修改後的 Excel 匯出函數 ---
+    // --- 核心更新：根據範本匯出 Excel ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇匯出月份");
         
         const snap = await getDocs(collection(db, "formEntries"));
-        // 篩選該月份的資料
+        // 僅匯出已批准且月份相符的紀錄
         const data = snap.docs
             .map(d => d.data())
-            .filter(r => r.sDate && r.sDate.startsWith(m));
+            .filter(r => r.sDate && r.sDate.startsWith(m) && r.status === "批准");
 
-        if (data.length === 0) return alert("該月份查無任何請假紀錄");
+        if (data.length === 0) return alert("該月份查無「已批准」的請假紀錄");
 
-        // 定義 Excel 標題列
-        const wsData = [["部門", "工號", "姓名", "假別", "起始時間", "結束時間", "總時數", "狀態"]];
+        // 定義完全符合範本的標題列 (13個欄位)
+        const header = [
+            "員工代號", "員工姓名", "假別", "出勤日期", 
+            "開始日期", "開始時間", "結束日期", "結束時間", 
+            "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"
+        ];
         
-        // 填入資料內容
+        const wsData = [header];
+        
         data.forEach(r => {
             wsData.push([
-                r.dept || '-', 
-                r.id, 
-                r.name, 
-                r.leaveType, 
-                `${r.sDate} ${r.sTime}`, // 補上日期與時間
-                `${r.eDate} ${r.eTime}`, 
-                r.duration, 
-                r.status
+                r.id,               // 員工代號
+                r.name,             // 員工姓名
+                r.leaveType,        // 假別
+                r.sDate,            // 出勤日期 (通常同開始日期)
+                r.sDate,            // 開始日期
+                r.sTime,            // 開始時間
+                r.eDate,            // 結束日期
+                r.eTime,            // 結束時間
+                r.duration,         // 請假時數
+                "0",                // 扣伙食費 (預設0)
+                "0",                // 扣交通津貼 (預設0)
+                r.reason || "",     // 事由
+                r.dept || ""        // 備註 (放部門資訊)
             ]);
         });
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance_Records");
-        XLSX.writeFile(wb, `鼎顓電子請假統計_${m}.xlsx`);
+        
+        // 設定欄位寬度
+        ws['!cols'] = [{wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:10}, {wch:10}, {wch:10}, {wch:10}, {wch:20}, {wch:15}];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
+        XLSX.writeFile(wb, `鼎顓電子請假表_${m}.xlsx`);
     };
 
     window.changeLanguage = (l) => {
