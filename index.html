@@ -109,14 +109,14 @@
                         <label data-vi="Thời gian bắt đầu">起始時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="startDate" onchange="autoCalc()">
-                            <input type="time" id="startTime" value="18:00" onchange="autoCalc()">
+                            <input type="time" id="startTime" value="08:30" onchange="autoCalc()">
                         </div>
                     </div>
                     <div>
                         <label data-vi="Thời gian kết thúc">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
-                            <input type="time" id="endTime" value="02:30" onchange="autoCalc()">
+                            <input type="time" id="endTime" value="17:30" onchange="autoCalc()">
                         </div>
                     </div>
                 </div>
@@ -226,14 +226,14 @@
     };
 
     window.saveToCloud = async () => {
-        const btn = document.getElementById('submitBtn'), dur = autoCalc();
-        if(!dur) return alert("請正確選擇起始與結束時間");
+        const { durationHours, displayStr } = autoCalc() || {};
+        if(!durationHours) return alert("請正確選擇起始與結束時間");
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
         if(!id || !name) return alert("工號不正確或姓名未帶入");
 
         try {
-            btn.disabled = true; btn.innerText = "上傳中 (Compressing)...";
+            document.getElementById('submitBtn').disabled = true;
             const file = document.getElementById('leaveImg').files[0];
             let photo = "";
             if(file) {
@@ -264,16 +264,17 @@
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
-                duration: dur, reason: document.getElementById('reason').value,
+                duration: durationHours,
+                displayDuration: displayStr, 
+                reason: document.getElementById('reason').value,
                 status: "審核中", photo, createdAt: new Date()
             });
 
-            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur }) });
+            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: displayStr }) });
             alert("申請已成功送出！"); location.reload();
-        } catch(e) { alert("錯誤: " + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
+        } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
-    // --- 核心更新：同時支援日班與中班休息扣除 ---
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -289,23 +290,26 @@
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
 
-            // 1. 日班休息 (12:00 ~ 13:00) -> 720~780 分鐘
+            // 1. 日班休息 (12:00 ~ 13:00)
             const isDayNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780);
-            
-            // 2. 中班休息 (00:00 ~ 00:30) -> 0~30 分鐘
+            // 2. 中班休息 (00:00 ~ 00:30)
             const isNightRest = (timeInMinutes >= 0 && timeInMinutes < 30);
 
             if (!isDayNoonRest && !isNightRest) {
                 totalMins++;
             }
-            
             cur.setMinutes(cur.getMinutes() + 1);
         }
 
-        const hour = Math.floor(totalMins / 60), min = totalMins % 60;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${hour} 小時 ${min} 分鐘`;
+        const h_res = Math.floor(totalMins / 60);
+        const m_res = totalMins % 60;
+        const displayStr = `${h_res} 時 ${m_res} 分`;
+        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
         
-        return (totalMins / 60).toFixed(1); 
+        return {
+            durationHours: (totalMins / 60).toFixed(1),
+            displayStr: displayStr
+        };
     };
 
     window.loadAllData = async () => {
@@ -340,11 +344,12 @@
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
         tbody.innerHTML = pageData.map(r => {
             const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
+            const timeShow = r.displayDuration || (r.duration + " 小時");
             return `<tr>
                 <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime} ~ ${r.eDate} ${r.eTime}</td>
-                <td>${r.duration} 小時</td>
+                <td>${timeShow}</td>
                 <td><span class="status-badge ${cls}">${r.status}</span></td>
             </tr>`;
         }).join('') || "<tr><td colspan='7' style='text-align:center'>無紀錄</td></tr>";
@@ -363,10 +368,11 @@
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
+            const timeShow = r.displayDuration || (r.duration + " 小時");
             return `<tr>
                 <td>${r.dept}</td><td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
-                <td>${r.duration} 小時</td>
+                <td>${timeShow}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
                 <td>
                     <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','批准')" style="border:none; cursor:pointer;">批准</button>
@@ -384,34 +390,17 @@
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇匯出月份");
-        
         const snap = await getDocs(collection(db, "formEntries"));
-        const data = snap.docs
-            .map(d => d.data())
-            .filter(r => r.sDate && r.sDate.startsWith(m) && r.status === "批准");
-
+        const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && r.status === "批准");
         if (data.length === 0) return alert("該月份查無「已批准」的請假紀錄");
 
-        const header = [
-            "員工代號", "員工姓名", "假別", "出勤日期", 
-            "開始日期", "開始時間", "結束日期", "結束時間", 
-            "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"
-        ];
-        
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
         const wsData = [header];
-        
         data.forEach(r => {
-            wsData.push([
-                r.id, r.name, r.leaveType, r.sDate, 
-                r.sDate, r.sTime, r.eDate, r.eTime, 
-                r.duration, "0", "0", r.reason || "", r.dept || ""
-            ]);
+            wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration || r.duration, "0", "0", r.reason || "", r.dept || ""]);
         });
-
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        ws['!cols'] = [{wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:10}, {wch:10}, {wch:10}, {wch:10}, {wch:20}, {wch:15}];
-
         XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
         XLSX.writeFile(wb, `鼎顓電子請假表_${m}.xlsx`);
     };
