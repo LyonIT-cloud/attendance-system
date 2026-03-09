@@ -301,25 +301,18 @@
         let totalMins = 0;
         let cur = new Date(start);
 
-        // 以分鐘為單位跑迴圈，解決跨日與中班時間計算問題
         while(cur < end) {
-            const day = cur.getDay(); // 0 是週日, 6 是週六
+            const day = cur.getDay(); 
             const h = cur.getHours();
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
 
-            // 1. 判斷是否為工作日 (排除週六日)
             if(day !== 0 && day !== 6) {
-                // 2. 判斷是否在休息時間 00:00 ~ 00:30 (即 0~30 分鐘)
-                // 若剛好在這段時間內，不累加時數
                 const isRestTime = (timeInMinutes >= 0 && timeInMinutes < 30);
-                
                 if (!isRestTime) {
                     totalMins++;
                 }
             }
-            
-            // 指針前進一分鐘
             cur.setMinutes(cur.getMinutes() + 1);
         }
 
@@ -401,16 +394,40 @@
         loadAdminData();
     };
 
+    // --- 修改後的 Excel 匯出函數 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("選月份");
+        if(!m) return alert("請選擇匯出月份");
+        
         const snap = await getDocs(collection(db, "formEntries"));
-        const data = snap.docs.map(d => d.data()).filter(r => r.sDate.startsWith(m));
-        const wsData = [["部門", "工號", "姓名", "假別", "時數", "狀態"]];
-        data.forEach(r => wsData.push([r.dept, r.id, r.name, r.leaveType, r.duration, r.status]));
-        const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "Records");
-        XLSX.writeFile(wb, `Attendence_${m}.xlsx`);
+        // 篩選該月份的資料
+        const data = snap.docs
+            .map(d => d.data())
+            .filter(r => r.sDate && r.sDate.startsWith(m));
+
+        if (data.length === 0) return alert("該月份查無任何請假紀錄");
+
+        // 定義 Excel 標題列
+        const wsData = [["部門", "工號", "姓名", "假別", "起始時間", "結束時間", "總時數", "狀態"]];
+        
+        // 填入資料內容
+        data.forEach(r => {
+            wsData.push([
+                r.dept || '-', 
+                r.id, 
+                r.name, 
+                r.leaveType, 
+                `${r.sDate} ${r.sTime}`, // 補上日期與時間
+                `${r.eDate} ${r.eTime}`, 
+                r.duration, 
+                r.status
+            ]);
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance_Records");
+        XLSX.writeFile(wb, `鼎顓電子請假統計_${m}.xlsx`);
     };
 
     window.changeLanguage = (l) => {
