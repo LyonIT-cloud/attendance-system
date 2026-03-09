@@ -273,6 +273,7 @@
         } catch(e) { alert("錯誤: " + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
     };
 
+    // --- 核心更正：扣除中午 12:00~13:00 時數 ---
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -282,20 +283,29 @@
 
         let totalMins = 0;
         let cur = new Date(start);
+        
+        // 以「分鐘」為單位進行遍歷計算
         while(cur < end) {
-            const day = cur.getDay(); 
             const h = cur.getHours();
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
-            if(day !== 0 && day !== 6) {
-                const isRestTime = (timeInMinutes >= 0 && timeInMinutes < 30);
-                if (!isRestTime) { totalMins++; }
+
+            // 判斷是否為中午休息時間 (12:00 ~ 13:00)
+            // 12:00 是 720 分鐘，13:00 是 780 分鐘
+            const isNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780);
+
+            // 如果不是休息時間，才列入計算
+            if (!isNoonRest) {
+                totalMins++;
             }
+            
             cur.setMinutes(cur.getMinutes() + 1);
         }
+
         const hour = Math.floor(totalMins / 60), min = totalMins % 60;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${hour} 小時 ${min} 分鐘`;
-        // 返回純數字時數以便其他程式匯入，範例中為 "8.5" 或 "8"
+        document.getElementById('durationText').innerText = `🕒 計算結果：${hour} 小時 ${min} 分鐘 (已扣除中午休息)`;
+        
+        // 返回純數字時數以便導出
         return (totalMins / 60).toFixed(1); 
     };
 
@@ -372,20 +382,17 @@
         loadAdminData();
     };
 
-    // --- 核心更新：根據範本匯出 Excel ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇匯出月份");
         
         const snap = await getDocs(collection(db, "formEntries"));
-        // 僅匯出已批准且月份相符的紀錄
         const data = snap.docs
             .map(d => d.data())
             .filter(r => r.sDate && r.sDate.startsWith(m) && r.status === "批准");
 
         if (data.length === 0) return alert("該月份查無「已批准」的請假紀錄");
 
-        // 定義完全符合範本的標題列 (13個欄位)
         const header = [
             "員工代號", "員工姓名", "假別", "出勤日期", 
             "開始日期", "開始時間", "結束日期", "結束時間", 
@@ -396,26 +403,14 @@
         
         data.forEach(r => {
             wsData.push([
-                r.id,               // 員工代號
-                r.name,             // 員工姓名
-                r.leaveType,        // 假別
-                r.sDate,            // 出勤日期 (通常同開始日期)
-                r.sDate,            // 開始日期
-                r.sTime,            // 開始時間
-                r.eDate,            // 結束日期
-                r.eTime,            // 結束時間
-                r.duration,         // 請假時數
-                "0",                // 扣伙食費 (預設0)
-                "0",                // 扣交通津貼 (預設0)
-                r.reason || "",     // 事由
-                r.dept || ""        // 備註 (放部門資訊)
+                r.id, r.name, r.leaveType, r.sDate, 
+                r.sDate, r.sTime, r.eDate, r.eTime, 
+                r.duration, "0", "0", r.reason || "", r.dept || ""
             ]);
         });
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        
-        // 設定欄位寬度
         ws['!cols'] = [{wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:10}, {wch:10}, {wch:10}, {wch:10}, {wch:20}, {wch:15}];
 
         XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
