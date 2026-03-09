@@ -125,14 +125,14 @@
                         <label data-vi="Thời gian bắt đầu">起始時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="startDate" onchange="autoCalc()">
-                            <input type="time" id="startTime" value="08:30" onchange="autoCalc()">
+                            <input type="time" id="startTime" value="16:00" onchange="autoCalc()">
                         </div>
                     </div>
                     <div>
                         <label data-vi="Thời gian kết thúc">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
-                            <input type="time" id="endTime" value="17:30" onchange="autoCalc()">
+                            <input type="time" id="endTime" value="14:30" onchange="autoCalc()">
                         </div>
                     </div>
                 </div>
@@ -292,19 +292,38 @@
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
+        
         if(!d1 || !t1 || !d2 || !t2) return null;
+        
         let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
         if(isNaN(start) || isNaN(end) || end <= start) return null;
-        let mins = 0, cur = new Date(start);
+
+        let totalMins = 0;
+        let cur = new Date(start);
+
+        // 以分鐘為單位跑迴圈，解決跨日與中班時間計算問題
         while(cur < end) {
-            const day = cur.getDay(), h = cur.getHours(), m = cur.getMinutes();
-            const time = h * 60 + m;
+            const day = cur.getDay(); // 0 是週日, 6 是週六
+            const h = cur.getHours();
+            const m = cur.getMinutes();
+            const timeInMinutes = h * 60 + m;
+
+            // 1. 判斷是否為工作日 (排除週六日)
             if(day !== 0 && day !== 6) {
-                if(time >= 510 && time < 1050 && !(time >= 720 && time < 780)) mins++; 
+                // 2. 判斷是否在休息時間 00:00 ~ 00:30 (即 0~30 分鐘)
+                // 若剛好在這段時間內，不累加時數
+                const isRestTime = (timeInMinutes >= 0 && timeInMinutes < 30);
+                
+                if (!isRestTime) {
+                    totalMins++;
+                }
             }
+            
+            // 指針前進一分鐘
             cur.setMinutes(cur.getMinutes() + 1);
         }
-        const hour = Math.floor(mins/60), min = mins%60;
+
+        const hour = Math.floor(totalMins / 60), min = totalMins % 60;
         document.getElementById('durationText').innerText = `🕒 計算結果：${hour} 小時 ${min} 分鐘`;
         return `${hour}時${min}分`;
     };
