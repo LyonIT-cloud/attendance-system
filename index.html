@@ -21,8 +21,8 @@
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
-            .sidebar h1 { font-size: 18px; margin-bottom: 15px; }
-            .nav-item { padding: 10px 15px !important; font-size: 14px; margin-bottom: 5px !important; }
+            .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
+            .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
             .lang-switcher { top: 10px; right: 10px; }
@@ -45,14 +45,13 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
         
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
         
-        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
         .btn-excel { background: #16a34a; color: white; }
         
-        /* 表格滾動處理 */
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
@@ -109,7 +108,7 @@
                         <label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
                             <option value="">--選擇部門--</option>
-                            <option>管理部</option><option>製造部</option><option>SMT</option>
+                            <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
                             <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                         </select>
                     </div>
@@ -161,7 +160,7 @@
                 <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 160px;">
                 <select id="filterDept" onchange="applyFilters()" style="width: 140px;">
                     <option value="">全部部門</option>
-                    <option>管理部</option><option>製造部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
                 <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="background:#64748b; color:white; width:auto; display:none;">顯示全部</button>
                 <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
@@ -217,7 +216,6 @@
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // 自動帶入姓名
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
@@ -234,18 +232,15 @@
         } catch (e) { console.error(e); }
     };
 
-    // 換頁功能
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
         document.getElementById('nav-'+id).classList.add('active');
         if(id === 'admin') loadAdminData();
         if(id === 'search') loadAllData();
-        // 手機版點選後滾動回頂部
         if(window.innerWidth <= 768) window.scrollTo(0, 0);
     };
 
-    // 送出申請（含圖片壓縮）
     window.saveToCloud = async () => {
         const btn = document.getElementById('submitBtn'), dur = autoCalc();
         if(!dur) return alert("請正確選擇起始與結束時間");
@@ -289,13 +284,11 @@
                 status: "審核中", photo, createdAt: new Date()
             });
 
-            // 通知 GAS (如有設定)
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur }) });
             alert("申請已成功送出！"); location.reload();
         } catch(e) { alert("錯誤: " + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
     };
 
-    // 計算時數
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -306,8 +299,8 @@
         while(cur < end) {
             const day = cur.getDay(), h = cur.getHours(), m = cur.getMinutes();
             const time = h * 60 + m;
-            if(day !== 0 && day !== 6) { // 排除周末
-                if(time >= 510 && time < 1050 && !(time >= 720 && time < 780)) mins++; // 8:30-17:30 扣午休
+            if(day !== 0 && day !== 6) {
+                if(time >= 510 && time < 1050 && !(time >= 720 && time < 780)) mins++; 
             }
             cur.setMinutes(cur.getMinutes() + 1);
         }
@@ -316,7 +309,6 @@
         return `${hour}時${min}分`;
     };
 
-    // 查詢全部數據
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
@@ -368,7 +360,6 @@
     };
     window.resetFilter = () => { sessionStorage.removeItem('targetFilterId'); applyFilters(); };
 
-    // 主管審核載入
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
