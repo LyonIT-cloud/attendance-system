@@ -53,6 +53,7 @@
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -128,7 +129,7 @@
         </div>
 
         <div id="page-personal" class="page-content">
-            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
+            <h2 data-vi="🔍 Tra cứu cá個人紀錄查詢">🔍 個人紀錄查詢</h2>
             <div class="card">
                 <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
@@ -152,7 +153,7 @@
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>請假區間</th><th>時數</th><th>狀態</th></tr>
+                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>請假區間</th><th>時數</th><th>狀態</th><th>動作</th></tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
@@ -181,7 +182,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -289,13 +290,9 @@
             const h = cur.getHours();
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
-
             const isDayNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780);
             const isNightRest = (timeInMinutes >= 0 && timeInMinutes < 30);
-
-            if (!isDayNoonRest && !isNightRest) {
-                totalMins++;
-            }
+            if (!isDayNoonRest && !isNightRest) { totalMins++; }
             cur.setMinutes(cur.getMinutes() + 1);
         }
 
@@ -303,21 +300,17 @@
         const m_res = totalMins % 60;
         const displayStr = `${h_res} 時 ${m_res} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
-        
-        return {
-            durationHours: (totalMins / 60).toFixed(1),
-            displayStr: displayStr
-        };
+        return { durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = "<tr><td colspan='7' style='text-align:center'>讀取中...</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>讀取中...</td></tr>";
         try {
             const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-            allRecords = snap.docs.map(d => d.data());
+            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             applyFilters();
-        } catch (e) { tbody.innerHTML = "<tr><td colspan='7'>讀取失敗</td></tr>"; }
+        } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>讀取失敗</td></tr>"; }
     };
 
     window.applyFilters = () => {
@@ -340,19 +333,61 @@
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         const start = (currentPage - 1) * rowsPerPage;
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
+        
         tbody.innerHTML = pageData.map(r => {
             const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
             const timeShow = r.displayDuration || (r.duration + " 小時");
+            
+            // 方案 B：如果是審核中，提供「修改日期」按鈕
+            let actionBtn = "";
+            if (r.status === "審核中") {
+                actionBtn = `<button class="btn-edit" onclick="editRecord('${r.docId}')" data-vi="Sửa">修改</button>`;
+            }
+
             return `<tr>
                 <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime} ~ ${r.eDate} ${r.eTime}</td>
                 <td>${timeShow}</td>
                 <td><span class="status-badge ${cls}">${r.status}</span></td>
+                <td>${actionBtn}</td>
             </tr>`;
-        }).join('') || "<tr><td colspan='7' style='text-align:center'>無紀錄</td></tr>";
+        }).join('') || "<tr><td colspan='8' style='text-align:center'>無紀錄</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
+
+    // 方案 B 核心函式：修改功能
+    window.editRecord = async (docId) => {
+        if (!confirm("修改功能將會撤回本次申請並讓您重新填寫日期，確定嗎？")) return;
+        
+        try {
+            // 1. 取得該筆舊資料
+            const target = allRecords.find(r => r.docId === docId);
+            if (!target) return alert("找不到紀錄");
+
+            // 2. 將資料填回表單
+            document.getElementById('empId').value = target.id;
+            document.getElementById('empName').value = target.name;
+            document.getElementById('dept').value = target.dept;
+            document.getElementById('leaveType').value = target.leaveType;
+            document.getElementById('startDate').value = target.sDate;
+            document.getElementById('startTime').value = target.sTime;
+            document.getElementById('endDate').value = target.eDate;
+            document.getElementById('endTime').value = target.eTime;
+            document.getElementById('reason').value = target.reason || "";
+            
+            // 3. 刪除 Firebase 上的舊紀錄
+            await deleteDoc(doc(db, "formEntries", docId));
+            
+            // 4. 切換回申請頁面並重新計算時數
+            switchPage('dashboard');
+            autoCalc();
+            
+            alert("已為您載入舊資料，修改日期後請重新點擊送出。");
+        } catch (e) {
+            alert("錯誤: " + e.message);
+        }
+    };
 
     window.changePage = (dir) => { currentPage += dir; renderTable(); };
     window.searchPersonalRecords = () => {
@@ -394,32 +429,12 @@
 
         const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
         const wsData = [header];
-        
         data.forEach(r => {
-            // 新增邏輯：處理工號大小寫轉換
             let finalId = r.id || "";
             const firstChar = finalId.charAt(0).toUpperCase();
-            if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') {
-                finalId = finalId.toLowerCase(); // 轉為小寫
-            }
-
-            wsData.push([
-                finalId, 
-                r.name, 
-                r.leaveType, 
-                r.sDate, 
-                r.sDate, 
-                r.sTime, 
-                r.eDate, 
-                r.eTime, 
-                r.displayDuration || r.duration, 
-                "0", 
-                "0", 
-                r.reason || "", 
-                r.dept || ""
-            ]);
+            if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') { finalId = finalId.toLowerCase(); }
+            wsData.push([finalId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration || r.duration, "0", "0", r.reason || "", r.dept || ""]);
         });
-        
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
