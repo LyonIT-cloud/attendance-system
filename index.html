@@ -6,19 +6,14 @@
     <title>鼎顓電子 - 員工出勤管理系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        /* [維護備註] CSS 變數：修改這裡可以一鍵更改全站色調 */
         :root {
             --sidebar-bg: #1e293b; --main-bg: #f1f5f9; --primary: #3b82f6;
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #1e293b;
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; flex-direction: row; min-height: 100vh; }
-        
-        /* 側邊欄樣式 */
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 100; transition: all 0.3s; }
         .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
-
-        /* [維護備註] 響應式佈局：手機版會將側邊欄壓平至頂部 */
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
@@ -28,8 +23,6 @@
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
             .export-section { flex-direction: column; align-items: stretch !important; }
         }
-
-        /* 導覽按鈕與卡片樣式 */
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
@@ -41,29 +34,22 @@
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         .card { background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow); margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.05); }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
-        
-        /* 表單元素樣式 */
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
         .btn-excel { background: #16a34a; color: white; }
-        
-        /* 表格樣式 */
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-        
-        /* [維護備註] 狀態標籤顏色：依照文字匹配對應顏色 */
         .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
         .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
         .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
-        
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
@@ -206,7 +192,6 @@
     </div>
 
 <script type="module">
-    // [維護備註] Firebase SDK 引入
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -227,7 +212,6 @@
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // 自動帶入工號姓名
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
@@ -244,7 +228,6 @@
         } catch (e) { console.error(e); }
     };
 
-    // 頁面切換邏輯
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
@@ -254,7 +237,6 @@
         if(window.innerWidth <= 768) window.scrollTo(0, 0);
     };
 
-    // 儲存至雲端 (含圖片壓縮邏輯)
     window.saveToCloud = async () => {
         const { durationHours, displayStr } = autoCalc() || {};
         if(!durationHours) return alert("請正確選擇起始與結束時間");
@@ -275,13 +257,13 @@
                         img.src = e.target.result;
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const max_size = 800; // [維護備註] 壓縮圖片最大寬度
+                            const max_size = 800;
                             let w = img.width, h = img.height;
                             if (w > h && w > max_size) { h *= max_size / w; w = max_size; }
                             else if (h > max_size) { w *= max_size / h; h = max_size; }
                             canvas.width = w; canvas.height = h;
                             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                            resolve(canvas.toDataURL('image/jpeg', 0.7)); // 0.7 為品質縮減
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
                         };
                     };
                 });
@@ -300,13 +282,11 @@
                 status: "審核中", photo, createdAt: new Date()
             });
 
-            // 拋轉至 GAS (LINE通知)
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: displayStr }) });
             alert("申請已成功送出！"); location.reload();
         } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
-    // [維護備註] 時數計算：扣除午休 12:00-13:00 與 00:00-00:30
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -333,7 +313,6 @@
         return { durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
-    // 載入所有資料
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>讀取中...</td></tr>";
@@ -344,18 +323,18 @@
         } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>讀取失敗</td></tr>"; }
     };
 
-    // [維護備註] 多重條件篩選邏輯
+    // 篩選核心邏輯
     window.applyFilters = () => {
         const filterId = sessionStorage.getItem('targetFilterId');
         const filterMonth = document.getElementById('filterMonth').value;
         const filterDept = document.getElementById('filterDept').value;
-        const filterStatus = document.getElementById('filterStatus').value;
+        const filterStatus = document.getElementById('filterStatus').value; // 新增狀態篩選值
 
         filteredRecords = allRecords.filter(r => {
             const matchId = filterId ? r.id === filterId : true;
             const matchMonth = filterMonth ? r.sDate && r.sDate.startsWith(filterMonth) : true;
             const matchDept = filterDept ? r.dept === filterDept : true;
-            const matchStatus = filterStatus ? r.status === filterStatus : true;
+            const matchStatus = filterStatus ? r.status === filterStatus : true; // 新增狀態判斷
             return matchId && matchMonth && matchDept && matchStatus;
         });
 
@@ -365,7 +344,6 @@
         renderTable();
     };
 
-    // 渲染表格內容
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
@@ -400,9 +378,8 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
-    // 銷假申請邏輯
     window.requestCancel = async (docId) => {
-        if (!confirm("確定要申請銷假更正嗎？")) return;
+        if (!confirm("此假單已核准。若需更換日期，系統將提交『銷假申請』給主管審核，通過後您即可重新填寫。確定要申請銷假更正嗎？")) return;
         try {
             await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
             alert("已提交銷假更正申請，請等待主管審核。");
@@ -410,10 +387,102 @@
         } catch (e) { alert("錯誤: " + e.message); }
     };
 
-    // 修改申請 (先刪除後載入)
     window.editRecord = async (docId) => {
-        if (!confirm("修改功能將會撤回本次申請並讓您重新填寫，確定嗎？")) return;
+        if (!confirm("修改功能將會撤回本次申請並讓您重新填寫日期，確定嗎？")) return;
         try {
             const target = allRecords.find(r => r.docId === docId);
             if (!target) return alert("找不到紀錄");
-            document.getElementById('empId
+            document.getElementById('empId').value = target.id;
+            document.getElementById('empName').value = target.name;
+            document.getElementById('dept').value = target.dept;
+            document.getElementById('leaveType').value = target.leaveType;
+            document.getElementById('startDate').value = target.sDate;
+            document.getElementById('startTime').value = target.sTime;
+            document.getElementById('endDate').value = target.eDate;
+            document.getElementById('endTime').value = target.eTime;
+            document.getElementById('reason').value = target.reason || "";
+            await deleteDoc(doc(db, "formEntries", docId));
+            switchPage('dashboard');
+            autoCalc();
+            alert("已載入舊資料，修改後請重新送出。");
+        } catch (e) { alert("錯誤: " + e.message); }
+    };
+
+    window.loadAdminData = async () => {
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        const pendingData = snap.docs.filter(d => d.data().status === "審核中" || d.data().status === "銷假審核中");
+
+        document.getElementById('adminTableBody').innerHTML = pendingData.map(d => {
+            const r = d.data();
+            const isCancelRequest = r.status === "銷假審核中";
+            const timeShow = r.displayDuration || (r.duration + " 小時");
+            
+            return `<tr>
+                <td>${r.dept}</td>
+                <td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span><br>
+                    ${isCancelRequest ? '<span style="color:red; font-weight:bold;">[銷假申請]</span>' : ''}
+                </td>
+                <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
+                <td>${timeShow}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+                <td>
+                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancelRequest ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancelRequest ? '同意銷假' : '批准'}</button>
+                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','${isCancelRequest ? '批准' : '退件'}')" style="border:none; cursor:pointer; margin-left:5px;">${isCancelRequest ? '駁回銷假' : '退件'}</button>
+                </td>
+            </tr>`;
+        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
+    };
+
+    window.updateStatus = async (id, status) => {
+        await updateDoc(doc(db, "formEntries", id), { status });
+        loadAdminData();
+    };
+
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if(!m) return alert("請選擇匯出月份");
+        const snap = await getDocs(collection(db, "formEntries"));
+        const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && r.status === "批准");
+        if (data.length === 0) return alert("該月份查無「已批准」的請假紀錄");
+
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
+        const wsData = [header];
+        data.forEach(r => {
+            let finalId = r.id || "";
+            const firstChar = finalId.charAt(0).toUpperCase();
+            if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') { finalId = finalId.toLowerCase(); }
+            wsData.push([finalId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration || r.duration, "0", "0", r.reason || "", r.dept || ""]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
+        XLSX.writeFile(wb, `鼎顓電子請假表_${m}.xlsx`);
+    };
+
+    window.changeLanguage = (l) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if(!el.dataset.zh) el.dataset.zh = el.innerText;
+            el.innerText = (l === 'vi') ? el.dataset.vi : el.dataset.zh;
+        });
+    };
+
+    window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
+    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+    window.changePage = (dir) => { currentPage += dir; renderTable(); };
+    window.searchPersonalRecords = () => {
+        const qId = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!qId) return alert("請輸入工號");
+        sessionStorage.setItem('targetFilterId', qId); 
+        switchPage('search');
+    };
+    window.resetFilter = () => { 
+        sessionStorage.removeItem('targetFilterId'); 
+        document.getElementById('queryEmpId').value = "";
+        applyFilters(); 
+    };
+    
+    window.addEventListener('DOMContentLoaded', () => { switchPage('dashboard'); });
+</script>
+</body>
+</html>
