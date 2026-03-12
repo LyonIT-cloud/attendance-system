@@ -48,12 +48,15 @@
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
+        .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
+        .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
+        .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -114,7 +117,7 @@
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Thời gian kết thúc">結束時間</label>
+                        <label data-vi="Thời gian kết結束時間">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
                             <input type="time" id="endTime" value="17:30" onchange="autoCalc()">
@@ -285,7 +288,6 @@
 
         let totalMins = 0;
         let cur = new Date(start);
-        
         while(cur < end) {
             const h = cur.getHours();
             const m = cur.getMinutes();
@@ -335,13 +337,20 @@
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
         
         tbody.innerHTML = pageData.map(r => {
-            const cls = r.status === "批准" ? "status-confirmed" : (r.status === "退件" ? "status-rejected" : "status-pending");
+            let cls = "status-pending";
+            if(r.status === "批准") cls = "status-confirmed";
+            if(r.status === "退件") cls = "status-rejected";
+            if(r.status === "銷假") cls = "status-cancel";
+            if(r.status === "銷假審核中") cls = "status-request-cancel";
+
             const timeShow = r.displayDuration || (r.duration + " 小時");
             
-            // 方案 B：如果是審核中，提供「修改日期」按鈕
             let actionBtn = "";
             if (r.status === "審核中") {
-                actionBtn = `<button class="btn-edit" onclick="editRecord('${r.docId}')" data-vi="Sửa">修改</button>`;
+                actionBtn = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
+            } else if (r.status === "批准") {
+                // 針對已批准案件：申請更正/銷假
+                actionBtn = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
             }
 
             return `<tr>
@@ -356,16 +365,21 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
-    // 方案 B 核心函式：修改功能
+    // 已批准案件的變更邏輯：申請銷假
+    window.requestCancel = async (docId) => {
+        if (!confirm("此假單已核准。若需更換日期，系統將提交『銷假申請』給主管審核，通過後您即可重新填寫。確定要申請銷假更正嗎？")) return;
+        try {
+            await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
+            alert("已提交銷假更正申請，請等待主管審核。");
+            loadAllData();
+        } catch (e) { alert("錯誤: " + e.message); }
+    };
+
     window.editRecord = async (docId) => {
         if (!confirm("修改功能將會撤回本次申請並讓您重新填寫日期，確定嗎？")) return;
-        
         try {
-            // 1. 取得該筆舊資料
             const target = allRecords.find(r => r.docId === docId);
             if (!target) return alert("找不到紀錄");
-
-            // 2. 將資料填回表單
             document.getElementById('empId').value = target.id;
             document.getElementById('empName').value = target.name;
             document.getElementById('dept').value = target.dept;
@@ -375,44 +389,37 @@
             document.getElementById('endDate').value = target.eDate;
             document.getElementById('endTime').value = target.eTime;
             document.getElementById('reason').value = target.reason || "";
-            
-            // 3. 刪除 Firebase 上的舊紀錄
             await deleteDoc(doc(db, "formEntries", docId));
-            
-            // 4. 切換回申請頁面並重新計算時數
             switchPage('dashboard');
             autoCalc();
-            
-            alert("已為您載入舊資料，修改日期後請重新點擊送出。");
-        } catch (e) {
-            alert("錯誤: " + e.message);
-        }
+            alert("已載入舊資料，修改後請重新送出。");
+        } catch (e) { alert("錯誤: " + e.message); }
     };
-
-    window.changePage = (dir) => { currentPage += dir; renderTable(); };
-    window.searchPersonalRecords = () => {
-        const qId = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!qId) return alert("請輸入工號");
-        sessionStorage.setItem('targetFilterId', qId); switchPage('search');
-    };
-    window.resetFilter = () => { sessionStorage.removeItem('targetFilterId'); applyFilters(); };
 
     window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
-        document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
+        // 主管可以審核「審核中」與「銷假審核中」的單子
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        const pendingData = snap.docs.filter(d => d.data().status === "審核中" || d.data().status === "銷假審核中");
+
+        document.getElementById('adminTableBody').innerHTML = pendingData.map(d => {
             const r = d.data();
+            const isCancelRequest = r.status === "銷假審核中";
             const timeShow = r.displayDuration || (r.duration + " 小時");
+            
             return `<tr>
-                <td>${r.dept}</td><td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span></td>
+                <td>${r.dept}</td>
+                <td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span><br>
+                    ${isCancelRequest ? '<span style="color:red; font-weight:bold;">[銷假申請]</span>' : ''}
+                </td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
                 <td>${timeShow}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
                 <td>
-                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','批准')" style="border:none; cursor:pointer;">批准</button>
-                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
+                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancelRequest ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancelRequest ? '同意銷假' : '批准'}</button>
+                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','${isCancelRequest ? '批准' : '退件'}')" style="border:none; cursor:pointer; margin-left:5px;">${isCancelRequest ? '駁回銷假' : '退件'}</button>
                 </td>
             </tr>`;
-        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待審核案件</td></tr>";
+        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
     };
 
     window.updateStatus = async (id, status) => {
