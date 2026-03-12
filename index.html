@@ -290,9 +290,7 @@
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
 
-            // 1. 日班休息 (12:00 ~ 13:00)
             const isDayNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780);
-            // 2. 中班休息 (00:00 ~ 00:30)
             const isNightRest = (timeInMinutes >= 0 && timeInMinutes < 30);
 
             if (!isDayNoonRest && !isNightRest) {
@@ -396,9 +394,32 @@
 
         const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
         const wsData = [header];
+        
         data.forEach(r => {
-            wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration || r.duration, "0", "0", r.reason || "", r.dept || ""]);
+            // 新增邏輯：處理工號大小寫轉換
+            let finalId = r.id || "";
+            const firstChar = finalId.charAt(0).toUpperCase();
+            if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') {
+                finalId = finalId.toLowerCase(); // 轉為小寫
+            }
+
+            wsData.push([
+                finalId, 
+                r.name, 
+                r.leaveType, 
+                r.sDate, 
+                r.sDate, 
+                r.sTime, 
+                r.eDate, 
+                r.eTime, 
+                r.displayDuration || r.duration, 
+                "0", 
+                "0", 
+                r.reason || "", 
+                r.dept || ""
+            ]);
         });
+        
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         XLSX.utils.book_append_sheet(wb, ws, "Leave_Export");
