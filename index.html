@@ -126,7 +126,7 @@
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Thời gian結束">結束時間</label>
+                        <label data-vi="Thời gian 結束">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
                             <input type="time" id="endTime" onchange="autoCalc()">
@@ -446,12 +446,12 @@
         const wsData = [header];
 
         data.forEach(r => {
-            // 轉換時數顯示方式從 "8 時 0 分" 到 "0008:00"
-            let excelDuration = "0000:00";
+            // 轉換時數顯示方式為 "008:00" (三位數補零)
+            let excelDuration = "000:00";
             if (r.displayDuration) {
                 const match = r.displayDuration.match(/(\d+)\s*時\s*(\d+)\s*分/);
                 if (match) {
-                    const h = match[1].padStart(4, '0');
+                    const h = match[1].padStart(3, '0');
                     const min = match[2].padStart(2, '0');
                     excelDuration = `${h}:${min}`;
                 }
