@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -239,15 +238,29 @@
     };
 
     window.saveToCloud = async () => {
-        const { durationHours, displayStr } = autoCalc() || {};
-        if(!durationHours) return alert("請正確選擇起始與結束時間");
+        const calcData = autoCalc();
+        if(!calcData) return alert("請正確選擇起始與結束時間");
+        
+        const { totalMins, durationHours, displayStr } = calcData;
+        const leaveType = document.getElementById('leaveType').value;
+        const file = document.getElementById('leaveImg').files[0];
+        
+        // 新增規則 1: 病假必須附證明
+        if (leaveType === "病假" && !file) {
+            return alert("請注意：申請病假必須上傳證明文件照片！");
+        }
+
+        // 新增規則 2: 特休至少一小時
+        if (leaveType === "特休" && totalMins < 60) {
+            return alert("特休申請最少需為 1 小時！");
+        }
+
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
         if(!id || !name) return alert("工號不正確或姓名未帶入");
 
         try {
             document.getElementById('submitBtn').disabled = true;
-            const file = document.getElementById('leaveImg').files[0];
             let photo = "";
             if(file) {
                 photo = await new Promise((resolve) => {
@@ -272,7 +285,7 @@
 
             await addDoc(collection(db, "formEntries"), {
                 id, name, dept: document.getElementById('dept').value,
-                leaveType: document.getElementById('leaveType').value,
+                leaveType: leaveType,
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
@@ -301,9 +314,12 @@
             const h = cur.getHours();
             const m = cur.getMinutes();
             const timeInMinutes = h * 60 + m;
-            const isDayNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780);
-            const isNightRest = (timeInMinutes >= 0 && timeInMinutes < 30);
-            if (!isDayNoonRest && !isNightRest) { totalMins++; }
+            
+            // 休息時間定義
+            const isDayNoonRest = (timeInMinutes >= 720 && timeInMinutes < 780); // 12:00 ~ 13:00
+            const isMidShiftRest = (timeInMinutes >= 0 && timeInMinutes < 30);   // 00:00 ~ 00:30 (中班/夜班)
+            
+            if (!isDayNoonRest && !isMidShiftRest) { totalMins++; }
             cur.setMinutes(cur.getMinutes() + 1);
         }
 
@@ -311,7 +327,7 @@
         const m_res = totalMins % 60;
         const displayStr = `${h_res} 時 ${m_res} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
-        return { durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
+        return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
     window.loadAllData = async () => {
@@ -324,18 +340,17 @@
         } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>讀取失敗</td></tr>"; }
     };
 
-    // 篩選核心邏輯
     window.applyFilters = () => {
         const filterId = sessionStorage.getItem('targetFilterId');
         const filterMonth = document.getElementById('filterMonth').value;
         const filterDept = document.getElementById('filterDept').value;
-        const filterStatus = document.getElementById('filterStatus').value; // 新增狀態篩選值
+        const filterStatus = document.getElementById('filterStatus').value;
 
         filteredRecords = allRecords.filter(r => {
             const matchId = filterId ? r.id === filterId : true;
             const matchMonth = filterMonth ? r.sDate && r.sDate.startsWith(filterMonth) : true;
             const matchDept = filterDept ? r.dept === filterDept : true;
-            const matchStatus = filterStatus ? r.status === filterStatus : true; // 新增狀態判斷
+            const matchStatus = filterStatus ? r.status === filterStatus : true;
             return matchId && matchMonth && matchDept && matchStatus;
         });
 
@@ -367,8 +382,11 @@
                 actionBtn = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
             }
 
+            // 月度清單新增照片查看按鈕
+            const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer; vertical-align:middle; margin-left:5px;" onclick="openLightbox('${r.photo}')">` : '';
+
             return `<tr>
-                <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}</td>
+                <td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}${photoBtn}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime} ~ ${r.eDate} ${r.eTime}</td>
                 <td>${timeShow}</td>
@@ -400,7 +418,7 @@
             document.getElementById('startDate').value = target.sDate;
             document.getElementById('startTime').value = target.sTime;
             document.getElementById('endDate').value = target.eDate;
-            document.getElementById('endTime').value = target.eTime;
+            document.getElementById('endTime').value = target.endTime;
             document.getElementById('reason').value = target.reason || "";
             await deleteDoc(doc(db, "formEntries", docId));
             switchPage('dashboard');
