@@ -190,7 +190,7 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
+            <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
                     <thead><tr><th>部門</th><th>姓名/假別</th><th>請假區間</th><th>時數</th><th>證明</th><th>動作</th></tr></thead>
@@ -221,6 +221,7 @@
     let currentPage = 1;
     const rowsPerPage = 10;
     let currentShift = 'day'; 
+    window.currentAdminDept = "ALL"; // 預設全部權限
 
     window.setShift = (shift) => {
         currentShift = shift;
@@ -394,10 +395,10 @@
         const filterStatus = document.getElementById('filterStatus').value;
 
         filteredRecords = allRecords.filter(r => {
-            const matchId = filterId ? r.id === filterId : true;
-            const matchMonth = filterMonth ? r.sDate && r.sDate.startsWith(filterMonth) : true;
-            const matchDept = filterDept ? r.dept === filterDept : true;
-            const matchStatus = filterStatus ? r.status === filterStatus : true;
+            const matchId = filterId ? (r.id && r.id === filterId) : true;
+            const matchMonth = filterMonth ? (r.sDate && r.sDate.startsWith(filterMonth)) : true;
+            const matchDept = filterDept ? (r.dept && r.dept === filterDept) : true;
+            const matchStatus = filterStatus ? (r.status && r.status === filterStatus) : true;
             return matchId && matchMonth && matchDept && matchStatus;
         });
 
@@ -419,8 +420,27 @@
             if(r.status === "退件") cls = "status-rejected";
             if(r.status === "銷假") cls = "status-cancel";
             if(r.status === "銷假審核中") cls = "status-request-cancel";
+            
+            // undefined 保護
             const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer; vertical-align:middle; margin-left:5px;" onclick="openLightbox('${r.photo}')">` : '';
-            return `<tr><td>${r.dept || '-'}</td><td>${r.id}</td><td>${r.name}${photoBtn}</td><td><span class="badge-type">${r.leaveType}</span></td><td style="font-size:12px;">${r.sDate} ${r.sTime}~${r.eDate} ${r.eTime}</td><td>${r.displayDuration}</td><td><span class="status-badge ${cls}">${r.status}</span></td><td>${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>` : ''}${r.status === "批准" ? `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>` : ''}</td></tr>`;
+            const safeDept = r.dept || "--";
+            const safeName = r.name || "未知";
+            const safeDuration = r.displayDuration || (r.duration ? r.duration + " 時" : "--");
+            const safeRange = (r.sDate && r.eDate) ? `${r.sDate} ${r.sTime || ''}~${r.eDate} ${r.eTime || ''}` : "格式不全";
+
+            return `<tr>
+                <td>${safeDept}</td>
+                <td>${r.id || '--'}</td>
+                <td>${safeName}${photoBtn}</td>
+                <td><span class="badge-type">${r.leaveType || '--'}</span></td>
+                <td style="font-size:12px;">${safeRange}</td>
+                <td>${safeDuration}</td>
+                <td><span class="status-badge ${cls}">${r.status || '審核中'}</span></td>
+                <td>
+                    ${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>` : ''}
+                    ${r.status === "批准" ? `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>` : ''}
+                </td>
+            </tr>`;
         }).join('') || "<tr><td colspan='8' style='text-align:center'>無符合條件紀錄</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
@@ -446,7 +466,6 @@
         const wsData = [header];
 
         data.forEach(r => {
-            // 轉換時數顯示方式為 "008:00" (三位數補零)
             let excelDuration = "000:00";
             if (r.displayDuration) {
                 const match = r.displayDuration.match(/(\d+)\s*時\s*(\d+)\s*分/);
@@ -454,9 +473,13 @@
                     const h = match[1].padStart(3, '0');
                     const min = match[2].padStart(2, '0');
                     excelDuration = `${h}:${min}`;
+                } else if (!isNaN(r.duration)) {
+                    // 若只有 duration 數字
+                    const h = Math.floor(r.duration).toString().padStart(3, '0');
+                    excelDuration = `${h}:00`;
                 }
             }
-            wsData.push([r.id, r.name, r.shift, r.leaveType, `${r.sDate} ${r.sTime}`, `${r.eDate} ${r.eTime}`, excelDuration, r.reason || "", r.approvedAt || ""]);
+            wsData.push([r.id || '', r.name || '', r.shift || '', r.leaveType || '', `${r.sDate || ''} ${r.sTime || ''}`, `${r.eDate || ''} ${r.eTime || ''}`, excelDuration, r.reason || "", r.approvedAt || ""]);
         });
 
         const wb = XLSX.utils.book_new();
@@ -467,29 +490,86 @@
 
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-        const pendingData = snap.docs.filter(d => d.data().status === "審核中" || d.data().status === "銷假審核中");
-        document.getElementById('adminTableBody').innerHTML = pendingData.map(d => {
-            const r = d.data(); const isCancel = r.status === "銷假審核中";
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br><span class="badge-type">${r.leaveType}</span></td><td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td><td>${r.displayDuration}</td><td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td><td><button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancel ? '同意銷假' : '批准'}</button><button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button></td></tr>`;
+        
+        const pendingData = snap.docs.filter(d => {
+            const r = d.data();
+            const isPending = (r.status === "審核中" || r.status === "銷假審核中");
+            // 部門過濾邏輯
+            if (window.currentAdminDept === "ALL") return isPending;
+            return isPending && r.dept === window.currentAdminDept;
+        });
+
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = pendingData.map(d => {
+            const r = d.data(); 
+            const isCancel = r.status === "銷假審核中";
+            
+            const safeDept = r.dept || "--";
+            const safeName = r.name || "未知";
+            const safeDuration = r.displayDuration || (r.duration ? r.duration + " 時" : "--");
+            const safeRange = (r.sDate && r.eDate) ? `${r.sDate} ${r.sTime || ''}<br>~ ${r.eDate} ${r.eTime || ''}` : "格式不全";
+
+            return `<tr>
+                <td>${safeDept}</td>
+                <td><b>${safeName}</b><br><span class="badge-type">${r.leaveType || ''}</span></td>
+                <td style="font-size:12px;">${safeRange}</td>
+                <td>${safeDuration}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+                <td>
+                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancel ? '同意銷假' : '批准'}</button>
+                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
+                </td>
+            </tr>`;
         }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
+    };
+
+    window.checkAdminAccess = () => {
+        const pwd = prompt("請輸入主管審核密碼:");
+        const authMap = {
+            "hr888": "ALL",      // 總管理員密碼
+            "mgt888": "管理部",
+            "mfg888": "製造部",
+            "eng888": "工程部",
+            "smt888": "SMT",
+            "qa888": "品保部",
+            "log888": "資材部",
+            "sales888": "業務部",
+            "dip888": "DIP"
+        };
+
+        if (authMap[pwd]) {
+            window.currentAdminDept = authMap[pwd];
+            switchPage('admin');
+            const deptText = authMap[pwd] === "ALL" ? "所有部門" : authMap[pwd];
+            document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${deptText})`;
+        } else {
+            alert("密碼錯誤，請重新輸入。");
+        }
     };
 
     window.requestCancel = async (docId) => {
         if (!confirm("此假單已核准。若需更換日期，系統將提交『銷假申請』給主管。確定嗎？")) return;
         try { await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" }); alert("已提交。"); loadAllData(); } catch (e) { alert(e.message); }
     };
+
     window.editRecord = async (docId) => {
         if (!confirm("修改將會撤回申請，確定嗎？")) return;
         const target = allRecords.find(r => r.docId === docId);
-        document.getElementById('empId').value = target.id; document.getElementById('empName').value = target.name;
-        document.getElementById('dept').value = target.dept; document.getElementById('leaveType').value = target.leaveType;
-        document.getElementById('startDate').value = target.sDate; document.getElementById('startTime').value = target.sTime;
-        document.getElementById('endDate').value = target.eDate; document.getElementById('endTime').value = target.eTime;
+        document.getElementById('empId').value = target.id || ''; 
+        document.getElementById('empName').value = target.name || '';
+        document.getElementById('dept').value = target.dept || ''; 
+        document.getElementById('leaveType').value = target.leaveType || '';
+        document.getElementById('startDate').value = target.sDate || ''; 
+        document.getElementById('startTime').value = target.sTime || '';
+        document.getElementById('endDate').value = target.eDate || ''; 
+        document.getElementById('endTime').value = target.eTime || '';
         document.getElementById('reason').value = target.reason || "";
-        await deleteDoc(doc(db, "formEntries", docId)); switchPage('dashboard'); autoCalc();
+        await deleteDoc(doc(db, "formEntries", docId)); 
+        switchPage('dashboard'); 
+        autoCalc();
     };
+
     window.changeLanguage = (l) => { document.querySelectorAll('[data-vi]').forEach(el => { if(!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = (l === 'vi') ? el.dataset.vi : el.dataset.zh; }); };
-    window.checkAdminAccess = () => { if(prompt("Password:") === "admin") switchPage('admin'); };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
     window.changePage = (dir) => { currentPage += dir; renderTable(); };
