@@ -220,9 +220,8 @@
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
-    let currentShift = 'day'; // 預設早班
+    let currentShift = 'day'; 
 
-    // 切換班別功能
     window.setShift = (shift) => {
         currentShift = shift;
         const sTimeInput = document.getElementById('startTime');
@@ -327,38 +326,67 @@
         } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
+    // 精準計算邏輯：解決 31 小時與中班計算天數錯誤問題
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
         if(!d1 || !t1 || !d2 || !t2) return null;
         
-        let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
-        if(isNaN(start) || isNaN(end) || end <= start) return null;
+        const startDT = new Date(`${d1} ${t1}`);
+        const endDT = new Date(`${d2} ${t2}`);
+        if(isNaN(startDT) || isNaN(endDT) || endDT <= startDT) return null;
 
         let totalMins = 0;
-        let cur = new Date(start);
-        
-        while(cur < end) {
-            const h = cur.getHours();
-            const m = cur.getMinutes();
-            const timeInMinutes = h * 60 + m;
-            
-            // 根據選定的班別扣除休息時間
-            let isRest = false;
-            if (currentShift === 'day') {
-                // 早班休息 12:00 ~ 13:00 (720~780分鐘)
-                if (timeInMinutes >= 720 && timeInMinutes < 780) isRest = true;
-            } else {
-                // 中班休息 00:00 ~ 00:30 (0~30分鐘)
-                if (timeInMinutes >= 0 && timeInMinutes < 30) isRest = true;
+        let s_limit, e_limit, r_start, r_end;
+
+        // 定義班別時間（分鐘數）
+        if (currentShift === 'day') {
+            s_limit = 8 * 60 + 30;  // 08:30
+            e_limit = 17 * 60 + 30; // 17:30
+            r_start = 12 * 60;      // 12:00
+            r_end = 13 * 60;        // 13:00
+        } else {
+            s_limit = 18 * 60;      // 18:00
+            e_limit = 26 * 60 + 30; // 02:30 (跨日算作當天的 26:30)
+            r_start = 24 * 60;      // 00:00 (跨日算作當天的 24:00)
+            r_end = 24 * 60 + 30;   // 00:30 (跨日算作當天的 24:30)
+        }
+
+        // 為了確保中班跨日邏輯完整，我們檢查從開始日前一天到結束日後一天的所有班次
+        let checkDate = new Date(startDT);
+        checkDate.setDate(checkDate.getDate() - 1);
+        checkDate.setHours(0, 0, 0, 0);
+
+        const lastDate = new Date(endDT);
+        lastDate.setDate(lastDate.getDate() + 1);
+
+        while (checkDate <= lastDate) {
+            let shiftStart = new Date(checkDate); shiftStart.setMinutes(s_limit);
+            let shiftEnd = new Date(checkDate); shiftEnd.setMinutes(e_limit);
+            let restStart = new Date(checkDate); restStart.setMinutes(r_start);
+            let restEnd = new Date(checkDate); restEnd.setMinutes(r_end);
+
+            // 計算請假區間與該班次上班時間的交集
+            let overlapS = new Date(Math.max(startDT, shiftStart));
+            let overlapE = new Date(Math.min(endDT, shiftEnd));
+
+            if (overlapS < overlapE) {
+                let diff = (overlapE - overlapS) / 1000 / 60;
+
+                // 檢查是否包含休息時間並扣除
+                let actualRestS = new Date(Math.max(overlapS, restStart));
+                let actualRestE = new Date(Math.min(overlapE, restEnd));
+                
+                if (actualRestS < actualRestE) {
+                    diff -= (actualRestE - actualRestS) / 1000 / 60;
+                }
+                totalMins += diff;
             }
-            
-            if (!isRest) { totalMins++; }
-            cur.setMinutes(cur.getMinutes() + 1);
+            checkDate.setDate(checkDate.getDate() + 1);
         }
 
         const h_res = Math.floor(totalMins / 60);
-        const m_res = totalMins % 60;
+        const m_res = Math.round(totalMins % 60);
         const displayStr = `${h_res} 時 ${m_res} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
         return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
@@ -426,7 +454,7 @@
     }
 
     window.requestCancel = async (docId) => {
-        if (!confirm("此假單已核准。若需更換日期，系統將提交『銷假申請』給主管審核，通過後您即可重新填寫。確定要申請銷假更正嗎？")) return;
+        if (!confirm("此假單已核准。若需更換日期，系統將提交『銷假申請』給主管審核。確定要申請銷假更正嗎？")) return;
         try {
             await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
             alert("已提交銷假更正申請。");
@@ -521,7 +549,7 @@
     
     window.addEventListener('DOMContentLoaded', () => { 
         switchPage('dashboard');
-        setShift('day'); // 初始設為早班
+        setShift('day'); 
     });
 </script>
 </body>
