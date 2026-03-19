@@ -450,16 +450,33 @@
         loadAdminData();
     };
 
-    // 依照圖片範本修改導出邏輯
+    // 依照範本導出 EXCEL (嚴格對齊範本欄位順序，並新增核准時間)
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇匯出月份");
-        const snap = await getDocs(collection(db, "formEntries"));
-        const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
-        if (data.length === 0) return alert("該月份查無核准紀錄");
+        if(!m) {
+            alert("請選擇匯出月份 / Vui lòng chọn tháng xuất file");
+            return;
+        }
 
-        // 定義 Excel 標題，對應您提供的圖片欄位
-        const header = ["工號", "姓名", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "假別", "時數", "原因", "部門/備註", "主管核准日期"];
+        const snap = await getDocs(collection(db, "formEntries"));
+        const data = snap.docs
+            .map(d => d.data())
+            .filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
+
+        if (data.length === 0) {
+            alert("該月份查無核准紀錄 / Không có dữ liệu phê duyệt cho tháng này");
+            return;
+        }
+
+        // 1. 定義標題列 (完全符合 CSV 範本，最後新增批准時間)
+        const header = [
+            "員工代號", "員工姓名", "假別", "出勤日期", 
+            "開始日期", "開始時間", "結束日期", "結束時間", 
+            "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", 
+            "主管批准時間"
+        ];
+
+        // 2. 處理內容資料
         const wsData = [header];
 
         data.forEach(r => {
@@ -474,27 +491,36 @@
                 }
             }
 
-            // 按照圖片要求拆分日期與時間欄位
             wsData.push([
-                r.id || '',           // 工號
-                r.name || '',         // 姓名
-                r.sDate || '',        // 出勤日期 (通常同開始日期)
+                r.id || '',           // 員工代號
+                r.name || '',         // 員工姓名
+                r.leaveType || '',    // 假別
+                r.sDate || '',        // 出勤日期
                 r.sDate || '',        // 開始日期
                 r.sTime || '',        // 開始時間
                 r.eDate || '',        // 結束日期
                 r.eTime || '',        // 結束時間
-                r.leaveType || '',    // 假別
-                excelDuration,         // 時數 (格式 000:00)
-                r.reason || "",       // 原因
-                r.dept || "",         // 部門/備註
-                r.approvedAt || ""    // 主管核准日期
+                excelDuration,         // 請假時數
+                '',                   // 扣伙食費
+                '',                   // 扣交通津貼
+                r.reason || '',       // 事由
+                r.dept || '',         // 備註/部門
+                r.approvedAt || ''    // 主管批准時間 (新增)
             ]);
         });
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "Leave_Report");
-        XLSX.writeFile(wb, `鼎顓電子_${m}_核准清單.xlsx`);
+        
+        // 設定欄位寬度
+        ws['!cols'] = [
+            {wch: 12}, {wch: 12}, {wch: 10}, {wch: 12}, 
+            {wch: 12}, {wch: 10}, {wch: 12}, {wch: 10}, 
+            {wch: 10}, {wch: 10}, {wch: 10}, {wch: 20}, {wch: 15}, {wch: 20}
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        XLSX.writeFile(wb, `鼎顓電子_請假單_${m}.xlsx`);
     };
 
     window.loadAdminData = async () => {
