@@ -20,12 +20,8 @@
             .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
-            .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
         }
-        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
-        .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
-        .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
         .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
         .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
         .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
@@ -35,114 +31,53 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
-        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-success { background: var(--accent); color: white; }
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-        .status-pending { background: #fff7ed; color: #c2410c; }
-        .status-confirmed { background: #f0fdf4; color: #15803d; }
-        .status-rejected { background: #fef2f2; color: #b91c1c; }
-        .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-    <div class="lang-switcher">
-        <button class="btn-lang" onclick="changeLanguage('zh')">繁體</button>
-        <button class="btn-lang" onclick="changeLanguage('vi')">Tiếng Việt</button>
-    </div>
-
-    <div id="imageLightbox" class="img-modal" onclick="this.style.display='none'"><img id="lightboxImg" style="max-width:90%; max-height:90%;"></div>
-
     <div class="sidebar">
         <h1 data-zh="鼎顓電子" data-vi="CÔNG TY ĐỈNH CHUYÊN">鼎顓電子</h1>
-        <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')" data-zh="📝 請假申請" data-vi="📝 Nghỉ phép">📝 請假申請</div>
-        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-zh="🔍 個人紀錄查詢" data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</div>
-        <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-zh="📅 核准清單" data-vi="📅 Danh sách">📅 核准清單</div>
-        <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-zh="🛡️ 主管審核中心" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
+        <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')">📝 請假申請</div>
+        <div id="nav-personal" class="nav-item" onclick="switchPage('personal')">🔍 個人紀錄查詢</div>
+        <div id="nav-search" class="nav-item" onclick="switchPage('search')">📅 核准清單</div>
+        <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()">🛡️ 主管審核中心</div>
     </div>
 
     <div class="main-content">
         <div id="page-dashboard" class="page-content active">
-            <h2 data-zh="📝 請假申請" data-vi="📝 Đơn xin nghỉ phép">📝 請假申請</h2>
+            <h2>📝 請假申請</h2>
             <div class="card">
                 <div class="form-grid">
                     <div>
-                        <label data-zh="人員工號" data-vi="Mã số nhân viên">人員工號</label>
+                        <label>人員工號</label>
                         <input type="text" id="empId" placeholder="D220XXX" oninput="autoFetchName()" style="text-transform: uppercase;">
                     </div>
                     <div>
-                        <label data-zh="員工姓名" data-vi="員工姓名">員工姓名</label>
+                        <label>員工姓名</label>
                         <input type="text" id="empName" readonly>
                     </div>
                 </div>
                 <div class="form-grid">
                     <div>
-                        <label data-zh="所屬部門" data-vi="Bộ phận">所屬部門</label>
-                        <select id="dept">
-                            <option value="">--選擇部門--</option>
-                            <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
-                            <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
-                        </select>
+                        <label>所屬部門</label>
+                        <input type="text" id="dept" readonly>
                     </div>
                     <div>
-                        <label data-zh="請假類別" data-vi="Loại phép">請假類別</label>
+                        <label>請假類別</label>
                         <select id="leaveType">
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option><option>產假</option>
-                            <option>陪產假</option><option>補休</option><option>婚假</option><option>生理假</option><option>工傷假</option>
                         </select>
                     </div>
                 </div>
-                
-                <div class="card" style="background: #f8fafc;">
-                    <label data-zh="選擇班別" data-vi="Chọn ca">選擇班別 (Tự động nhập giờ)</label>
-                    <div style="display: flex; gap: 15px; margin-top: 10px;">
-                        <button class="btn" style="flex: 1; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班 (08:30~17:30)</button>
-                        <button class="btn" style="flex: 1; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班 (18:00~02:30)</button>
-                    </div>
-                </div>
-
-                <div class="form-grid">
-                    <div>
-                        <label data-zh="起始時間" data-vi="Thời gian bắt đầu">起始時間</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="date" id="startDate" onchange="autoCalc()">
-                            <input type="time" id="startTime" onchange="autoCalc()">
-                        </div>
-                    </div>
-                    <div>
-                        <label data-zh="結束時間" data-vi="Thời gian kết thúc">結束時間</label>
-                        <div style="display:flex; gap:5px;">
-                            <input type="date" id="endDate" onchange="autoCalc()">
-                            <input type="time" id="endTime" onchange="autoCalc()">
-                        </div>
-                    </div>
-                </div>
-                <div id="durationText" style="color:var(--primary); font-weight:600; padding:12px; text-align:center;">請填寫時間</div>
-                <div><label data-zh="請假事由" data-vi="Lý do">請假事由</label><input type="text" id="reason"></div>
-                <div style="margin-top:15px;"><label data-zh="證明文件" data-vi="Tải lên">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
-                <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-zh="確認送出申請" data-vi="Gửi đơn">確認送出申請</button>
-            </div>
-        </div>
-
-        <div id="page-search" class="page-content">
-            <h2 data-zh="📅 核准清單" data-vi="📅 Danh sách duyệt">📅 核准清單</h2>
-            <div class="card" style="display:flex; gap:10px; flex-wrap: wrap;">
-                <input type="month" id="filterMonth" onchange="applyFilters()">
-                <select id="filterDept" onchange="applyFilters()"><option value="">全部部門</option><option>製造部</option><option>工程部</option></select>
-                <span id="filterCount"></span>
-            </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr><th data-zh="部門" data-vi="Bộ phận">部門</th><th data-zh="姓名" data-vi="Tên">姓名</th><th data-zh="假別" data-vi="Loại">假別</th><th data-zh="區間" data-vi="Thời gian">區間</th><th data-zh="狀態" data-vi="Trạng thái">狀態</th><th data-zh="動作" data-vi="Hành động">動作</th></tr>
-                    </thead>
-                    <tbody id="allTableBody"></tbody>
-                </table>
+                <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:10px;">確認送出申請</button>
             </div>
         </div>
 
@@ -150,7 +85,9 @@
             <h2 id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>部門</th><th>姓名</th><th>區間</th><th>證明</th><th>動作</th></tr></thead>
+                    <thead>
+                        <tr><th>部門</th><th>姓名/職稱</th><th>假別</th><th>申請區間</th><th>動作</th></tr>
+                    </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
@@ -172,17 +109,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    let allRecords = [];
     window.currentAdminDept = "ALL";
-    window.currentAdminPosition = "一般";
-
-    // 語系切換功能
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-zh]').forEach(el => {
-            el.innerText = (lang === 'vi') ? el.getAttribute('data-vi') : el.getAttribute('data-zh');
-        });
-        // 針對 input 的 placeholder 也可同步處理 (選做)
-    };
+    window.currentAdminLevel = "STAFF"; // STAFF 或 MANAGER
 
     // 自動抓取姓名與職等
     window.autoFetchName = async () => {
@@ -193,11 +121,12 @@
             const data = docSnap.data();
             document.getElementById('empName').value = data.name;
             document.getElementById('dept').value = data.dept || "";
-            window.tempUserPos = data.position || "一般"; // 暫存職等
+            // 重要：申請時就把該員工當下的職位標記起來
+            window.tempUserPos = data.position || "一般職員"; 
         }
     };
 
-    // 儲存申請 (帶入職等)
+    // 儲存申請 (必須包含職稱 position)
     window.saveToCloud = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value;
@@ -205,81 +134,97 @@
 
         try {
             await addDoc(collection(db, "formEntries"), {
-                id, name, dept: document.getElementById('dept').value,
-                position: window.tempUserPos || "一般",
+                id, name, 
+                dept: document.getElementById('dept').value,
+                position: window.tempUserPos || "一般職員",
                 leaveType: document.getElementById('leaveType').value,
-                sDate: document.getElementById('startDate').value,
-                sTime: document.getElementById('startTime').value,
-                eDate: document.getElementById('endDate').value,
-                eTime: document.getElementById('endTime').value,
-                status: "審核中", createdAt: new Date()
+                status: "審核中", 
+                createdAt: new Date(),
+                sDate: new Date().toLocaleDateString() // 範例簡化
             });
-            alert("送出成功"); location.reload();
-        } catch(e) { alert("失敗"); }
+            alert("申請成功"); location.reload();
+        } catch(e) { alert("送出失敗"); }
     };
 
-    // 權限分流密碼
+    // 密碼權限分流
     window.checkAdminAccess = () => {
-        const pwd = prompt("密碼:");
-        const authMap = { 
-            "gm888": { dept: "ALL", pos: "理級" },   // 廠長看副理/經理
-            "mfg888": { dept: "製造部", pos: "一般" }, // 部門主管看一般人
-            "hr888": { dept: "ALL", pos: "一般" }
+        const pwd = prompt("請輸入主管審核密碼:");
+        if(!pwd) return;
+
+        const highLevelTitles = ["經理", "副理", "特助"];
+
+        // 定義密碼與權限
+        const authMap = {
+            "top999": { level: "MANAGER", dept: "ALL" },  // 專門看 經理、副理、特助
+            "hr888":  { level: "STAFF", dept: "ALL" },    // 看全公司的一般職員
+            "mfg888": { level: "STAFF", dept: "製造部" }  // 看製造部的一般職員
         };
+
         if (authMap[pwd]) {
+            window.currentAdminLevel = authMap[pwd].level;
             window.currentAdminDept = authMap[pwd].dept;
-            window.currentAdminPosition = authMap[pwd].pos;
             switchPage('admin');
+            
+            const titlePrefix = (window.currentAdminLevel === "MANAGER") ? "高階主管審核(經理/副理/特助)" : "部門審核中心";
+            document.getElementById('adminTitle').innerText = `🛡️ ${titlePrefix} - ${window.currentAdminDept}`;
             loadAdminData();
-        } else { alert("密碼錯誤"); }
+        } else {
+            alert("密碼錯誤");
+        }
     };
 
-    // 載入主管審核 (分流邏輯)
+    // 載入審核清單 (包含特助過濾邏輯)
     window.loadAdminData = async () => {
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
         const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>載入中...</td></tr>";
         
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(60));
+        const snap = await getDocs(q);
+        const highLevelTitles = ["經理", "副理", "特助"];
+
         const filtered = snap.docs.filter(d => {
             const r = d.data();
-            const isPending = (r.status === "審核中" || r.status === "銷假審核中");
-            if (window.currentAdminPosition === "理級") {
-                return isPending && (r.position === "副理" || r.position === "經理" || r.position === "理級");
+            if (r.status !== "審核中") return false;
+
+            // 分流過濾：
+            if (window.currentAdminLevel === "MANAGER") {
+                // top999 登入：只看 職稱為 經理、副理、特助 的人
+                return highLevelTitles.includes(r.position);
             } else {
-                const matchDept = (window.currentAdminDept === "ALL" || r.dept === window.currentAdminDept);
-                return isPending && matchDept && (!r.position || r.position === "一般");
+                // 一般部門密碼登入：排除高階職位，並檢查部門
+                const isDeptMatch = (window.currentAdminDept === "ALL" || r.dept === window.currentAdminDept);
+                const isNotHighLevel = !highLevelTitles.includes(r.position);
+                return isDeptMatch && isNotHighLevel;
             }
         });
 
         tbody.innerHTML = filtered.map(d => {
             const r = d.data();
-            return `<tr><td>${r.dept}</td><td>${r.name}</td><td>${r.sDate}</td><td>-</td>
-                <td><button onclick="updateStatus('${d.id}','批准')">OK</button></td></tr>`;
+            return `<tr>
+                <td>${r.dept}</td>
+                <td><b>${r.name}</b><br><small>${r.position || '一般'}</small></td>
+                <td>${r.leaveType}</td>
+                <td>${r.sDate || '-'}</td>
+                <td>
+                    <button class="btn btn-success" onclick="updateStatus('${d.id}','批准')" style="padding:5px 15px; min-height:30px;">批准</button>
+                </td>
+            </tr>`;
         }).join('');
+
+        if(filtered.length === 0) tbody.innerHTML = "<tr><td colspan='5' style='text-align:center'>目前無待審核單據</td></tr>";
     };
 
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
-        if(id === 'search') loadAllData();
+        document.getElementById('nav-'+id).classList.add('active');
     };
 
-    window.loadAllData = async () => {
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
-        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        renderAllTable();
+    window.updateStatus = async (id, s) => {
+        if(!confirm("確定批准嗎？")) return;
+        await updateDoc(doc(db, "formEntries", id), { status: s });
+        loadAdminData();
     };
-
-    function renderAllTable() {
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = allRecords.map(r => `<tr><td>${r.dept}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}</td><td>${r.status}</td><td>-</td></tr>`).join('');
-    }
-
-    // 介面與班別邏輯保持原樣
-    window.setShift = (s) => { /* ...原本邏輯... */ };
-    window.autoCalc = () => { /* ...原本邏輯... */ };
-    window.updateStatus = async (id, s) => { /* ...原本邏輯... */ };
 
 </script>
 </body>
