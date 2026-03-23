@@ -223,7 +223,7 @@
     let currentShift = 'day'; 
     window.currentAdminDept = "ALL";
 
-    // 圖片放大功能修復
+    // 圖片放大功能
     window.openLightbox = (src) => {
         const modal = document.getElementById('imageLightbox');
         const img = document.getElementById('lightboxImg');
@@ -232,6 +232,16 @@
     };
     window.closeLightbox = () => {
         document.getElementById('imageLightbox').style.display = 'none';
+    };
+
+    // 分頁切換功能修正
+    window.changePage = (dir) => {
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        let newPage = currentPage + dir;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            renderTable();
+        }
     };
 
     window.setShift = (shift) => {
@@ -504,7 +514,7 @@
             }
 
             wsData.push([
-                empId,                // 轉換後的員工代號
+                empId,                
                 r.name || '',         
                 r.leaveType || '',    
                 r.sDate || '',        
