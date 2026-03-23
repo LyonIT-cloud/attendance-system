@@ -202,7 +202,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -397,12 +397,14 @@
         return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
-    // 載入所有資料
+    // 載入所有資料 - 優化版：限制每次讀取 50 筆，降低讀取次數 (Read Count)
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>讀取中...</td></tr>";
         try {
-            const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+            // 加入 limit(50) 限制讀取量
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+            const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             applyFilters();
         } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>讀取失敗</td></tr>"; }
@@ -428,7 +430,7 @@
         currentPage = 1; renderTable();
     };
 
-    // 渲染表格 (修正點：按鈕邏輯)
+    // 渲染表格
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
@@ -444,7 +446,6 @@
             
             const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '';
 
-            // 按鈕顯示邏輯
             let actionBtn = "";
             if (r.status === "審核中") {
                 actionBtn = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
@@ -476,7 +477,7 @@
         } catch(e) { alert("失敗: " + e.message); }
     };
 
-    // 修改功能 (將資料填回表單)
+    // 修改功能
     window.editRecord = (docId) => {
         const r = allRecords.find(x => x.docId === docId);
         if(!r) return;
@@ -536,7 +537,9 @@
 
     // 載入主管審核資料
     window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        // 主管端同樣加入 limit(50) 避免浪費讀取
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+        const snap = await getDocs(q);
         const pendingData = snap.docs.filter(d => {
             const r = d.data();
             const isPending = (r.status === "審核中" || r.status === "銷假審核中");
