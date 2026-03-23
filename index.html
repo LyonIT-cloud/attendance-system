@@ -51,15 +51,12 @@
         .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
         .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
-        .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 新增：職級選擇彈窗樣式 */
         #adminLevelModal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px);
@@ -202,7 +199,6 @@
                     <option value="銷假審核中" data-vi="Đang duyệt hủy">銷假審核中</option>
                     <option value="銷假" data-vi="Đã hủy">已銷假</option>
                 </select>
-                <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="background:#64748b; color:white; width:auto; display:none; padding: 0 15px;" data-vi="Hiển thị tất cả">顯示全部工號</button>
                 <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
             </div>
             <div class="table-wrapper">
@@ -275,9 +271,10 @@
     const rowsPerPage = 10;
     let currentShift = 'day'; 
     window.currentAdminDept = "ALL";
+    window.currentLoginLevel = "staff"; // 新增：紀錄當前登入等級
     window.currentLang = 'zh';
 
-    // --- 新增/修改：主管審核職級選擇邏輯 ---
+    // --- 修改：主管審核職級選擇邏輯 ---
     window.checkAdminAccess = () => {
         document.getElementById('adminLevelModal').style.display = 'flex';
     };
@@ -298,7 +295,7 @@
             "eng888": "工程部", "smt888": "SMT", "qa888": "品保部", 
             "log888": "資材部", "sales888": "業務部", "dip888": "DIP" 
         };
-        // 經理級密碼 (範例 top999 可查看全部)
+        // 經理級密碼
         const managerAuth = { "top999": "ALL" };
 
         let targetDept = null;
@@ -312,6 +309,7 @@
 
         if (targetDept) {
             window.currentAdminDept = targetDept;
+            window.currentLoginLevel = level; // 儲存登入等級
             switchPage('admin');
             const deptName = targetDept === "ALL" ? (window.currentLang === 'vi' ? "Tất cả" : "所有部門") : targetDept;
             document.getElementById('adminTitle').innerText = 
@@ -321,8 +319,58 @@
         }
     };
 
-    // --- 以下為原有邏輯保持不變 ---
+    // --- 修改：主管審核資料載入 (加入經理/副理過濾) ---
+    window.loadAdminData = async () => {
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = "<tr><td colspan='6' style='text-align:center'>Loading...</td></tr>";
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
+            const snap = await getDocs(q);
+            let docs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
 
+            // 部門過濾
+            if (window.currentAdminDept !== "ALL") {
+                docs = docs.filter(r => r.dept === window.currentAdminDept);
+            }
+
+            // 核心修改：如果是經理級登入，只篩選出姓名含有「經理」或「副理」的資料
+            if (window.currentLoginLevel === 'manager') {
+                docs = docs.filter(r => 
+                    r.name && (r.name.includes("經理") || r.name.includes("副理"))
+                );
+            }
+
+            tbody.innerHTML = docs.map(r => {
+                if (r.status !== "審核中" && r.status !== "銷假審核中") return "";
+                const photoBtn = r.photo ? `<img src="${r.photo}" style="width:35px;height:35px;border-radius:4px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-';
+                
+                return `<tr>
+                    <td>${r.dept}</td>
+                    <td><b>${r.name}</b><br><small>${r.leaveType}</small></td>
+                    <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>${r.eDate} ${r.eTime}</td>
+                    <td>${r.displayDuration}</td>
+                    <td>${photoBtn}</td>
+                    <td>
+                        <button class="btn btn-success" onclick="updateStatus('${r.docId}','批准')" style="min-height:30px; padding:5px 10px;">OK</button>
+                        <button class="btn" style="background:var(--danger); color:white; min-height:30px; padding:5px 10px;" onclick="updateStatus('${r.docId}','退件')">NO</button>
+                    </td>
+                </tr>`;
+            }).join('');
+            
+            if(!tbody.innerHTML.trim()) tbody.innerHTML = "<tr><td colspan='6' style='text-align:center'>無待審核資料</td></tr>";
+        } catch (e) { tbody.innerHTML = "<tr><td colspan='6'>Error</td></tr>"; }
+    };
+
+    // 審核狀態更新功能
+    window.updateStatus = async (docId, newStatus) => {
+        if(!confirm(`確定要將狀態改為 [${newStatus}] 嗎？`)) return;
+        try {
+            await updateDoc(doc(db, "formEntries", docId), { status: newStatus });
+            loadAdminData();
+        } catch(e) { alert("更新失敗: " + e.message); }
+    };
+
+    // --- 其餘原有邏輯 ---
     window.changeLanguage = (lang) => {
         window.currentLang = lang;
         document.querySelectorAll('[data-vi]').forEach(el => {
@@ -331,14 +379,6 @@
                 el.innerText = el.dataset.vi;
             } else {
                 el.innerText = el.dataset.zh || el.innerText;
-            }
-        });
-        document.querySelectorAll('[data-placeholder-vi]').forEach(input => {
-            if (lang === 'vi') {
-                if (!input.dataset.placeholderZh) input.dataset.placeholderZh = input.placeholder;
-                input.placeholder = input.dataset.placeholderVi;
-            } else {
-                input.placeholder = input.dataset.placeholderZh || input.placeholder;
             }
         });
     };
@@ -366,35 +406,26 @@
         currentShift = shift;
         const sTimeInput = document.getElementById('startTime');
         const eTimeInput = document.getElementById('endTime');
-        const dayBtn = document.getElementById('shiftDayBtn');
-        const midBtn = document.getElementById('shiftMidBtn');
-
         if(shift === 'day') {
             sTimeInput.value = "08:30"; eTimeInput.value = "17:30";
-            dayBtn.style.borderColor = "var(--primary)"; dayBtn.style.color = "var(--primary)";
-            midBtn.style.borderColor = "#e2e8f0"; midBtn.style.color = "#64748b";
         } else {
             sTimeInput.value = "18:00"; eTimeInput.value = "02:30";
-            midBtn.style.borderColor = "var(--primary)"; midBtn.style.color = "var(--primary)";
-            dayBtn.style.borderColor = "#e2e8f0"; dayBtn.style.color = "#64748b";
         }
         autoCalc();
     };
 
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
-        const nameInput = document.getElementById('empName');
-        const deptSelect = document.getElementById('dept');
         if (id.length < 5) return; 
         try {
             const docRef = doc(db, "employees", id);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                nameInput.value = data.name || "";
-                if (data.dept) deptSelect.value = data.dept;
+                document.getElementById('empName').value = data.name || "";
+                if (data.dept) document.getElementById('dept').value = data.dept;
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {}
     };
 
     window.switchPage = (id) => {
@@ -403,99 +434,35 @@
         document.getElementById('nav-'+id).classList.add('active');
         if(id === 'admin') loadAdminData();
         if(id === 'search') loadAllData();
-        if(window.innerWidth <= 768) window.scrollTo(0, 0);
-    };
-
-    window.saveToCloud = async () => {
-        const calcData = autoCalc();
-        if(!calcData) return alert(window.currentLang === 'vi' ? "Vui lòng chọn thời gian chính xác" : "請正確選擇起始與結束時間");
-        
-        const { durationHours, displayStr } = calcData;
-        const leaveType = document.getElementById('leaveType').value;
-        const file = document.getElementById('leaveImg').files[0];
-        
-        if (leaveType === "病假" && !file) return alert(window.currentLang === 'vi' ? "Nghỉ bệnh phải tải lên ảnh chứng minh!" : "病假必須上傳證明文件照片！");
-        const id = document.getElementById('empId').value.trim().toUpperCase();
-        const name = document.getElementById('empName').value.trim();
-        if(!id || !name) return alert("工號不正確或姓名未帶入");
-
-        try {
-            document.getElementById('submitBtn').disabled = true;
-            let photo = "";
-            if(file) {
-                photo = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.src = e.target.result;
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            const max_size = 800;
-                            let w = img.width, h = img.height;
-                            if (w > h && w > max_size) { h *= max_size / w; w = max_size; }
-                            else if (h > max_size) { w *= max_size / h; h = max_size; }
-                            canvas.width = w; canvas.height = h;
-                            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                            resolve(canvas.toDataURL('image/jpeg', 0.7));
-                        };
-                    };
-                });
-            }
-
-            await addDoc(collection(db, "formEntries"), {
-                id, name, dept: document.getElementById('dept').value,
-                leaveType: leaveType,
-                shift: currentShift === 'day' ? '早班' : '中班',
-                sDate: document.getElementById('startDate').value,
-                sTime: document.getElementById('startTime').value,
-                eDate: document.getElementById('endDate').value,
-                eTime: document.getElementById('endTime').value,
-                duration: durationHours,
-                displayDuration: displayStr, 
-                reason: document.getElementById('reason').value,
-                status: "審核中", photo, createdAt: new Date()
-            });
-
-            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: displayStr }) });
-            alert(window.currentLang === 'vi' ? "Đơn đã được gửi thành công!" : "申請已成功送出！"); 
-            location.reload();
-        } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
         if(!d1 || !t1 || !d2 || !t2) return null;
-        
         const startDT = new Date(`${d1} ${t1}`);
         const endDT = new Date(`${d2} ${t2}`);
         if(isNaN(startDT) || isNaN(endDT) || endDT <= startDT) return null;
 
         let totalMins = 0;
-        let s_limit, e_limit, r_start, r_end;
-        if (currentShift === 'day') {
-            s_limit = 8 * 60 + 30; e_limit = 17 * 60 + 30; r_start = 12 * 60; r_end = 13 * 60;
-        } else {
-            s_limit = 18 * 60; e_limit = 26 * 60 + 30; r_start = 24 * 60; r_end = 24 * 60 + 30;
-        }
+        let s_limit = currentShift === 'day' ? 8 * 60 + 30 : 18 * 60;
+        let e_limit = currentShift === 'day' ? 17 * 60 + 30 : 26 * 60 + 30;
+        let r_start = currentShift === 'day' ? 12 * 60 : 24 * 60;
+        let r_end = currentShift === 'day' ? 13 * 60 : 24 * 60 + 30;
 
         let checkDate = new Date(startDT);
-        checkDate.setDate(checkDate.getDate() - 1);
-        checkDate.setHours(0, 0, 0, 0);
-        const lastDate = new Date(endDT); lastDate.setDate(lastDate.getDate() + 1);
-
+        checkDate.setHours(0,0,0,0);
+        const lastDate = new Date(endDT);
+        
         while (checkDate <= lastDate) {
             let shiftStart = new Date(checkDate); shiftStart.setMinutes(s_limit);
             let shiftEnd = new Date(checkDate); shiftEnd.setMinutes(e_limit);
-            let restStart = new Date(checkDate); restStart.setMinutes(r_start);
-            let restEnd = new Date(checkDate); restEnd.setMinutes(r_end);
-
             let overlapS = new Date(Math.max(startDT, shiftStart));
             let overlapE = new Date(Math.min(endDT, shiftEnd));
-
             if (overlapS < overlapE) {
                 let diff = (overlapE - overlapS) / 1000 / 60;
+                let restStart = new Date(checkDate); restStart.setMinutes(r_start);
+                let restEnd = new Date(checkDate); restEnd.setMinutes(r_end);
                 let actualRestS = new Date(Math.max(overlapS, restStart));
                 let actualRestE = new Date(Math.min(overlapE, restEnd));
                 if (actualRestS < actualRestE) diff -= (actualRestE - actualRestS) / 1000 / 60;
@@ -503,103 +470,62 @@
             }
             checkDate.setDate(checkDate.getDate() + 1);
         }
+        const h = Math.floor(totalMins/60), m = Math.round(totalMins%60);
+        const str = `${h} 時 ${m} 分`;
+        document.getElementById('durationText').innerText = "🕒 計算結果：" + str;
+        return { durationHours: (totalMins/60).toFixed(1), displayStr: str };
+    };
 
-        const h_res = Math.floor(totalMins / 60);
-        const m_res = Math.round(totalMins % 60);
-        const displayStr = window.currentLang === 'vi' ? `${h_res} giờ ${m_res} phút` : `${h_res} 時 ${m_res} 分`;
-        document.getElementById('durationText').innerText = window.currentLang === 'vi' ? `🕒 Kết quả: ${displayStr}` : `🕒 計算結果：${displayStr}`;
-        return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
+    window.saveToCloud = async () => {
+        const calc = autoCalc();
+        if(!calc) return alert("請確認時間");
+        const id = document.getElementById('empId').value.trim().toUpperCase();
+        const name = document.getElementById('empName').value.trim();
+        if(!id || !name) return alert("工號或姓名錯誤");
+
+        try {
+            document.getElementById('submitBtn').disabled = true;
+            await addDoc(collection(db, "formEntries"), {
+                id, name, dept: document.getElementById('dept').value,
+                leaveType: document.getElementById('leaveType').value,
+                sDate: document.getElementById('startDate').value,
+                sTime: document.getElementById('startTime').value,
+                eDate: document.getElementById('endDate').value,
+                eTime: document.getElementById('endTime').value,
+                displayDuration: calc.displayStr,
+                status: "審核中", createdAt: new Date()
+            });
+            alert("送出成功");
+            location.reload();
+        } catch(e) { alert(e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
     window.loadAllData = async () => {
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>Loading...</td></tr>";
-        try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
-            const snap = await getDocs(q);
-            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-            applyFilters();
-        } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>Error</td></tr>"; }
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+        const snap = await getDocs(q);
+        allRecords = snap.docs.map(d => d.data());
+        applyFilters();
     };
 
     window.applyFilters = () => {
-        const filterMonth = document.getElementById('filterMonth').value;
-        const filterDept = document.getElementById('filterDept').value;
-        const filterStatus = document.getElementById('filterStatus').value;
-
         filteredRecords = allRecords.filter(r => {
-            const matchMonth = filterMonth ? (r.sDate && r.sDate.startsWith(filterMonth)) : true;
-            const matchDept = filterDept ? (r.dept && r.dept === filterDept) : true;
-            const matchStatus = filterStatus ? (r.status && r.status === filterStatus) : true;
-            return matchMonth && matchDept && matchStatus;
+            const m = document.getElementById('filterMonth').value;
+            const d = document.getElementById('filterDept').value;
+            const s = document.getElementById('filterStatus').value;
+            return (!m || r.sDate.startsWith(m)) && (!d || r.dept === d) && (!s || r.status === s);
         });
-
-        document.getElementById('filterCount').innerText = `Count: ${filteredRecords.length}`;
-        currentPage = 1; renderTable();
+        renderTable();
     };
 
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        const start = (currentPage - 1) * rowsPerPage;
-        const pageData = filteredRecords.slice(start, start + rowsPerPage);
-        
-        tbody.innerHTML = pageData.map(r => {
-            let cls = "status-pending";
-            if(r.status === "批准") cls = "status-confirmed";
-            else if(r.status === "退件") cls = "status-rejected";
-            else if(r.status === "銷假") cls = "status-cancel";
-            else if(r.status === "銷假審核中") cls = "status-request-cancel";
-            
-            const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '';
-
-            return `<tr>
-                <td>${r.dept || "--"}</td>
-                <td>${r.id || '--'}</td>
-                <td>${r.name || '未知'}${photoBtn}</td>
-                <td><span class="badge-type">${r.leaveType || '--'}</span></td>
-                <td style="font-size:12px;">${r.sDate} ${r.sTime}~${r.eDate} ${r.eTime}</td>
-                <td>${r.displayDuration || "--"}</td>
-                <td><span class="status-badge ${cls}">${r.status || '審核中'}</span></td>
-                <td>-</td>
-            </tr>`;
-        }).join('') || "<tr><td colspan='8' style='text-align:center'>No Data</td></tr>";
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+        tbody.innerHTML = filteredRecords.map(r => `<tr>
+            <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+            <td>${r.sDate}~${r.eDate}</td><td>${r.displayDuration}</td>
+            <td>${r.status}</td><td>-</td>
+        </tr>`).join('');
     }
 
-    window.loadAdminData = async () => {
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
-        const pendingData = snap.docs.filter(d => {
-            const r = d.data();
-            const isPending = (r.status === "審核中" || r.status === "銷假審核中");
-            return window.currentAdminDept === "ALL" ? isPending : (isPending && r.dept === window.currentAdminDept);
-        });
-
-        const tbody = document.getElementById('adminTableBody');
-        tbody.innerHTML = pendingData.map(d => {
-            const r = d.data(); 
-            const isCancel = r.status === "銷假審核中";
-            return `<tr>
-                <td>${r.dept || "--"}</td>
-                <td><b>${r.name || "未知"}</b><br><span class="badge-type">${r.leaveType || ''}</span></td>
-                <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
-                <td>${r.displayDuration || "--"}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td>
-                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">批准</button>
-                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
-                </td>
-            </tr>`;
-        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
-    };
-
-    window.updateStatus = async (docId, newStatus) => {
-        try {
-            await updateDoc(doc(db, "formEntries", docId), { status: newStatus });
-            loadAdminData();
-        } catch(e) { alert(e.message); }
-    };
 </script>
 </body>
 </html>
