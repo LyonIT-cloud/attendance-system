@@ -104,7 +104,7 @@
                         <label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
-                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option><option>生理假</option>
+                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option><option>生理假</option><option>工傷假</option>
                         </select>
                     </div>
                 </div>
@@ -222,6 +222,17 @@
     const rowsPerPage = 10;
     let currentShift = 'day'; 
     window.currentAdminDept = "ALL";
+
+    // 圖片放大功能修復
+    window.openLightbox = (src) => {
+        const modal = document.getElementById('imageLightbox');
+        const img = document.getElementById('lightboxImg');
+        img.src = src;
+        modal.style.display = 'flex';
+    };
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
+    };
 
     window.setShift = (shift) => {
         currentShift = shift;
@@ -421,7 +432,7 @@
             if(r.status === "銷假") cls = "status-cancel";
             if(r.status === "銷假審核中") cls = "status-request-cancel";
             
-            const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '';
+            const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '';
 
             return `<tr>
                 <td>${r.dept || "--"}</td>
@@ -543,7 +554,7 @@
                 <td><b>${r.name || "未知"}</b><br><span class="badge-type">${r.leaveType || ''}</span></td>
                 <td style="font-size:12px;">${safeRange}</td>
                 <td>${r.displayDuration || "--"}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
                 <td>
                     <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancel ? '同意銷假' : '批准'}</button>
                     <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
