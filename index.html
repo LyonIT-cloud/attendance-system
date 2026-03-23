@@ -234,7 +234,7 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
-    // 分頁功能
+    // 分頁切換功能修正
     window.changePage = (dir) => {
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         let newPage = currentPage + dir;
@@ -242,25 +242,6 @@
             currentPage = newPage;
             renderTable();
         }
-    };
-
-    // 修正：個人紀錄查詢
-    window.searchPersonalRecords = () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if (!id) {
-            alert("請輸入工號 / Vui lòng nhập mã nhân viên");
-            return;
-        }
-        // 存入 Session 並跳轉到核准清單頁面進行過濾
-        sessionStorage.setItem('targetFilterId', id);
-        switchPage('search');
-    };
-
-    // 修正：重置過濾
-    window.resetFilter = () => {
-        sessionStorage.removeItem('targetFilterId');
-        document.getElementById('queryEmpId').value = "";
-        applyFilters();
     };
 
     window.setShift = (shift) => {
