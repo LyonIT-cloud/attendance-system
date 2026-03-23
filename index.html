@@ -55,7 +55,7 @@
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
-        .pagination-ctrl { display: flex; justify: center; align-items: center; gap: 10px; padding: 15px; background: white; }
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -84,27 +84,41 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()" style="text-transform: uppercase;">
+                        <input type="text" id="empId" placeholder="例如: D220119" data-placeholder-vi="Ví dụ: D220119" oninput="autoFetchName()" style="text-transform: uppercase;">
                     </div>
                     <div>
-                        <label data-vi="員工姓名">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入">
+                        <label data-vi="Tên nhân viên">員工姓名</label>
+                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入" data-placeholder-vi="Tự động nhập tên">
                     </div>
                 </div>
                 <div class="form-grid">
                     <div>
                         <label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
-                            <option value="">--選擇部門--</option>
-                            <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
-                            <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                            <option value="" data-vi="--Chọn bộ phận--">--選擇部門--</option>
+                            <option data-vi="Bộ phận quản lý">管理部</option>
+                            <option data-vi="Bộ phận sản xuất">製造部</option>
+                            <option data-vi="Bộ phận kỹ thuật">工程部</option>
+                            <option>SMT</option>
+                            <option data-vi="Bộ phận vật tư">資材部</option>
+                            <option data-vi="Bộ phận kinh doanh">業務部</option>
+                            <option>DIP</option>
+                            <option data-vi="Bộ phận QA">品保部</option>
                         </select>
                     </div>
                     <div>
                         <label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
-                            <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
-                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option><option>生理假</option><option>工傷假</option>
+                            <option data-vi="Việc riêng">事假</option>
+                            <option data-vi="Bệnh">病假</option>
+                            <option data-vi="Phép năm">特休</option>
+                            <option data-vi="Công tác">公假</option>
+                            <option data-vi="Thai sản">產假</option>
+                            <option data-vi="Khám thai">陪產假</option>
+                            <option data-vi="Nghỉ bù">補休</option>
+                            <option data-vi="Kết hôn">婚假</option>
+                            <option data-vi="Kinh nguyệt">生理假</option>
+                            <option data-vi="Tai nạn lao động">工傷假</option>
                         </select>
                     </div>
                 </div>
@@ -112,8 +126,8 @@
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
                     <label data-vi="Chọn ca làm việc">選擇班別 (自動帶入時間)</label>
                     <div style="display: flex; gap: 15px; margin-top: 10px;">
-                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班 (08:30~17:30)</button>
-                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班 (18:00~02:30)</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn" data-vi="☀️ Ca ngày (08:30~17:30)">☀️ 早班 (08:30~17:30)</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn" data-vi="🌙 Ca đêm (18:00~02:30)">🌙 中班 (18:00~02:30)</button>
                     </div>
                 </div>
 
@@ -126,16 +140,16 @@
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Thời gian 結束">結束時間</label>
+                        <label data-vi="Thời gian kết thúc">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
                             <input type="time" id="endTime" onchange="autoCalc()">
                         </div>
                     </div>
                 </div>
-                <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請點選班別並確認時間</div>
-                <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
-                <div style="margin-top:15px;"><label data-vi="Tải lên">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
+                <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);" data-vi="Vui lòng chọn ca làm việc và xác nhận thời gian">請點選班別並確認時間</div>
+                <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因" data-placeholder-vi="Giải thích lý do chi tiết"></div>
+                <div style="margin-top:15px;"><label data-vi="Tải lên hình ảnh">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
             </div>
         </div>
@@ -143,9 +157,9 @@
         <div id="page-personal" class="page-content">
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
-                <label data-vi="Nhập mã số">請輸入工號查詢</label>
+                <label data-vi="Nhập mã số để tra cứu">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" data-placeholder-vi="Ví dụ: D220008" style="flex:1">
                     <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
                 </div>
             </div>
@@ -156,36 +170,45 @@
             <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
                 <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
                 <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
-                    <option value="">全部部門</option>
+                    <option value="" data-vi="Tất cả bộ phận">全部部門</option>
                     <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
                 <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
-                    <option value="">全部狀態</option>
-                    <option value="審核中">審核中</option>
-                    <option value="批准">批准</option>
-                    <option value="退件">退件</option>
-                    <option value="銷假審核中">銷假審核中</option>
-                    <option value="銷假">已銷假</option>
+                    <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
+                    <option value="審核中" data-vi="Đang duyệt">審核中</option>
+                    <option value="批准" data-vi="Phê duyệt">批准</option>
+                    <option value="退件" data-vi="Từ chối">退件</option>
+                    <option value="銷假審核中" data-vi="Đang duyệt hủy">銷假審核中</option>
+                    <option value="銷假" data-vi="Đã hủy">已銷假</option>
                 </select>
-                <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="background:#64748b; color:white; width:auto; display:none; padding: 0 15px;">顯示全部工號</button>
+                <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="background:#64748b; color:white; width:auto; display:none; padding: 0 15px;" data-vi="Hiển thị tất cả">顯示全部工號</button>
                 <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>請假區間</th><th>時數</th><th>狀態</th><th>動作</th></tr>
+                        <tr>
+                            <th data-vi="Bộ phận">部門</th>
+                            <th data-vi="Mã số">工號</th>
+                            <th data-vi="Họ tên">姓名</th>
+                            <th data-vi="Loại phép">假別</th>
+                            <th data-vi="Khoảng thời gian">請假區間</th>
+                            <th data-vi="Số giờ">時數</th>
+                            <th data-vi="Trạng thái">狀態</th>
+                            <th data-vi="Thao tác">動作</th>
+                        </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
             </div>
             <div class="pagination-ctrl">
-                <button id="prevBtn" class="btn-page" onclick="changePage(-1)">上一頁</button>
+                <button id="prevBtn" class="btn-page" onclick="changePage(-1)" data-vi="Trang trước">上一頁</button>
                 <span id="pageInfo">1 / 1</span>
-                <button id="nextBtn" class="btn-page" onclick="changePage(1)">下一頁</button>
+                <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
             </div>
             <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 依照範本導出 EXCEL</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;" data-vi="📥 Xuất EXCEL">📥 依照範本導出 EXCEL</button>
             </div>
         </div>
 
@@ -193,7 +216,16 @@
             <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th>部門</th><th>姓名/假別</th><th>請假區間</th><th>時數</th><th>證明</th><th>動作</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th data-vi="Bộ phận">部門</th>
+                            <th data-vi="Họ tên/Loại">姓名/假別</th>
+                            <th data-vi="Thời gian">請假區間</th>
+                            <th data-vi="Số giờ">時數</th>
+                            <th data-vi="Chứng minh">證明</th>
+                            <th data-vi="Thao tác">動作</th>
+                        </tr>
+                    </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
@@ -202,7 +234,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -222,6 +254,29 @@
     const rowsPerPage = 10;
     let currentShift = 'day'; 
     window.currentAdminDept = "ALL";
+    window.currentLang = 'zh';
+
+    // 語言切換修正
+    window.changeLanguage = (lang) => {
+        window.currentLang = lang;
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                el.innerText = el.dataset.zh || el.innerText;
+            }
+        });
+        // 修正 Placeholder
+        document.querySelectorAll('[data-placeholder-vi]').forEach(input => {
+            if (lang === 'vi') {
+                if (!input.dataset.placeholderZh) input.dataset.placeholderZh = input.placeholder;
+                input.placeholder = input.dataset.placeholderVi;
+            } else {
+                input.placeholder = input.dataset.placeholderZh || input.placeholder;
+            }
+        });
+    };
 
     // 圖片放大
     window.openLightbox = (src) => {
@@ -294,13 +349,13 @@
     // 儲存申請
     window.saveToCloud = async () => {
         const calcData = autoCalc();
-        if(!calcData) return alert("請正確選擇起始與結束時間");
+        if(!calcData) return alert(window.currentLang === 'vi' ? "Vui lòng chọn thời gian chính xác" : "請正確選擇起始與結束時間");
         
         const { totalMins, durationHours, displayStr } = calcData;
         const leaveType = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
         
-        if (leaveType === "病假" && !file) return alert("病假必須上傳證明文件照片！");
+        if (leaveType === "病假" && !file) return alert(window.currentLang === 'vi' ? "Nghỉ bệnh phải tải lên ảnh chứng minh!" : "病假必須上傳證明文件照片！");
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
         if(!id || !name) return alert("工號不正確或姓名未帶入");
@@ -344,7 +399,8 @@
             });
 
             fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: displayStr }) });
-            alert("申請已成功送出！"); location.reload();
+            alert(window.currentLang === 'vi' ? "Đơn đã được gửi thành công!" : "申請已成功送出！"); 
+            location.reload();
         } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
@@ -392,22 +448,21 @@
 
         const h_res = Math.floor(totalMins / 60);
         const m_res = Math.round(totalMins % 60);
-        const displayStr = `${h_res} 時 ${m_res} 分`;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
+        const displayStr = window.currentLang === 'vi' ? `${h_res} giờ ${m_res} phút` : `${h_res} 時 ${m_res} 分`;
+        document.getElementById('durationText').innerText = window.currentLang === 'vi' ? `🕒 Kết quả: ${displayStr}` : `🕒 計算結果：${displayStr}`;
         return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
-    // 載入所有資料 - 優化版：限制每次讀取 50 筆，降低讀取次數 (Read Count)
+    // 載入所有資料
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>讀取中...</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>Loading...</td></tr>";
         try {
-            // 加入 limit(50) 限制讀取量
             const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             applyFilters();
-        } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>讀取失敗</td></tr>"; }
+        } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>Error</td></tr>"; }
     };
 
     // 過濾功能
@@ -426,7 +481,7 @@
         });
 
         document.getElementById('resetFilterBtn').style.display = filterId ? 'inline-block' : 'none';
-        document.getElementById('filterCount').innerText = `找到 ${filteredRecords.length} 筆`;
+        document.getElementById('filterCount').innerText = `Count: ${filteredRecords.length}`;
         currentPage = 1; renderTable();
     };
 
@@ -463,9 +518,60 @@
                 <td><span class="status-badge ${cls}">${r.status || '審核中'}</span></td>
                 <td>${actionBtn}</td>
             </tr>`;
-        }).join('') || "<tr><td colspan='8' style='text-align:center'>無符合條件紀錄</td></tr>";
+        }).join('') || "<tr><td colspan='8' style='text-align:center'>No Data</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
+
+    // 載入主管審核資料 (分流修正)
+    window.loadAdminData = async () => {
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+        const snap = await getDocs(q);
+        const pendingData = snap.docs.filter(d => {
+            const r = d.data();
+            const isPending = (r.status === "審核中" || r.status === "銷假審核中");
+            // 主管分流邏輯
+            return window.currentAdminDept === "ALL" ? isPending : (isPending && r.dept === window.currentAdminDept);
+        });
+
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = pendingData.map(d => {
+            const r = d.data(); 
+            const isCancel = r.status === "銷假審核中";
+            return `<tr>
+                <td>${r.dept || "--"}</td>
+                <td><b>${r.name || "未知"}</b><br><span class="badge-type">${r.leaveType || ''}</span></td>
+                <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
+                <td>${r.displayDuration || "--"}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
+                <td>
+                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancel ? '同意銷假' : '批准'}</button>
+                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
+                </td>
+            </tr>`;
+        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
+    };
+
+    // 主管權限與分流設定
+    window.checkAdminAccess = () => {
+        const pwd = prompt(window.currentLang === 'vi' ? "Nhập mật khẩu quản lý:" : "請輸入主管審核密碼:");
+        const authMap = { 
+            "hr888": "ALL", 
+            "mgt888": "管理部", 
+            "mfg888": "製造部", 
+            "eng888": "工程部", 
+            "smt888": "SMT", 
+            "qa888": "品保部", 
+            "log888": "資材部", 
+            "sales888": "業務部", 
+            "dip888": "DIP" 
+        };
+        if (authMap[pwd]) {
+            window.currentAdminDept = authMap[pwd];
+            switchPage('admin');
+            const deptDisplay = authMap[pwd] === "ALL" ? (window.currentLang === 'vi' ? "Tất cả" : "所有部門") : authMap[pwd];
+            document.getElementById('adminTitle').innerText = (window.currentLang === 'vi' ? "🛡️ Trung tâm quản lý " : "🛡️ 主管審核中心 ") + `(${deptDisplay})`;
+        } else { alert(window.currentLang === 'vi' ? "Mật khẩu sai" : "密碼錯誤"); }
+    };
 
     // 銷假更正申請
     window.requestCancel = async (docId) => {
@@ -535,50 +641,9 @@
         XLSX.writeFile(wb, `鼎顓電子_請假單_${m}.xlsx`);
     };
 
-    // 載入主管審核資料
-    window.loadAdminData = async () => {
-        // 主管端同樣加入 limit(50) 避免浪費讀取
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
-        const pendingData = snap.docs.filter(d => {
-            const r = d.data();
-            const isPending = (r.status === "審核中" || r.status === "銷假審核中");
-            return window.currentAdminDept === "ALL" ? isPending : (isPending && r.dept === window.currentAdminDept);
-        });
-
-        const tbody = document.getElementById('adminTableBody');
-        tbody.innerHTML = pendingData.map(d => {
-            const r = d.data(); 
-            const isCancel = r.status === "銷假審核中";
-            return `<tr>
-                <td>${r.dept || "--"}</td>
-                <td><b>${r.name || "未知"}</b><br><span class="badge-type">${r.leaveType || ''}</span></td>
-                <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
-                <td>${r.displayDuration || "--"}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:35px; height:35px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td>
-                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="border:none; cursor:pointer;">${isCancel ? '同意銷假' : '批准'}</button>
-                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="border:none; cursor:pointer; margin-left:5px;">退件</button>
-                </td>
-            </tr>`;
-        }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
-    };
-
-    // 主管權限
-    window.checkAdminAccess = () => {
-        const pwd = prompt("請輸入主管審核密碼:");
-        const authMap = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT", "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP" };
-        if (authMap[pwd]) {
-            window.currentAdminDept = authMap[pwd];
-            switchPage('admin');
-            document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${authMap[pwd] === "ALL" ? "所有部門" : authMap[pwd]})`;
-        } else { alert("密碼錯誤"); }
-    };
-
-    // 個人查詢功能
     window.searchPersonalRecords = () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
+        if(!id) return;
         sessionStorage.setItem('targetFilterId', id);
         switchPage('search');
     };
@@ -587,7 +652,7 @@
         sessionStorage.removeItem('targetFilterId');
         applyFilters();
     };
-
 </script>
+
 </body>
 </html>
