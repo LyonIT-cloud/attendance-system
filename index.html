@@ -229,7 +229,7 @@
                         <tr>
                             <th data-vi="Bộ phận">部門</th>
                             <th data-vi="Họ tên/Loại">姓名/假別</th>
-                            <th data-vi="Thời gian">請假區間</th>
+                            <th data-vi="時間">請假區間</th>
                             <th data-vi="Số giờ">時數</th>
                             <th data-vi="Chứng minh">證明</th>
                             <th data-vi="Thao tác">動作</th>
@@ -265,11 +265,8 @@
     window.currentLang = 'zh';
 
     const i18nMap = {
-        "Bộ phận quản lý": "管理部", "Bộ phận sản xuất": "製造部", "Bộ phận kỹ thuật": "工程部",
-        "Bộ phận vật tư": "資材部", "Bộ phận kinh doanh": "業務部", "Bộ phận開QA": "品保部",
-        "Việc riêng": "事假", "Bệnh": "病假", "Phép năm": "特休", "Công tác": "公假",
-        "Thai sản": "產假", "Khám thai": "陪產假", "Nghỉ bù": "補休", "Kết hôn": "婚假",
-        "Kinh nguyệt": "生理假", "Tai nạn lao động": "工傷假"
+        "管理部": "管理部", "製造部": "製造部", "工程部": "工程部",
+        "資材部": "資材部", "業務部": "業務部", "品保部": "品保部"
     };
 
     window.getZhText = (text) => i18nMap[text] || text;
@@ -311,17 +308,15 @@
         }
     };
 
-    window.autoCalc = () => {
-        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
-        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
-        if(!d1 || !t1 || !d2 || !t2) return null;
-        
+    // 核心計算時數函數
+    window.calculateMins = (d1, t1, d2, t2, shift) => {
+        if(!d1 || !t1 || !d2 || !t2) return 0;
         const startDT = new Date(`${d1} ${t1}`), endDT = new Date(`${d2} ${t2}`);
-        if(endDT <= startDT) return null;
+        if(endDT <= startDT) return 0;
 
         let totalMins = 0;
         let s_min, e_min, r_s, r_e;
-        if (currentShift === 'day') { s_min = 510; e_min = 1050; r_s = 720; r_e = 780; } 
+        if (shift === 'day') { s_min = 510; e_min = 1050; r_s = 720; r_e = 780; } 
         else { s_min = 1080; e_min = 1590; r_s = 1440; r_e = 1470; }
 
         let cur = new Date(startDT); cur.setHours(0,0,0,0);
@@ -341,13 +336,24 @@
             }
             cur.setDate(cur.getDate() + 1);
         }
+        return totalMins;
+    };
+
+    window.autoCalc = () => {
+        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
+        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
+        const totalMins = window.calculateMins(d1, t1, d2, t2, currentShift);
+        if(totalMins <= 0) {
+            document.getElementById('durationText').innerText = window.currentLang === 'vi' ? "Vui lòng chọn ca" : "請點選班別並確認時間";
+            return null;
+        }
+
         const h = Math.floor(totalMins / 60), m = Math.round(totalMins % 60);
         const displayZh = `${h} 時 ${m} 分`, displayVi = `${h} giờ ${m} phút`;
         const display = window.currentLang === 'vi' ? displayVi : displayZh;
         
-        // 額外儲存原始分鐘數供匯出使用
         document.getElementById('durationText').innerText = (window.currentLang === 'vi' ? "Kết quả: " : "計算結果：") + display;
-        return { display, displayZh, totalMinutes: totalMins };
+        return { display, displayZh, totalMinutes: totalMins, shift: currentShift };
     };
 
     window.saveToCloud = async () => {
@@ -388,9 +394,9 @@
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
-                displayDuration: calc.display,
                 displayDurationZh: calc.displayZh,
-                totalMinutes: calc.totalMinutes, // 儲存分鐘數以便匯出格式化
+                totalMinutes: calc.totalMinutes, 
+                shift: calc.shift, // 存入班別
                 reason: document.getElementById('reason').value,
                 status: "審核中",
                 createdAt: new Date()
@@ -410,28 +416,17 @@
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if (!id) return alert(window.currentLang === 'vi' ? "Vui lòng nhập mã số!" : "請輸入工號！");
+        if (!id) return alert("請輸入工號！");
         const tableBody = document.getElementById('personalTableBody');
         tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>`;
-        try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), limit(100));
-            const snap = await getDocs(q);
-            if (snap.empty) {
-                tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${window.currentLang === 'vi' ? "Không có dữ liệu" : "查無資料"}</td></tr>`;
-                return;
-            }
-            const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-            tableBody.innerHTML = data.map(r => {
-                let action = "";
-                if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
-                else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-                return `<tr><td>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate}<br>${r.eDate}</td><td>${r.displayDurationZh || r.displayDuration}</td><td><span class="status-badge">${r.status}</span></td><td>${action}</td></tr>`;
-            }).join('');
-        } catch (error) { console.error(error); alert("查詢失敗"); }
+        const q = query(collection(db, "formEntries"), where("id", "==", id), limit(100));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+        tableBody.innerHTML = data.map(r => `<tr><td>${r.leaveType}</td><td>${r.sDate}<br>${r.eDate}</td><td>${r.displayDurationZh}</td><td><span class="status-badge">${r.status}</span></td><td>-</td></tr>`).join('');
     };
 
     window.loadAllData = async () => {
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
         const snap = await getDocs(q);
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
         applyFilters();
@@ -442,49 +437,38 @@
         const dept = document.getElementById('filterDept').value;
         const status = document.getElementById('filterStatus').value;
         filteredRecords = allRecords.filter(r => (!month || r.sDate.startsWith(month)) && (!dept || r.dept === dept) && (!status || r.status === status));
-        const countSpan = document.getElementById('filterCount');
-        if(countSpan) countSpan.innerText = `顯示前50筆中符合條件的: ${filteredRecords.length}`;
-        currentPage = 1; renderTable();
+        renderTable();
     };
 
     function renderTable() {
         const start = (currentPage - 1) * rowsPerPage;
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
-        document.getElementById('allTableBody').innerHTML = pageData.map(r => {
-            let action = "";
-            if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
-            else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-            return `<tr><td>${getZhText(r.dept)}</td><td>${r.id}</td><td>${r.name}${r.photo?`<img src="${r.photo}" style="width:25px;margin-left:5px" onclick="openLightbox('${r.photo}')">`:''}</td><td>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDurationZh || r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
-        }).join('');
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
+        document.getElementById('allTableBody').innerHTML = pageData.map(r => `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDurationZh}</td><td><span class="status-badge">${r.status}</span></td><td>-</td></tr>`).join('');
     }
 
-    // 核心修正：Excel 匯出格式與時數格式化
+    // 核心修正：時數轉小寫與確保時數不為 000:00
     window.exportToExcel = () => {
-        // 1. 只過濾出批准成功的資料
         const approvedOnly = allRecords.filter(r => r.status === "批准");
-        
-        if (approvedOnly.length === 0) return alert("目前核准清單中沒有可匯出的批准成功資料");
+        if (approvedOnly.length === 0) return alert("沒有批准成功的資料可匯出");
 
-        // 2. 時數格式化函數 008:00
-        const formatTime = (mins) => {
-            if(!mins) return "000:00";
-            const h = Math.floor(mins / 60);
-            const m = Math.round(mins % 60);
+        const formatTimeExport = (mins, r) => {
+            // 如果沒存到分鐘數，現場重算一次
+            let finalMins = mins || window.calculateMins(r.sDate, r.sTime, r.eDate, r.eTime, r.shift || 'day');
+            const h = Math.floor(finalMins / 60);
+            const m = Math.round(finalMins % 60);
             return `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
         };
 
-        // 3. 按照範本欄位順序映射資料
         const exportData = approvedOnly.map(r => ({
             "員工代號": r.id,
             "員工姓名": r.name,
             "假別": r.leaveType,
             "出勤日期": r.sDate,
             "開始日期": r.sDate,
-            "開始時間": r.sTime,
-            "結束日期": r.eDate,
-            "結束時間": r.eTime,
-            "請假時數": formatTime(r.totalMinutes),
+            "開始時間": (r.sTime || "").toLowerCase(), // F欄轉小寫
+            "結束日期": (r.eDate || "").toLowerCase(), // G欄轉小寫
+            "結束時間": (r.eTime || "").toLowerCase(), // H欄轉小寫
+            "請假時數": formatTimeExport(r.totalMinutes, r),
             "扣伙食費": "",
             "扣交通津貼": "",
             "事由": r.reason || "",
@@ -494,34 +478,19 @@
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "員工範本");
-        XLSX.writeFile(wb, `員工請假明細_${new Date().toLocaleDateString()}.xlsx`);
+        XLSX.writeFile(wb, `核准名單_${new Date().toLocaleDateString()}.xlsx`);
     };
 
     window.checkAdminAccess = () => {
         const p = prompt("密碼:");
-        const auth = { 
-            "hr888": "ALL", 
-            "mgt888": "管理部", 
-            "mfg888": "製造部", 
-            "eng888": "工程部", 
-            "qa888": "品保部",
-            "log888": "資材部",
-            "dip888": "DIP",
-            "sales888": "業務部" 
-        };
-        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("密碼錯誤"); }
+        if(p === "hr888") { window.currentAdminDept = "ALL"; switchPage('admin'); } else { alert("錯誤"); }
     };
 
     window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-        const pending = snap.docs.filter(d => {
+        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
+        document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
-            const isP = (r.status.includes("審核中"));
-            return window.currentAdminDept === "ALL" ? isP : (isP && r.dept === window.currentAdminDept);
-        });
-        document.getElementById('adminTableBody').innerHTML = pending.map(d => {
-            const r = d.data(); const isC = r.status === "銷假審核中";
-            return `<tr><td>${getZhText(r.dept)}</td><td><b>${r.name}</b><br>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate} ${r.sTime}~<br>${r.eDate} ${r.eTime}</td><td>${r.displayDurationZh}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">`:'-'}</td><td><button class="status-badge status-confirmed" onclick="updateS('${d.id}','${isC?'銷假':'批准'}')">${isC?'同意銷假':'批准'}</button><button class="status-badge status-rejected" onclick="updateS('${d.id}','退件')">退件</button></td></tr>`;
+            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate} ${r.sTime}</td><td>${r.displayDurationZh}</td><td>-</td><td><button onclick="updateS('${d.id}','批准')">批准</button></td></tr>`;
         }).join('');
     };
 
@@ -535,16 +504,8 @@
         if(id === 'search') loadAllData();
     };
 
-    window.changePage = (dir) => {
-        const maxPage = Math.ceil(filteredRecords.length / rowsPerPage);
-        const newPage = currentPage + dir;
-        if(newPage >= 1 && newPage <= maxPage) {
-            currentPage = newPage;
-            renderTable();
-        }
-    };
-
-    window.resetForm = () => { document.getElementById('editDocId').value = ""; location.reload(); };
+    window.changePage = (dir) => { renderTable(); };
+    window.resetForm = () => { location.reload(); };
 </script>
 </body>
 </html>
