@@ -21,7 +21,6 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
-            .export-section { flex-direction: column; align-items: stretch !important; }
         }
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -49,8 +48,6 @@
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
         .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
-        .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
-        .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
@@ -197,6 +194,7 @@
                     <option value="銷假審核中" data-vi="Đang duyệt hủy">銷假審核中</option>
                     <option value="銷假" data-vi="Đã hủy">已銷假</option>
                 </select>
+                <button class="btn btn-excel" onclick="exportToExcel()" data-vi="Xuất Excel">📤 匯出 Excel</button>
                 <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
             </div>
             <div class="table-wrapper">
@@ -344,9 +342,7 @@
             cur.setDate(cur.getDate() + 1);
         }
         const h = Math.floor(totalMins / 60), m = Math.round(totalMins % 60);
-        
-        const displayZh = `${h} 時 ${m} 分`;
-        const displayVi = `${h} giờ ${m} phút`;
+        const displayZh = `${h} 時 ${m} 分`, displayVi = `${h} giờ ${m} phút`;
         const display = window.currentLang === 'vi' ? displayVi : displayZh;
         
         document.getElementById('durationText').innerText = (window.currentLang === 'vi' ? "Kết quả: " : "計算結果：") + display;
@@ -409,83 +405,26 @@
         } catch(e) { alert(e.message); }
     };
 
-    window.editRecord = (docId) => {
-        const d = allRecords.find(r => r.docId === docId);
-        if(!d) return;
-        document.getElementById('editDocId').value = docId;
-        document.getElementById('empId').value = d.id;
-        document.getElementById('empName').value = d.name;
-        document.getElementById('dept').value = d.dept;
-        document.getElementById('leaveType').value = d.leaveType;
-        document.getElementById('startDate').value = d.sDate;
-        document.getElementById('startTime').value = d.sTime;
-        document.getElementById('endDate').value = d.eDate;
-        document.getElementById('endTime').value = d.eTime;
-        document.getElementById('submitBtn').innerText = "確認修改";
-        document.getElementById('cancelEditBtn').style.display = "block";
-        switchPage('dashboard');
-    };
-
-    window.requestCancel = async (docId) => {
-        if(!confirm("申請銷假更正？")) return;
-        await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
-        alert("已送出申請");
-        loadAllData();
-    };
-
-    // --- 已修正：個人紀錄查詢 (解決查詢失敗與優化顯示) ---
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if (!id) return alert(window.currentLang === 'vi' ? "Vui lòng nhập mã số!" : "請輸入工號！");
-        
         const tableBody = document.getElementById('personalTableBody');
         tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>`;
-
         try {
-            // 修正點：移除 orderBy 避免複合索引報錯，改由前端進行排序
             const q = query(collection(db, "formEntries"), where("id", "==", id), limit(100));
             const snap = await getDocs(q);
-            
             if (snap.empty) {
                 tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${window.currentLang === 'vi' ? "Không có dữ liệu" : "查無資料"}</td></tr>`;
                 return;
             }
-
-            // 在前端按照時間排序
-            const data = snap.docs
-                .map(d => ({docId: d.id, ...d.data()}))
-                .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-
+            const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
             tableBody.innerHTML = data.map(r => {
                 let action = "";
-                if(r.status === "審核中") {
-                    action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">${window.currentLang === 'vi' ? "Sửa" : "修改"}</button>`;
-                } else if(r.status === "批准") {
-                    action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">${window.currentLang === 'vi' ? "Hủy" : "銷假更正"}</button>`;
-                }
-
-                const showType = window.currentLang === 'vi' ? (r.leaveType) : getZhText(r.leaveType);
-                const showDuration = window.currentLang === 'vi' ? (r.displayDuration || "") : (r.displayDurationZh || r.displayDuration || "");
-
-                // 動態判斷標籤顏色
-                let statusClass = "status-pending";
-                if(r.status === "批准") statusClass = "status-confirmed";
-                if(r.status === "退件") statusClass = "status-rejected";
-                if(r.status === "銷假" || r.status === "已銷假") statusClass = "status-cancel";
-
-                return `
-                    <tr>
-                        <td>${showType}</td>
-                        <td style="font-size:12px">${r.sDate}<br>${r.eDate}</td>
-                        <td>${showDuration}</td>
-                        <td><span class="status-badge ${statusClass}">${r.status}</span></td>
-                        <td>${action}</td>
-                    </tr>`;
+                if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
+                else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
+                return `<tr><td>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate}<br>${r.eDate}</td><td>${r.displayDurationZh || r.displayDuration}</td><td><span class="status-badge">${r.status}</span></td><td>${action}</td></tr>`;
             }).join('');
-        } catch (error) {
-            console.error("Search Error:", error);
-            alert("查詢失敗，請檢查網路或工號格式");
-        }
+        } catch (error) { console.error(error); alert("查詢失敗"); }
     };
 
     window.loadAllData = async () => {
@@ -511,13 +450,29 @@
             let action = "";
             if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
             else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-            
             return `<tr><td>${getZhText(r.dept)}</td><td>${r.id}</td><td>${r.name}${r.photo?`<img src="${r.photo}" style="width:25px;margin-left:5px" onclick="openLightbox('${r.photo}')">`:''}</td><td>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDurationZh || r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
     }
 
-    window.changePage = (dir) => { currentPage += dir; renderTable(); };
+    window.exportToExcel = () => {
+        if (filteredRecords.length === 0) return alert("沒有資料可匯出");
+        const exportData = filteredRecords.map(r => ({
+            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType, 
+            "開始日期": r.sDate, "時間": r.sTime, "結束日期": r.eDate, "結束時間": r.eTime, 
+            "時數": r.displayDurationZh, "狀態": r.status
+        }));
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+        XLSX.writeFile(wb, `鼎顓考勤表_${new Date().toLocaleDateString()}.xlsx`);
+    };
+
+    window.checkAdminAccess = () => {
+        const p = prompt("密碼:");
+        const auth = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "qa888": "品保部""log888": "資材部""dip888": "DIP""sales888": "業務部" };
+        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("錯誤"); }
+    };
 
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
@@ -528,21 +483,11 @@
         });
         document.getElementById('adminTableBody').innerHTML = pending.map(d => {
             const r = d.data(); const isC = r.status === "銷假審核中";
-            const showDept = getZhText(r.dept);
-            const showLeave = getZhText(r.leaveType);
-            const showDuration = r.displayDurationZh || r.displayDuration.replace('giờ', '時').replace('phút', '分');
-
-            return `<tr><td>${showDept}</td><td><b>${r.name}</b><br>${showLeave}</td><td style="font-size:12px">${r.sDate} ${r.sTime}~<br>${r.eDate} ${r.eTime}</td><td>${showDuration}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">`:'-'}</td><td><button class="status-badge status-confirmed" onclick="updateS('${d.id}','${isC?'銷假':'批准'}')">${isC?'同意銷假':'批准'}</button><button class="status-badge status-rejected" onclick="updateS('${d.id}','退件')">退件</button></td></tr>`;
+            return `<tr><td>${getZhText(r.dept)}</td><td><b>${r.name}</b><br>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate} ${r.sTime}~<br>${r.eDate} ${r.eTime}</td><td>${r.displayDurationZh}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">`:'-'}</td><td><button class="status-badge status-confirmed" onclick="updateS('${d.id}','${isC?'銷假':'批准'}')">${isC?'同意銷假':'批准'}</button><button class="status-badge status-rejected" onclick="updateS('${d.id}','退件')">退件</button></td></tr>`;
         }).join('');
     };
 
     window.updateS = async (id, s) => { await updateDoc(doc(db, "formEntries", id), { status: s }); loadAdminData(); };
-
-    window.checkAdminAccess = () => {
-        const p = prompt("密碼:");
-        const auth = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部" };
-        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("錯誤"); }
-    };
 
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(e => e.classList.remove('active'));
@@ -553,7 +498,6 @@
     };
 
     window.resetForm = () => { document.getElementById('editDocId').value = ""; location.reload(); };
-
 </script>
 </body>
 </html>
