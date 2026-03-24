@@ -308,8 +308,8 @@
         }
     };
 
-    // 核心計算時數函數
-    window.calculateMins = (d1, t1, d2, t2, shift) => {
+    // 核心分鐘計算函數 (供存檔及匯出補救使用)
+    window.calculateMinsLogic = (d1, t1, d2, t2, shift) => {
         if(!d1 || !t1 || !d2 || !t2) return 0;
         const startDT = new Date(`${d1} ${t1}`), endDT = new Date(`${d2} ${t2}`);
         if(endDT <= startDT) return 0;
@@ -342,16 +342,14 @@
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
-        const totalMins = window.calculateMins(d1, t1, d2, t2, currentShift);
+        const totalMins = window.calculateMinsLogic(d1, t1, d2, t2, currentShift);
         if(totalMins <= 0) {
             document.getElementById('durationText').innerText = window.currentLang === 'vi' ? "Vui lòng chọn ca" : "請點選班別並確認時間";
             return null;
         }
-
         const h = Math.floor(totalMins / 60), m = Math.round(totalMins % 60);
         const displayZh = `${h} 時 ${m} 分`, displayVi = `${h} giờ ${m} phút`;
         const display = window.currentLang === 'vi' ? displayVi : displayZh;
-        
         document.getElementById('durationText').innerText = (window.currentLang === 'vi' ? "Kết quả: " : "計算結果：") + display;
         return { display, displayZh, totalMinutes: totalMins, shift: currentShift };
     };
@@ -426,7 +424,7 @@
     };
 
     window.loadAllData = async () => {
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
         const snap = await getDocs(q);
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
         applyFilters();
@@ -446,14 +444,14 @@
         document.getElementById('allTableBody').innerHTML = pageData.map(r => `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDurationZh}</td><td><span class="status-badge">${r.status}</span></td><td>-</td></tr>`).join('');
     }
 
-    // 核心修正：時數轉小寫與確保時數不為 000:00
+    // 核心修正：時數轉小寫與補救 000:00 計算
     window.exportToExcel = () => {
         const approvedOnly = allRecords.filter(r => r.status === "批准");
         if (approvedOnly.length === 0) return alert("沒有批准成功的資料可匯出");
 
         const formatTimeExport = (mins, r) => {
-            // 如果沒存到分鐘數，現場重算一次
-            let finalMins = mins || window.calculateMins(r.sDate, r.sTime, r.eDate, r.eTime, r.shift || 'day');
+            // 防錯：如果 mins 為空或 0，現場依據起迄日期/班別重新計算
+            let finalMins = mins || window.calculateMinsLogic(r.sDate, r.sTime, r.eDate, r.eTime, r.shift || 'day');
             const h = Math.floor(finalMins / 60);
             const m = Math.round(finalMins % 60);
             return `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
