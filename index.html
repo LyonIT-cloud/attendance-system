@@ -266,7 +266,6 @@
     window.currentAdminDept = "ALL";
     window.currentLang = 'zh';
 
-    // --- 新增：將越文轉回中文的映射表 ---
     const i18nMap = {
         "Bộ phận quản lý": "管理部", "Bộ phận sản xuất": "製造部", "Bộ phận kỹ thuật": "工程部",
         "Bộ phận vật tư": "資材部", "Bộ phận kinh doanh": "業務部", "Bộ phận QA": "品保部",
@@ -346,7 +345,6 @@
         }
         const h = Math.floor(totalMins / 60), m = Math.round(totalMins % 60);
         
-        // 修改點：存入資料庫時統一格式，顯示時才區分語系
         const displayZh = `${h} 時 ${m} 分`;
         const displayVi = `${h} giờ ${m} phút`;
         const display = window.currentLang === 'vi' ? displayVi : displayZh;
@@ -394,7 +392,7 @@
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
                 displayDuration: calc.display,
-                displayDurationZh: calc.displayZh, // 新增：存入中文版時數
+                displayDurationZh: calc.displayZh, 
                 status: "審核中",
                 createdAt: new Date()
             };
@@ -435,17 +433,46 @@
         loadAllData();
     };
 
+    // --- 修復：個人紀錄查詢 ---
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(50));
-        const snap = await getDocs(q);
-        const data = snap.docs.map(d => ({docId: d.id, ...d.data()}));
-        document.getElementById('personalTableBody').innerHTML = data.map(r => {
-            let action = "";
-            if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
-            else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-            return `<tr><td>${r.leaveType}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
-        }).join('');
+        if (!id) return alert(window.currentLang === 'vi' ? "Vui lòng nhập mã số!" : "請輸入工號！");
+        
+        try {
+            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(50));
+            const snap = await getDocs(q);
+            
+            if (snap.empty) {
+                document.getElementById('personalTableBody').innerHTML = `<tr><td colspan="5" style="text-align:center;">${window.currentLang === 'vi' ? "Không có dữ liệu" : "查無資料"}</td></tr>`;
+                return;
+            }
+
+            const data = snap.docs.map(d => ({docId: d.id, ...d.data()}));
+            document.getElementById('personalTableBody').innerHTML = data.map(r => {
+                let action = "";
+                if(r.status === "審核中") {
+                    action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">${window.currentLang === 'vi' ? "Sửa" : "修改"}</button>`;
+                } else if(r.status === "批准") {
+                    action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">${window.currentLang === 'vi' ? "Hủy" : "銷假更正"}</button>`;
+                }
+
+                // 根據當前語言選擇顯示內容
+                const showType = window.currentLang === 'vi' ? (r.leaveType) : getZhText(r.leaveType);
+                const showDuration = window.currentLang === 'vi' ? (r.displayDuration || "") : (r.displayDurationZh || r.displayDuration || "");
+
+                return `
+                    <tr>
+                        <td>${showType}</td>
+                        <td style="font-size:12px">${r.sDate}~${r.eDate}</td>
+                        <td>${showDuration}</td>
+                        <td><span class="status-badge status-pending">${r.status}</span></td>
+                        <td>${action}</td>
+                    </tr>`;
+            }).join('');
+        } catch (error) {
+            console.error("Search Error:", error);
+            alert("查詢失敗，請檢查網路或工號格式");
+        }
     };
 
     window.loadAllData = async () => {
@@ -472,7 +499,6 @@
             if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
             else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
             
-            // 核准清單顯示中文轉換
             return `<tr><td>${getZhText(r.dept)}</td><td>${r.id}</td><td>${r.name}${r.photo?`<img src="${r.photo}" style="width:25px;margin-left:5px" onclick="openLightbox('${r.photo}')">`:''}</td><td>${getZhText(r.leaveType)}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDurationZh || r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
@@ -489,8 +515,6 @@
         });
         document.getElementById('adminTableBody').innerHTML = pending.map(d => {
             const r = d.data(); const isC = r.status === "銷假審核中";
-            
-            // 修改點：在管理端統一轉回中文顯示
             const showDept = getZhText(r.dept);
             const showLeave = getZhText(r.leaveType);
             const showDuration = r.displayDurationZh || r.displayDuration.replace('giờ', '時').replace('phút', '分');
