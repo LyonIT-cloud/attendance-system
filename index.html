@@ -96,29 +96,29 @@
                         <label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
                             <option value="" data-vi="--Chọn bộ phận--">--選擇部門--</option>
-                            <option data-vi="Bộ phận quản lý">管理部</option>
-                            <option data-vi="Bộ phận sản xuất">製造部</option>
-                            <option data-vi="Bộ phận kỹ thuật">工程部</option>
-                            <option>SMT</option>
-                            <option data-vi="Bộ phận vật tư">資材部</option>
-                            <option data-vi="Bộ phận kinh doanh">業務部</option>
-                            <option>DIP</option>
-                            <option data-vi="Bộ phận QA">品保部</option>
+                            <option value="管理部" data-vi="Bộ phận quản lý">管理部</option>
+                            <option value="製造部" data-vi="Bộ phận sản xuất">製造部</option>
+                            <option value="工程部" data-vi="Bộ phận kỹ thuật">工程部</option>
+                            <option value="SMT">SMT</option>
+                            <option value="資材部" data-vi="Bộ phận vật tư">資材部</option>
+                            <option value="業務部" data-vi="Bộ phận kinh doanh">業務部</option>
+                            <option value="DIP">DIP</option>
+                            <option value="品保部" data-vi="Bộ phận QA">品保部</option>
                         </select>
                     </div>
                     <div>
                         <label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
-                            <option data-vi="Việc riêng">事假</option>
-                            <option data-vi="Bệnh">病假</option>
-                            <option data-vi="Phép năm">特休</option>
-                            <option data-vi="Công tác">公假</option>
-                            <option data-vi="Thai sản">產假</option>
-                            <option data-vi="Khám thai">陪產假</option>
-                            <option data-vi="Nghỉ bù">補休</option>
-                            <option data-vi="Kết hôn">婚假</option>
-                            <option data-vi="Kinh nguyệt">生理假</option>
-                            <option data-vi="Tai nạn lao động">工傷假</option>
+                            <option value="事假" data-vi="Việc riêng">事假</option>
+                            <option value="病假" data-vi="Bệnh">病假</option>
+                            <option value="特休" data-vi="Phép năm">特休</option>
+                            <option value="公假" data-vi="Công tác">公假</option>
+                            <option value="產假" data-vi="Thai sản">產假</option>
+                            <option value="陪產假" data-vi="Khám thai">陪產假</option>
+                            <option value="補休" data-vi="Nghỉ bù">補休</option>
+                            <option value="婚假" data-vi="Kết hôn">婚假</option>
+                            <option value="生理假" data-vi="Kinh nguyệt">生理假</option>
+                            <option value="工傷假" data-vi="Tai nạn lao động">工傷假</option>
                         </select>
                     </div>
                 </div>
@@ -267,7 +267,6 @@
                 el.innerText = el.dataset.zh || el.innerText;
             }
         });
-        // 修正 Placeholder
         document.querySelectorAll('[data-placeholder-vi]').forEach(input => {
             if (lang === 'vi') {
                 if (!input.dataset.placeholderZh) input.dataset.placeholderZh = input.placeholder;
@@ -278,7 +277,6 @@
         });
     };
 
-    // 圖片放大
     window.openLightbox = (src) => {
         const modal = document.getElementById('imageLightbox');
         const img = document.getElementById('lightboxImg');
@@ -289,7 +287,6 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
-    // 分頁
     window.changePage = (dir) => {
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         let newPage = currentPage + dir;
@@ -299,14 +296,12 @@
         }
     };
 
-    // 切換班別
     window.setShift = (shift) => {
         currentShift = shift;
         const sTimeInput = document.getElementById('startTime');
         const eTimeInput = document.getElementById('endTime');
         const dayBtn = document.getElementById('shiftDayBtn');
         const midBtn = document.getElementById('shiftMidBtn');
-
         if(shift === 'day') {
             sTimeInput.value = "08:30"; eTimeInput.value = "17:30";
             dayBtn.style.borderColor = "var(--primary)"; dayBtn.style.color = "var(--primary)";
@@ -319,7 +314,6 @@
         autoCalc();
     };
 
-    // 自動抓取姓名
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
@@ -336,7 +330,6 @@
         } catch (e) { console.error(e); }
     };
 
-    // 切換頁面
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
@@ -346,16 +339,23 @@
         if(window.innerWidth <= 768) window.scrollTo(0, 0);
     };
 
-    // 儲存申請
+    // --- 關鍵修正：存儲至雲端時強制轉為中文 ---
     window.saveToCloud = async () => {
         const calcData = autoCalc();
         if(!calcData) return alert(window.currentLang === 'vi' ? "Vui lòng chọn thời gian chính xác" : "請正確選擇起始與結束時間");
         
-        const { totalMins, durationHours, displayStr } = calcData;
-        const leaveType = document.getElementById('leaveType').value;
-        const file = document.getElementById('leaveImg').files[0];
+        const { totalMins, durationHours } = calcData;
         
-        if (leaveType === "病假" && !file) return alert(window.currentLang === 'vi' ? "Nghỉ bệnh phải tải lên ảnh chứng minh!" : "病假必須上傳證明文件照片！");
+        // 強制使用中文對應值存檔
+        const deptSelect = document.getElementById('dept');
+        const leaveSelect = document.getElementById('leaveType');
+        const finalDept = deptSelect.value; // 因為 <option> 的 value 是中文
+        const finalLeaveType = leaveSelect.value; // 因為 <option> 的 value 是中文
+        const finalDisplayDuration = `${Math.floor(totalMins / 60)} 時 ${Math.round(totalMins % 60)} 分`;
+
+        const file = document.getElementById('leaveImg').files[0];
+        if (finalLeaveType === "病假" && !file) return alert(window.currentLang === 'vi' ? "Nghỉ bệnh phải tải lên ảnh chứng minh!" : "病假必須上傳證明文件照片！");
+        
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
         if(!id || !name) return alert("工號不正確或姓名未帶入");
@@ -385,31 +385,30 @@
             }
 
             await addDoc(collection(db, "formEntries"), {
-                id, name, dept: document.getElementById('dept').value,
-                leaveType: leaveType,
+                id, name, 
+                dept: finalDept,
+                leaveType: finalLeaveType,
                 shift: currentShift === 'day' ? '早班' : '中班',
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
                 duration: durationHours,
-                displayDuration: displayStr, 
+                displayDuration: finalDisplayDuration, 
                 reason: document.getElementById('reason').value,
                 status: "審核中", photo, createdAt: new Date()
             });
 
-            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: displayStr }) });
+            fetch(gasUrl, { method: "POST", mode: "no-cors", body: JSON.stringify({ id, name, dur: finalDisplayDuration }) });
             alert(window.currentLang === 'vi' ? "Đơn đã được gửi thành công!" : "申請已成功送出！"); 
             location.reload();
         } catch(e) { alert("錯誤: " + e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 自動計算時數
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
         if(!d1 || !t1 || !d2 || !t2) return null;
-        
         const startDT = new Date(`${d1} ${t1}`);
         const endDT = new Date(`${d2} ${t2}`);
         if(isNaN(startDT) || isNaN(endDT) || endDT <= startDT) return null;
@@ -432,10 +431,8 @@
             let shiftEnd = new Date(checkDate); shiftEnd.setMinutes(e_limit);
             let restStart = new Date(checkDate); restStart.setMinutes(r_start);
             let restEnd = new Date(checkDate); restEnd.setMinutes(r_end);
-
             let overlapS = new Date(Math.max(startDT, shiftStart));
             let overlapE = new Date(Math.min(endDT, shiftEnd));
-
             if (overlapS < overlapE) {
                 let diff = (overlapE - overlapS) / 1000 / 60;
                 let actualRestS = new Date(Math.max(overlapS, restStart));
@@ -450,10 +447,9 @@
         const m_res = Math.round(totalMins % 60);
         const displayStr = window.currentLang === 'vi' ? `${h_res} giờ ${m_res} phút` : `${h_res} 時 ${m_res} 分`;
         document.getElementById('durationText').innerText = window.currentLang === 'vi' ? `🕒 Kết quả: ${displayStr}` : `🕒 計算結果：${displayStr}`;
-        return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
+        return { totalMins, durationHours: (totalMins / 60).toFixed(1) };
     };
 
-    // 載入所有資料
     window.loadAllData = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = "<tr><td colspan='8' style='text-align:center'>Loading...</td></tr>";
@@ -465,49 +461,30 @@
         } catch (e) { tbody.innerHTML = "<tr><td colspan='8'>Error</td></tr>"; }
     };
 
-    // 過濾功能
     window.applyFilters = () => {
-        const filterId = sessionStorage.getItem('targetFilterId');
         const filterMonth = document.getElementById('filterMonth').value;
         const filterDept = document.getElementById('filterDept').value;
         const filterStatus = document.getElementById('filterStatus').value;
-
         filteredRecords = allRecords.filter(r => {
-            const matchId = filterId ? (r.id && r.id === filterId) : true;
             const matchMonth = filterMonth ? (r.sDate && r.sDate.startsWith(filterMonth)) : true;
             const matchDept = filterDept ? (r.dept && r.dept === filterDept) : true;
             const matchStatus = filterStatus ? (r.status && r.status === filterStatus) : true;
-            return matchId && matchMonth && matchDept && matchStatus;
+            return matchMonth && matchDept && matchStatus;
         });
-
-        document.getElementById('resetFilterBtn').style.display = filterId ? 'inline-block' : 'none';
         document.getElementById('filterCount').innerText = `Count: ${filteredRecords.length}`;
         currentPage = 1; renderTable();
     };
 
-    // 渲染表格
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         const start = (currentPage - 1) * rowsPerPage;
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
-        
         tbody.innerHTML = pageData.map(r => {
             let cls = "status-pending";
             if(r.status === "批准") cls = "status-confirmed";
             else if(r.status === "退件") cls = "status-rejected";
-            else if(r.status === "銷假") cls = "status-cancel";
-            else if(r.status === "銷假審核中") cls = "status-request-cancel";
-            
             const photoBtn = r.photo ? `<img src="${r.photo}" style="width:28px; height:28px; border-radius:4px; cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '';
-
-            let actionBtn = "";
-            if (r.status === "審核中") {
-                actionBtn = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
-            } else if (r.status === "批准") {
-                actionBtn = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-            }
-
             return `<tr>
                 <td>${r.dept || "--"}</td>
                 <td>${r.id || '--'}</td>
@@ -516,23 +493,20 @@
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}~${r.eDate} ${r.eTime}</td>
                 <td>${r.displayDuration || "--"}</td>
                 <td><span class="status-badge ${cls}">${r.status || '審核中'}</span></td>
-                <td>${actionBtn}</td>
+                <td>--</td>
             </tr>`;
         }).join('') || "<tr><td colspan='8' style='text-align:center'>No Data</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
-    // 載入主管審核資料 (分流修正)
     window.loadAdminData = async () => {
         const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
         const snap = await getDocs(q);
         const pendingData = snap.docs.filter(d => {
             const r = d.data();
             const isPending = (r.status === "審核中" || r.status === "銷假審核中");
-            // 主管分流邏輯
             return window.currentAdminDept === "ALL" ? isPending : (isPending && r.dept === window.currentAdminDept);
         });
-
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = pendingData.map(d => {
             const r = d.data(); 
@@ -551,108 +525,24 @@
         }).join('') || "<tr><td colspan='6' style='text-align:center'>無待處理案件</td></tr>";
     };
 
-    // 主管權限與分流設定
+    window.updateStatus = async (docId, newStatus) => {
+        try {
+            await updateDoc(doc(db, "formEntries", docId), { status: newStatus });
+            alert("更新成功");
+            loadAdminData();
+        } catch (e) { alert("更新失敗"); }
+    };
+
     window.checkAdminAccess = () => {
         const pwd = prompt(window.currentLang === 'vi' ? "Nhập mật khẩu quản lý:" : "請輸入主管審核密碼:");
-        const authMap = { 
-            "hr888": "ALL", 
-            "mgt888": "管理部", 
-            "mfg888": "製造部", 
-            "eng888": "工程部", 
-            "smt888": "SMT", 
-            "qa888": "品保部", 
-            "log888": "資材部", 
-            "sales888": "業務部", 
-            "dip888": "DIP" 
-        };
+        const authMap = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部" };
         if (authMap[pwd]) {
             window.currentAdminDept = authMap[pwd];
             switchPage('admin');
-            const deptDisplay = authMap[pwd] === "ALL" ? (window.currentLang === 'vi' ? "Tất cả" : "所有部門") : authMap[pwd];
-            document.getElementById('adminTitle').innerText = (window.currentLang === 'vi' ? "🛡️ Trung tâm quản lý " : "🛡️ 主管審核中心 ") + `(${deptDisplay})`;
-        } else { alert(window.currentLang === 'vi' ? "Mật khẩu sai" : "密碼錯誤"); }
-    };
-
-    // 銷假更正申請
-    window.requestCancel = async (docId) => {
-        if(!confirm("確定要申請銷假更正嗎？")) return;
-        try {
-            await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
-            alert("已送出銷假申請，請等待主管審核");
-            loadAllData();
-        } catch(e) { alert("失敗: " + e.message); }
-    };
-
-    // 修改功能
-    window.editRecord = (docId) => {
-        const r = allRecords.find(x => x.docId === docId);
-        if(!r) return;
-        document.getElementById('empId').value = r.id;
-        document.getElementById('empName').value = r.name;
-        document.getElementById('dept').value = r.dept;
-        document.getElementById('leaveType').value = r.leaveType;
-        document.getElementById('startDate').value = r.sDate;
-        document.getElementById('startTime').value = r.sTime;
-        document.getElementById('endDate').value = r.eDate;
-        document.getElementById('endTime').value = r.eTime;
-        document.getElementById('reason').value = r.reason;
-        switchPage('dashboard');
-        alert("資料已帶入申請頁面，請修正後重新送出。");
-    };
-
-    // 主管審核狀態更新
-    window.updateStatus = async (id, status) => {
-        const now = new Date();
-        const dateStr = `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-        await updateDoc(doc(db, "formEntries", id), { 
-            status: status,
-            approvedAt: (status === '批准' || status === '銷假') ? dateStr : "" 
-        });
-        loadAdminData();
-    };
-
-    // 導出 Excel
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇匯出月份");
-
-        const snap = await getDocs(collection(db, "formEntries"));
-        const data = snap.docs
-            .map(d => d.data())
-            .filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
-
-        if (data.length === 0) return alert("該月份無核准紀錄");
-
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
-        const wsData = [header];
-
-        data.forEach(r => {
-            let excelDur = "00:00";
-            if(r.displayDuration) {
-                const match = r.displayDuration.match(/(\d+)\s*時\s*(\d+)\s*分/);
-                if(match) excelDur = `${match[1].padStart(2,'0')}:${match[2].padStart(2,'0')}`;
-            }
-            wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, excelDur, r.reason, r.dept, r.approvedAt]);
-        });
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
-        XLSX.writeFile(wb, `鼎顓電子_請假單_${m}.xlsx`);
-    };
-
-    window.searchPersonalRecords = () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return;
-        sessionStorage.setItem('targetFilterId', id);
-        switchPage('search');
-    };
-
-    window.resetFilter = () => {
-        sessionStorage.removeItem('targetFilterId');
-        applyFilters();
+        } else if (pwd !== null) {
+            alert("密碼錯誤");
+        }
     };
 </script>
-
 </body>
 </html>
