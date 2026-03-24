@@ -86,7 +86,7 @@
                     </div>
                     <div>
                         <label data-vi="Tên nhân viên">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入" data-placeholder-vi="Tự động nhập tên">
+                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入" data-placeholder-vi="Tự動 nhập tên">
                     </div>
                 </div>
                 <div class="form-grid">
@@ -439,7 +439,8 @@
         const dept = document.getElementById('filterDept').value;
         const status = document.getElementById('filterStatus').value;
         filteredRecords = allRecords.filter(r => (!month || r.sDate.startsWith(month)) && (!dept || r.dept === dept) && (!status || r.status === status));
-        document.getElementById('filterCount').innerText = `顯示前50筆中符合條件的: ${filteredRecords.length}`;
+        const countSpan = document.getElementById('filterCount');
+        if(countSpan) countSpan.innerText = `顯示前50筆中符合條件的: ${filteredRecords.length}`;
         currentPage = 1; renderTable();
     };
 
@@ -470,8 +471,17 @@
 
     window.checkAdminAccess = () => {
         const p = prompt("密碼:");
-        const auth = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "qa888": "品保部""log888": "資材部""dip888": "DIP""sales888": "業務部" };
-        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("錯誤"); }
+        const auth = { 
+            "hr888": "ALL", 
+            "mgt888": "管理部", 
+            "mfg888": "製造部", 
+            "eng888": "工程部", 
+            "qa888": "品保部",
+            "log888": "資材部",
+            "dip888": "DIP",
+            "sales888": "業務部" 
+        };
+        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("密碼錯誤"); }
     };
 
     window.loadAdminData = async () => {
@@ -495,6 +505,15 @@
         document.getElementById('nav-'+id).classList.add('active');
         if(id === 'admin') loadAdminData();
         if(id === 'search') loadAllData();
+    };
+
+    window.changePage = (dir) => {
+        const maxPage = Math.ceil(filteredRecords.length / rowsPerPage);
+        const newPage = currentPage + dir;
+        if(newPage >= 1 && newPage <= maxPage) {
+            currentPage = newPage;
+            renderTable();
+        }
     };
 
     window.resetForm = () => { document.getElementById('editDocId').value = ""; location.reload(); };
