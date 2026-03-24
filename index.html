@@ -199,7 +199,7 @@
             <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Hành động">動作</th></tr></thead>
+                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng證">證明</th><th data-vi="Hành động">動作</th></tr></thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
@@ -220,7 +220,6 @@
     };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const gasUrl = "https://script.google.com/macros/s/AKfycbwvtShE86BfAZsSKNYnRaQ4mC1wy3CZZPvcwuJGIOq7bRWFX7HZHPWzRfMaX7ydvYsZfw/exec";
 
     let allRecords = []; 
     let filteredRecords = []; 
@@ -229,8 +228,6 @@
     let currentShift = 'day'; 
     let currentLang = 'zh';
     window.currentAdminDept = "ALL";
-
-    // --- 核心修正：將所有需要從 HTML 呼叫的函式掛載到 window ---
 
     window.changeLanguage = (lang) => {
         currentLang = lang;
@@ -310,14 +307,6 @@
         sessionStorage.setItem('targetFilterId', id);
         window.switchPage('search');
     };
-
-    window.resetFilter = () => {
-        sessionStorage.removeItem('targetFilterId');
-        document.getElementById('queryEmpId').value = "";
-        window.applyFilters();
-    };
-
-    // --- 保留原本邏輯 ---
 
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
@@ -526,6 +515,7 @@
         } else { alert("Error Password"); }
     };
 
+    // --- 關鍵修正：時數樣式 000:00 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
@@ -533,10 +523,34 @@
         const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
         if (data.length === 0) return alert("無核准紀錄");
 
+        // 格式化輔助函數：將 "X 時 Y 分" 轉為 "000:00"
+        const formatToTripleDigit = (displayStr) => {
+            if (!displayStr) return "000:00";
+            const match = displayStr.match(/(\d+)\s*時\s*(\d+)\s*分/);
+            if (match) {
+                const h = parseInt(match[1]);
+                const m = parseInt(match[2]);
+                return `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
+            }
+            return "000:00";
+        };
+
         const wsData = [["員工代號", "員工姓名", "假別", "開始日期", "開始時間", "結束日期", "結束時間", "時數", "事由"]];
-        data.forEach(r => wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, r.reason]));
+        data.forEach(r => {
+            const formattedDuration = formatToTripleDigit(r.displayDuration);
+            wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sTime, r.eDate, r.eTime, formattedDuration, r.reason || ""]);
+        });
+
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+        // 強制將時數欄位格式設為字串，防止 Excel 自動把 008:30 變回 8:30
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = 1; R <= range.e.r; ++R) {
+            const addr = XLSX.utils.encode_cell({c: 7, r: R}); // 第8欄 (Index 7) 為時數
+            if (ws[addr]) ws[addr].t = 's';
+        }
+
         XLSX.utils.book_append_sheet(wb, ws, "Records");
         XLSX.writeFile(wb, `Attendance_${m}.xlsx`);
     };
