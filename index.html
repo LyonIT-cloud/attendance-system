@@ -21,6 +21,7 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
+            .export-section { flex-direction: column; align-items: stretch !important; }
         }
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -39,23 +40,22 @@
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
         .btn-excel { background: #16a34a; color: white; }
-        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; }
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-        .status-badge { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; border:none; cursor:pointer; }
+        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
         .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
         .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
         .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        .btn-action { padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold; border: 1px solid transparent; }
-        .btn-edit { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
-        .btn-cancel-request { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
+        .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         
-        .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
-        .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; cursor: zoom-out; }
+        .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
@@ -113,7 +113,6 @@
                         </select>
                     </div>
                 </div>
-                
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
                     <label data-vi="Chọn ca làm việc">選擇班別 (自動帶入時間)</label>
                     <div style="display: flex; gap: 15px; margin-top: 10px;">
@@ -121,17 +120,16 @@
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班 (18:00~02:30)</button>
                     </div>
                 </div>
-
                 <div class="form-grid">
                     <div>
-                        <label data-vi="Bắt đầu">起始時間</label>
+                        <label data-vi="Thời gian bắt đầu">起始時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="startDate" onchange="autoCalc()">
                             <input type="time" id="startTime" onchange="autoCalc()">
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Kết thúc">結束時間</label>
+                        <label data-vi="Thời gian kết thúc">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()">
                             <input type="time" id="endTime" onchange="autoCalc()">
@@ -140,8 +138,19 @@
                 </div>
                 <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請點選班別並確認時間</div>
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
-                <div style="margin-top:15px;"><label data-vi="Tải ảnh">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
+                <div style="margin-top:15px;"><label data-vi="Tải ảnh bằng chứng">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
+            </div>
+        </div>
+
+        <div id="page-personal" class="page-content">
+            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
+            <div class="card">
+                <label data-vi="Nhập mã số">請輸入工號查詢</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
+                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
+                </div>
             </div>
         </div>
 
@@ -150,16 +159,16 @@
             <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
                 <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
                 <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
-                    <option value="">全部部門</option>
+                    <option value="" data-vi="Tất cả bộ phận">全部部門</option>
                     <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
                 <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
-                    <option value="">全部狀態</option>
-                    <option value="審核中">審核中</option>
-                    <option value="批准">批准</option>
-                    <option value="退件">退件</option>
-                    <option value="銷假審核中">銷假審核中</option>
-                    <option value="銷假">已銷假</option>
+                    <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
+                    <option value="審核中" data-vi="Đang duyệt">審核中</option>
+                    <option value="批准" data-vi="Đã duyệt">批准</option>
+                    <option value="退件" data-vi="Từ chối">退件</option>
+                    <option value="銷假審核中" data-vi="Đang chờ xóa">銷假審核中</option>
+                    <option value="銷假" data-vi="Đã xóa">已銷假</option>
                 </select>
                 <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
             </div>
@@ -176,9 +185,13 @@
                 </table>
             </div>
             <div class="pagination-ctrl">
-                <button id="prevBtn" class="btn-page" onclick="changePage(-1)">上一頁</button>
+                <button id="prevBtn" class="btn-page" onclick="changePage(-1)" data-vi="Trang trước">上一頁</button>
                 <span id="pageInfo">1 / 1</span>
-                <button id="nextBtn" class="btn-page" onclick="changePage(1)">下一頁</button>
+                <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
+            </div>
+            <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
+                <input type="month" id="exportMonth" style="width: 200px;">
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;" data-vi="📥 Xuất EXCEL">📥 依照範本導出 EXCEL</button>
             </div>
         </div>
 
@@ -186,13 +199,7 @@
             <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead>
-                        <tr>
-                            <th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th>
-                            <th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th>
-                            <th data-vi="Ảnh">證明</th><th data-vi="Hành động">動作</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Hành động">動作</th></tr></thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
@@ -201,7 +208,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -220,10 +227,11 @@
     let currentPage = 1;
     const rowsPerPage = 10;
     let currentShift = 'day'; 
-    window.currentAdminDept = "ALL";
     let currentLang = 'zh';
+    window.currentAdminDept = "ALL";
 
-    // 語言切換修正：包含表格表頭與動態生成的內容
+    // --- 核心修正：將所有需要從 HTML 呼叫的函式掛載到 window ---
+
     window.changeLanguage = (lang) => {
         currentLang = lang;
         document.querySelectorAll('[data-vi]').forEach(el => {
@@ -234,9 +242,16 @@
                 el.innerText = el.dataset.zh || el.innerText;
             }
         });
-        // 重新渲染表格以同步語言
-        if (document.getElementById('page-admin').classList.contains('active')) loadAdminData();
-        if (document.getElementById('page-search').classList.contains('active')) renderTable();
+        if(allRecords.length > 0) { renderTable(); loadAdminData(); }
+    };
+
+    window.switchPage = (id) => {
+        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('page-'+id).classList.add('active');
+        document.getElementById('nav-'+id).classList.add('active');
+        if(id === 'admin') loadAdminData();
+        if(id === 'search') loadAllData();
+        if(window.innerWidth <= 768) window.scrollTo(0, 0);
     };
 
     window.openLightbox = (src) => {
@@ -250,17 +265,59 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
-    window.setShift = (shift) => {
-        currentShift = shift;
-        const sTimeInput = document.getElementById('startTime');
-        const eTimeInput = document.getElementById('endTime');
-        if(shift === 'day') {
-            sTimeInput.value = "08:30"; eTimeInput.value = "17:30";
-        } else {
-            sTimeInput.value = "18:00"; eTimeInput.value = "02:30";
-        }
-        autoCalc();
+    window.editRecord = async (docId) => {
+        const confirmMsg = currentLang === 'vi' ? "Xóa đơn cũ để điền lại?" : "確定要刪除舊單並重新填寫嗎？";
+        if (!confirm(confirmMsg)) return;
+        try {
+            const docSnap = await getDoc(doc(db, "formEntries", docId));
+            const data = docSnap.data();
+            document.getElementById('empId').value = data.id;
+            document.getElementById('empName').value = data.name;
+            document.getElementById('dept').value = data.dept;
+            document.getElementById('leaveType').value = data.leaveType;
+            document.getElementById('startDate').value = data.sDate;
+            document.getElementById('startTime').value = data.sTime;
+            document.getElementById('endDate').value = data.eDate;
+            document.getElementById('endTime').value = data.eTime;
+            await deleteDoc(doc(db, "formEntries", docId));
+            window.switchPage('dashboard');
+            alert(currentLang === 'vi' ? "Vui lòng chỉnh sửa và gửi lại." : "舊紀錄已刪除，請重新修改後送出。");
+        } catch (e) { alert(e.message); }
     };
+
+    window.requestCancel = async (docId) => {
+        const confirmMsg = currentLang === 'vi' ? "Yêu cầu xóa phép?" : "確定要申請銷假更正嗎？";
+        if (!confirm(confirmMsg)) return;
+        try {
+            await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
+            alert(currentLang === 'vi' ? "Đã gửi yêu cầu!" : "銷假申請已送出！");
+            loadAllData();
+        } catch (e) { alert(e.message); }
+    };
+
+    window.changePage = (dir) => {
+        const max = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const next = currentPage + dir;
+        if(next >= 1 && next <= max) {
+            currentPage = next;
+            renderTable();
+        }
+    };
+
+    window.searchPersonalRecords = () => {
+        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!id) return;
+        sessionStorage.setItem('targetFilterId', id);
+        window.switchPage('search');
+    };
+
+    window.resetFilter = () => {
+        sessionStorage.removeItem('targetFilterId');
+        document.getElementById('queryEmpId').value = "";
+        window.applyFilters();
+    };
+
+    // --- 保留原本邏輯 ---
 
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
@@ -275,78 +332,83 @@
         } catch (e) { console.error(e); }
     };
 
-    window.switchPage = (id) => {
-        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('page-'+id).classList.add('active');
-        document.getElementById('nav-'+id).classList.add('active');
-        if(id === 'admin') loadAdminData();
-        if(id === 'search') loadAllData();
-    };
-
-    // 核心功能修正：批准與退件
-    window.updateStatus = async (docId, status) => {
-        try {
-            const now = new Date();
-            const dateStr = `${now.getFullYear()}/${(now.getMonth()+1)}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`;
-            await updateDoc(doc(db, "formEntries", docId), { 
-                status: status,
-                approvedAt: dateStr
-            });
-            alert(currentLang === 'vi' ? "Thao tác thành công!" : "操作成功！");
-            loadAdminData();
-        } catch (e) {
-            alert("Error: " + e.message);
+    window.setShift = (shift) => {
+        currentShift = shift;
+        const sTimeInput = document.getElementById('startTime');
+        const eTimeInput = document.getElementById('endTime');
+        if(shift === 'day') {
+            sTimeInput.value = "08:30"; eTimeInput.value = "17:30";
+        } else {
+            sTimeInput.value = "18:00"; eTimeInput.value = "02:30";
         }
+        window.autoCalc();
     };
 
-    // 核心功能修正：銷假申請
-    window.requestCancel = async (docId) => {
-        const confirmMsg = currentLang === 'vi' ? "Bạn có chắc chắn muốn xin xóa phép?" : "確定要申請銷假更正嗎？";
-        if (!confirm(confirmMsg)) return;
-        try {
-            await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
-            alert(currentLang === 'vi' ? "Đã gửi yêu cầu!" : "銷假申請已送出！");
-            loadAllData();
-        } catch (e) { alert(e.message); }
-    };
+    window.autoCalc = () => {
+        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
+        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
+        if(!d1 || !t1 || !d2 || !t2) return null;
+        
+        const startDT = new Date(`${d1} ${t1}`);
+        const endDT = new Date(`${d2} ${t2}`);
+        if(isNaN(startDT) || isNaN(endDT) || endDT <= startDT) return null;
 
-    // 核心功能修正：修改 (未批准前直接刪除重新填寫或重導向)
-    window.editRecord = async (docId) => {
-        const confirmMsg = currentLang === 'vi' ? "Xóa đơn cũ để điền lại?" : "將刪除此舊單並允許重新填寫，確定嗎？";
-        if (!confirm(confirmMsg)) return;
-        try {
-            const docSnap = await getDoc(doc(db, "formEntries", docId));
-            const data = docSnap.data();
-            document.getElementById('empId').value = data.id;
-            document.getElementById('empName').value = data.name;
-            document.getElementById('dept').value = data.dept;
-            document.getElementById('leaveType').value = data.leaveType;
-            document.getElementById('startDate').value = data.sDate;
-            document.getElementById('startTime').value = data.sTime;
-            document.getElementById('endDate').value = data.eDate;
-            document.getElementById('endTime').value = data.eTime;
-            await deleteDoc(doc(db, "formEntries", docId));
-            switchPage('dashboard');
-            alert(currentLang === 'vi' ? "Vui lòng chỉnh sửa và gửi lại." : "請修改內容後重新送出。");
-        } catch (e) { alert(e.message); }
+        let totalMins = 0;
+        let s_limit, e_limit, r_start, r_end;
+        if (currentShift === 'day') {
+            s_limit = 8 * 60 + 30;  e_limit = 17 * 60 + 30; r_start = 12 * 60; r_end = 13 * 60;
+        } else {
+            s_limit = 18 * 60; e_limit = 26 * 60 + 30; r_start = 24 * 60; r_end = 24 * 60 + 30;
+        }
+
+        let checkDate = new Date(startDT); checkDate.setHours(0, 0, 0, 0);
+        const lastDate = new Date(endDT); lastDate.setHours(23, 59, 59, 999);
+
+        while (checkDate <= lastDate) {
+            const dayOfWeek = checkDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                let shiftStart = new Date(checkDate); shiftStart.setMinutes(s_limit);
+                let shiftEnd = new Date(checkDate); shiftEnd.setMinutes(e_limit);
+                let restStart = new Date(checkDate); restStart.setMinutes(r_start);
+                let restEnd = new Date(checkDate); restEnd.setMinutes(r_end);
+
+                let overlapS = new Date(Math.max(startDT, shiftStart));
+                let overlapE = new Date(Math.min(endDT, shiftEnd));
+
+                if (overlapS < overlapE) {
+                    let diff = (overlapE - overlapS) / 1000 / 60;
+                    let actualRestS = new Date(Math.max(overlapS, restStart));
+                    let actualRestE = new Date(Math.min(overlapE, restEnd));
+                    if (actualRestS < actualRestE) diff -= (actualRestE - actualRestS) / 1000 / 60;
+                    totalMins += diff;
+                }
+            }
+            checkDate.setDate(checkDate.getDate() + 1);
+        }
+
+        const h_res = Math.floor(totalMins / 60);
+        const m_res = Math.round(totalMins % 60);
+        const displayStr = `${h_res} 時 ${m_res} 分`;
+        document.getElementById('durationText').innerHTML = `🕒 計算結果：${displayStr}<br><span style="font-size:12px; color:#ef4444;">(已自動扣除週末不計薪時段)</span>`;
+        return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr };
     };
 
     window.saveToCloud = async () => {
         const calcData = window.autoCalc();
         if(!calcData) return alert("請正確選擇時間");
-        const file = document.getElementById('leaveImg').files[0];
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
+        const file = document.getElementById('leaveImg').files[0];
         if(!id || !name) return alert("工號或姓名錯誤");
 
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = "";
             if(file) {
-                photo = await new Promise((resolve) => {
+                photo = await new Promise(r => {
                     const reader = new FileReader();
                     reader.readAsDataURL(file);
-                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onload = e => r(e.target.result);
                 });
             }
             await addDoc(collection(db, "formEntries"), {
@@ -359,36 +421,28 @@
                 displayDuration: calcData.displayStr,
                 status: "審核中", photo, createdAt: new Date()
             });
-            alert("Sent Successfully!"); location.reload();
+            alert("成功提交！"); location.reload();
         } catch(e) { alert(e.message); } finally { document.getElementById('submitBtn').disabled = false; }
-    };
-
-    window.autoCalc = () => {
-        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
-        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
-        if(!d1 || !t1 || !d2 || !t2) return null;
-        const diff = (new Date(`${d2} ${t2}`) - new Date(`${d1} ${t1}`)) / (1000 * 60);
-        if (diff <= 0) return null;
-        const h = Math.floor(diff / 60); const m = Math.round(diff % 60);
-        const res = `${h} 時 ${m} 分`;
-        document.getElementById('durationText').innerText = "🕒 計算結果：" + res;
-        return { displayStr: res };
     };
 
     window.loadAllData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        applyFilters();
+        window.applyFilters();
     };
 
     window.applyFilters = () => {
-        const m = document.getElementById('filterMonth').value;
-        const d = document.getElementById('filterDept').value;
-        const s = document.getElementById('filterStatus').value;
+        const filterId = sessionStorage.getItem('targetFilterId');
+        const filterMonth = document.getElementById('filterMonth').value;
+        const filterDept = document.getElementById('filterDept').value;
+        const filterStatus = document.getElementById('filterStatus').value;
+
         filteredRecords = allRecords.filter(r => {
-            return (!m || (r.sDate && r.sDate.startsWith(m))) &&
-                   (!d || r.dept === d) &&
-                   (!s || r.status === s);
+            const matchId = filterId ? (r.id === filterId) : true;
+            const matchMonth = filterMonth ? (r.sDate && r.sDate.startsWith(filterMonth)) : true;
+            const matchDept = filterDept ? (r.dept === filterDept) : true;
+            const matchStatus = filterStatus ? (r.status === filterStatus) : true;
+            return matchId && matchMonth && matchDept && matchStatus;
         });
         currentPage = 1; renderTable();
     };
@@ -400,26 +454,39 @@
         
         tbody.innerHTML = pageData.map(r => {
             let statusText = r.status;
+            let statusCls = "status-pending";
+            if(r.status === "批准") statusCls = "status-confirmed";
+            if(r.status === "退件") statusCls = "status-rejected";
+            if(r.status === "銷假") statusCls = "status-cancel";
+
             if (currentLang === 'vi') {
                 if(r.status === "審核中") statusText = "Đang duyệt";
                 if(r.status === "批准") statusText = "Đã duyệt";
                 if(r.status === "退件") statusText = "Từ chối";
                 if(r.status === "銷假") statusText = "Đã xóa";
+                if(r.status === "銷假審核中") statusText = "Đang chờ xóa";
             }
             return `<tr>
                 <td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~${r.eDate} ${r.eTime}</td>
                 <td>${r.displayDuration}</td>
-                <td><span class="status-badge status-pending">${statusText}</span></td>
+                <td><span class="status-badge ${statusCls}">${statusText}</span></td>
                 <td>
-                    ${r.status === "審核中" ? `<button class="btn-action btn-edit" onclick="editRecord('${r.docId}')">${currentLang === 'vi' ? 'Sửa' : '修改'}</button>` : ''}
-                    ${r.status === "批准" ? `<button class="btn-action btn-cancel-request" onclick="requestCancel('${r.docId}')">${currentLang === 'vi' ? 'Xóa phép' : '銷假更正'}</button>` : ''}
+                    ${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">${currentLang === 'vi' ? 'Sửa' : '修改'}</button>` : ''}
+                    ${r.status === "批准" ? `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">${currentLang === 'vi' ? 'Xóa' : '銷假更正'}</button>` : ''}
                 </td>
             </tr>`;
-        }).join('');
+        }).join('') || "<tr><td colspan='8'>No records found</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
+
+    window.updateStatus = async (docId, status) => {
+        try {
+            await updateDoc(doc(db, "formEntries", docId), { status });
+            alert("成功更新！"); loadAdminData();
+        } catch (e) { alert(e.message); }
+    };
 
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
@@ -431,9 +498,9 @@
 
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = pendingData.map(d => {
-            const r = d.data(); 
+            const r = d.data();
             const isCancel = r.status === "銷假審核中";
-            const btnApprove = currentLang === 'vi' ? (isCancel ? 'Đồng ý xóa' : 'Duyệt') : (isCancel ? '同意銷假' : '批准');
+            const btnApprove = currentLang === 'vi' ? (isCancel ? 'Xóa phép' : 'Duyệt') : (isCancel ? '同意銷假' : '批准');
             const btnReject = currentLang === 'vi' ? 'Từ chối' : '退件';
 
             return `<tr>
@@ -442,11 +509,11 @@
                 <td>${r.displayDuration}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="openLightbox('${r.photo}')">` : '-'}</td>
                 <td>
-                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')">${btnApprove}</button>
-                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="margin-left:5px;">${btnReject}</button>
+                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel ? '銷假' : '批准'}')" style="cursor:pointer;border:none;">${btnApprove}</button>
+                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')" style="margin-left:5px;cursor:pointer;border:none;">${btnReject}</button>
                 </td>
             </tr>`;
-        }).join('') || "<tr><td colspan='6' style='text-align:center'>No Data</td></tr>";
+        }).join('') || "<tr><td colspan='6' style='text-align:center'>No Pending Requests</td></tr>";
     };
 
     window.checkAdminAccess = () => {
@@ -454,8 +521,24 @@
         const authMap = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT", "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP" };
         if (authMap[pwd]) {
             window.currentAdminDept = authMap[pwd];
-            switchPage('admin');
+            window.switchPage('admin');
+            document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${authMap[pwd] === "ALL" ? "所有部門" : authMap[pwd]})`;
         } else { alert("Error Password"); }
+    };
+
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if(!m) return alert("請選擇月份");
+        const snap = await getDocs(collection(db, "formEntries"));
+        const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
+        if (data.length === 0) return alert("無核准紀錄");
+
+        const wsData = [["員工代號", "員工姓名", "假別", "開始日期", "開始時間", "結束日期", "結束時間", "時數", "事由"]];
+        data.forEach(r => wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, r.reason]));
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        XLSX.utils.book_append_sheet(wb, ws, "Records");
+        XLSX.writeFile(wb, `Attendance_${m}.xlsx`);
     };
 </script>
 </body>
