@@ -433,22 +433,30 @@
         loadAllData();
     };
 
-    // --- 修復：個人紀錄查詢 ---
+    // --- 已修正：個人紀錄查詢 (解決查詢失敗與優化顯示) ---
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if (!id) return alert(window.currentLang === 'vi' ? "Vui lòng nhập mã số!" : "請輸入工號！");
         
+        const tableBody = document.getElementById('personalTableBody');
+        tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>`;
+
         try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(50));
+            // 修正點：移除 orderBy 避免複合索引報錯，改由前端進行排序
+            const q = query(collection(db, "formEntries"), where("id", "==", id), limit(100));
             const snap = await getDocs(q);
             
             if (snap.empty) {
-                document.getElementById('personalTableBody').innerHTML = `<tr><td colspan="5" style="text-align:center;">${window.currentLang === 'vi' ? "Không có dữ liệu" : "查無資料"}</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;">${window.currentLang === 'vi' ? "Không có dữ liệu" : "查無資料"}</td></tr>`;
                 return;
             }
 
-            const data = snap.docs.map(d => ({docId: d.id, ...d.data()}));
-            document.getElementById('personalTableBody').innerHTML = data.map(r => {
+            // 在前端按照時間排序
+            const data = snap.docs
+                .map(d => ({docId: d.id, ...d.data()}))
+                .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+
+            tableBody.innerHTML = data.map(r => {
                 let action = "";
                 if(r.status === "審核中") {
                     action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">${window.currentLang === 'vi' ? "Sửa" : "修改"}</button>`;
@@ -456,16 +464,21 @@
                     action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">${window.currentLang === 'vi' ? "Hủy" : "銷假更正"}</button>`;
                 }
 
-                // 根據當前語言選擇顯示內容
                 const showType = window.currentLang === 'vi' ? (r.leaveType) : getZhText(r.leaveType);
                 const showDuration = window.currentLang === 'vi' ? (r.displayDuration || "") : (r.displayDurationZh || r.displayDuration || "");
+
+                // 動態判斷標籤顏色
+                let statusClass = "status-pending";
+                if(r.status === "批准") statusClass = "status-confirmed";
+                if(r.status === "退件") statusClass = "status-rejected";
+                if(r.status === "銷假" || r.status === "已銷假") statusClass = "status-cancel";
 
                 return `
                     <tr>
                         <td>${showType}</td>
-                        <td style="font-size:12px">${r.sDate}~${r.eDate}</td>
+                        <td style="font-size:12px">${r.sDate}<br>${r.eDate}</td>
                         <td>${showDuration}</td>
-                        <td><span class="status-badge status-pending">${r.status}</span></td>
+                        <td><span class="status-badge ${statusClass}">${r.status}</span></td>
                         <td>${action}</td>
                     </tr>`;
             }).join('');
