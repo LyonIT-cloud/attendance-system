@@ -86,7 +86,7 @@
                     </div>
                     <div>
                         <label data-vi="Tên nhân viên">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入" data-placeholder-vi="Tự動 nhập tên">
+                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入" data-placeholder-vi="Tự động nhập tên">
                     </div>
                 </div>
                 <div class="form-grid">
@@ -266,7 +266,7 @@
 
     const i18nMap = {
         "Bộ phận quản lý": "管理部", "Bộ phận sản xuất": "製造部", "Bộ phận kỹ thuật": "工程部",
-        "Bộ phận vật tư": "資材部", "Bộ phận kinh doanh": "業務部", "Bộ phận QA": "品保部",
+        "Bộ phận vật tư": "資材部", "Bộ phận kinh doanh": "業務部", "Bộ phận開QA": "品保部",
         "Việc riêng": "事假", "Bệnh": "病假", "Phép năm": "特休", "Công tác": "公假",
         "Thai sản": "產假", "Khám thai": "陪產假", "Nghỉ bù": "補休", "Kết hôn": "婚假",
         "Kinh nguyệt": "生理假", "Tai nạn lao động": "工傷假"
@@ -345,8 +345,9 @@
         const displayZh = `${h} 時 ${m} 分`, displayVi = `${h} giờ ${m} phút`;
         const display = window.currentLang === 'vi' ? displayVi : displayZh;
         
+        // 額外儲存原始分鐘數供匯出使用
         document.getElementById('durationText').innerText = (window.currentLang === 'vi' ? "Kết quả: " : "計算結果：") + display;
-        return { display, displayZh, durationHours: (totalMins/60).toFixed(1) };
+        return { display, displayZh, totalMinutes: totalMins };
     };
 
     window.saveToCloud = async () => {
@@ -388,7 +389,9 @@
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
                 displayDuration: calc.display,
-                displayDurationZh: calc.displayZh, 
+                displayDurationZh: calc.displayZh,
+                totalMinutes: calc.totalMinutes, // 儲存分鐘數以便匯出格式化
+                reason: document.getElementById('reason').value,
                 status: "審核中",
                 createdAt: new Date()
             };
@@ -402,7 +405,7 @@
                 alert("送出成功");
             }
             location.reload();
-        } catch(e) { alert(e.message); }
+        } catch(e) { alert(e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
     window.searchPersonalRecords = async () => {
@@ -456,17 +459,42 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
     }
 
+    // 核心修正：Excel 匯出格式與時數格式化
     window.exportToExcel = () => {
-        if (filteredRecords.length === 0) return alert("沒有資料可匯出");
-        const exportData = filteredRecords.map(r => ({
-            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType, 
-            "開始日期": r.sDate, "時間": r.sTime, "結束日期": r.eDate, "結束時間": r.eTime, 
-            "時數": r.displayDurationZh, "狀態": r.status
+        // 1. 只過濾出批准成功的資料
+        const approvedOnly = allRecords.filter(r => r.status === "批准");
+        
+        if (approvedOnly.length === 0) return alert("目前核准清單中沒有可匯出的批准成功資料");
+
+        // 2. 時數格式化函數 008:00
+        const formatTime = (mins) => {
+            if(!mins) return "000:00";
+            const h = Math.floor(mins / 60);
+            const m = Math.round(mins % 60);
+            return `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
+        };
+
+        // 3. 按照範本欄位順序映射資料
+        const exportData = approvedOnly.map(r => ({
+            "員工代號": r.id,
+            "員工姓名": r.name,
+            "假別": r.leaveType,
+            "出勤日期": r.sDate,
+            "開始日期": r.sDate,
+            "開始時間": r.sTime,
+            "結束日期": r.eDate,
+            "結束時間": r.eTime,
+            "請假時數": formatTime(r.totalMinutes),
+            "扣伙食費": "",
+            "扣交通津貼": "",
+            "事由": r.reason || "",
+            "備註": ""
         }));
+
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-        XLSX.writeFile(wb, `鼎顓考勤表_${new Date().toLocaleDateString()}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "員工範本");
+        XLSX.writeFile(wb, `員工請假明細_${new Date().toLocaleDateString()}.xlsx`);
     };
 
     window.checkAdminAccess = () => {
