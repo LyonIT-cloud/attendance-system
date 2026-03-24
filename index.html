@@ -138,7 +138,10 @@
                 </div>
                 <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請點選班別並確認時間</div>
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
-                <div style="margin-top:15px;"><label data-vi="Tải ảnh bằng chứng">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
+                <div style="margin-top:15px;">
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoRequiredHint" style="color:var(--danger); font-size:12px; display:none;">(病假必填 / Bắt buộc đối với nghỉ bệnh)</span></label>
+                    <input type="file" id="leaveImg" accept="image/*">
+                </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
             </div>
         </div>
@@ -229,6 +232,12 @@
     let currentLang = 'zh';
     window.currentAdminDept = "ALL";
 
+    // 監聽請假類別變化，如果是病假則顯示提示
+    document.getElementById('leaveType').addEventListener('change', function() {
+        const hint = document.getElementById('photoRequiredHint');
+        hint.style.display = this.value === "病假" ? "inline" : "none";
+    });
+
     window.changeLanguage = (lang) => {
         currentLang = lang;
         document.querySelectorAll('[data-vi]').forEach(el => {
@@ -262,7 +271,6 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
-    // 修改功能：將資料帶回第一頁表單，刪除舊紀錄，並自動捲動到頂端
     window.editRecord = async (docId) => {
         const confirmMsg = currentLang === 'vi' ? "Xóa đơn cũ để điền lại?" : "確定要刪除舊單並重新填寫嗎？";
         if (!confirm(confirmMsg)) return;
@@ -270,7 +278,6 @@
             const docSnap = await getDoc(doc(db, "formEntries", docId));
             const data = docSnap.data();
             
-            // 帶入資料到表單
             document.getElementById('empId').value = data.id;
             document.getElementById('empName').value = data.name;
             document.getElementById('dept').value = data.dept;
@@ -281,13 +288,11 @@
             document.getElementById('endTime').value = data.eTime;
             document.getElementById('reason').value = data.reason || "";
             
-            // 刪除舊資料
+            // 觸發一次提示檢查
+            document.getElementById('leaveType').dispatchEvent(new Event('change'));
+
             await deleteDoc(doc(db, "formEntries", docId));
-            
-            // 切換到請假申請頁面 (第一頁)
             window.switchPage('dashboard');
-            
-            // 關鍵動作：強制畫面回到最上方
             window.scrollTo({ top: 0, behavior: 'smooth' });
             
             alert(currentLang === 'vi' ? "Vui lòng chỉnh sửa và gửi lại." : "舊紀錄已刪除，請重新修改後送出。");
@@ -397,10 +402,19 @@
     window.saveToCloud = async () => {
         const calcData = window.autoCalc();
         if(!calcData) return alert("請正確選擇時間");
+        
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
+        const leaveType = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
+        
         if(!id || !name) return alert("工號或姓名錯誤");
+
+        // --- 關鍵修正：新增病假照片檢查 ---
+        if(leaveType === "病假" && !file) {
+            const msg = currentLang === 'vi' ? "Nghỉ bệnh phải có ảnh bằng chứng!" : "申請病假必須上傳照片證明！";
+            return alert(msg);
+        }
 
         try {
             document.getElementById('submitBtn').disabled = true;
@@ -414,7 +428,7 @@
             }
             await addDoc(collection(db, "formEntries"), {
                 id, name, dept: document.getElementById('dept').value,
-                leaveType: document.getElementById('leaveType').value,
+                leaveType,
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
@@ -528,7 +542,6 @@
         } else { alert("Error Password"); }
     };
 
-    // --- 關鍵修正：時數樣式 000:00 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
