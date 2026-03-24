@@ -21,6 +21,7 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
+            .export-section { flex-direction: column; align-items: stretch !important; }
         }
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -38,11 +39,12 @@
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
-        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; }
+        .btn-excel { background: #16a34a; color: white; }
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
-        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; display: inline-block; }
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
@@ -53,6 +55,8 @@
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
+        .btn-page { padding: 6px 12px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; cursor: pointer; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -70,7 +74,7 @@
         <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')" data-vi="📝 Nghỉ phép">📝 請假申請</div>
         <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</div>
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách">📅 核准清單</div>
-        <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()">🛡️ 主管審核中心</div>
+        <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
     </div>
 
     <div class="main-content">
@@ -92,10 +96,15 @@
                     <div>
                         <label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
-                            <option value="">--選擇部門--</option>
-                            <option>管理部</option><option>製造部</option><option>工程部</option>
-                            <option>SMT</option><option>資材部</option><option>業務部</option>
-                            <option>DIP</option><option>品保部</option>
+                            <option value="" data-vi="--Chọn bộ phận--">--選擇部門--</option>
+                            <option data-vi="Bộ phận quản lý">管理部</option>
+                            <option data-vi="Bộ phận sản xuất">製造部</option>
+                            <option data-vi="Bộ phận kỹ thuật">工程部</option>
+                            <option>SMT</option>
+                            <option data-vi="Bộ phận vật tư">資材部</option>
+                            <option data-vi="Bộ phận kinh doanh">業務部</option>
+                            <option>DIP</option>
+                            <option data-vi="Bộ phận QA">品保部</option>
                         </select>
                     </div>
                     <div>
@@ -106,7 +115,7 @@
                             <option data-vi="Phép năm">特休</option>
                             <option data-vi="Công tác">公假</option>
                             <option data-vi="Thai sản">產假</option>
-                            <option data-vi="Nghỉ vợ sinh">陪產假</option>
+                            <option data-vi="Khám thai">陪產假</option>
                             <option data-vi="Nghỉ bù">補休</option>
                             <option data-vi="Kết hôn">婚假</option>
                             <option data-vi="Kinh nguyệt">生理假</option>
@@ -115,44 +124,57 @@
                     </div>
                 </div>
                 
-                <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
-                    <label data-vi="Chọn ca làm việc">選擇班別</label>
-                    <div style="display: flex; gap: 15px;">
-                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
-                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班</button>
+                <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                    <label data-vi="Chọn ca làm việc">選擇班別 (自動帶入時間)</label>
+                    <div style="display: flex; gap: 15px; margin-top: 10px;">
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn" data-vi="☀️ Ca ngày">☀️ 早班 (08:30~17:30)</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn" data-vi="🌙 Ca đêm">🌙 中班 (18:00~02:30)</button>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div>
-                        <label data-vi="Bắt đầu">起始時間</label>
-                        <div style="display:flex; gap:5px;"><input type="date" id="startDate" onchange="autoCalc()"><input type="time" id="startTime" onchange="autoCalc()"></div>
+                        <label data-vi="Thời gian bắt đầu">起始時間</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="date" id="startDate" onchange="autoCalc()">
+                            <input type="time" id="startTime" onchange="autoCalc()">
+                        </div>
                     </div>
                     <div>
-                        <label data-vi="Kết thúc">結束時間</label>
-                        <div style="display:flex; gap:5px;"><input type="date" id="endDate" onchange="autoCalc()"><input type="time" id="endTime" onchange="autoCalc()"></div>
+                        <label data-vi="Thời gian kết thúc">結束時間</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="date" id="endDate" onchange="autoCalc()">
+                            <input type="time" id="endTime" onchange="autoCalc()">
+                        </div>
                     </div>
                 </div>
                 <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);" data-vi="Vui lòng chọn ca">請點選班別並確認時間</div>
-                <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因" data-placeholder-vi="Lý do chi tiết"></div>
-                <div style="margin-top:15px;"><label data-vi="Tải ảnh">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
+                <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因" data-placeholder-vi="Giải thích lý do chi tiết"></div>
+                <div style="margin-top:15px;"><label data-vi="Tải lên hình ảnh">證明文件上傳</label><input type="file" id="leaveImg" accept="image/*"></div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
                 <button id="cancelEditBtn" class="btn" style="display:none; background:#64748b; color:white; margin-top:10px; width:100%" onclick="resetForm()">取消修改</button>
             </div>
         </div>
 
         <div id="page-personal" class="page-content">
-            <h2 data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</h2>
+            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
+                <label data-vi="Nhập mã số để tra cứu">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="輸入工號查詢" style="flex:1">
-                    <button class="btn btn-success" onclick="searchPersonalRecords()" data-vi="Tra cứu">查詢</button>
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" data-placeholder-vi="Ví dụ: D220008" style="flex:1">
+                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
                 </div>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th data-vi="Loại">假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Trạng thái">狀態</th><th data-vi="Thao tác">動作</th></tr>
+                        <tr>
+                            <th data-vi="Loại phép">假別</th>
+                            <th data-vi="Khoảng thời gian">請假區間</th>
+                            <th data-vi="Số giờ">時數</th>
+                            <th data-vi="Trạng thái">狀態</th>
+                            <th data-vi="Thao tác">動作</th>
+                        </tr>
                     </thead>
                     <tbody id="personalTableBody"></tbody>
                 </table>
@@ -160,28 +182,60 @@
         </div>
 
         <div id="page-search" class="page-content">
-            <h2 data-vi="📅 Danh sách">📅 核准清單</h2>
-            <div class="card" style="display:flex; gap:10px; flex-wrap:wrap;">
-                <input type="month" id="filterMonth" onchange="applyFilters()">
-                <select id="filterDept" onchange="applyFilters()"><option value="">全部部門</option><option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option></select>
-                <button id="resetFilterBtn" onclick="resetFilter()" class="btn" style="display:none; background:#64748b; color:white;">顯示全部</button>
+            <h2 data-vi="📅 Danh sách duyệt">📅 月度核准清單</h2>
+            <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
+                <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
+                <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả bộ phận">全部部門</option>
+                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                </select>
+                <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
+                    <option value="審核中" data-vi="Đang duyệt">審核中</option>
+                    <option value="批准" data-vi="Phê duyệt">批准</option>
+                    <option value="退件" data-vi="Từ chối">退件</option>
+                    <option value="銷假審核中" data-vi="Đang duyệt hủy">銷假審核中</option>
+                    <option value="銷假" data-vi="Đã hủy">已銷假</option>
+                </select>
+                <span id="filterCount" style="font-size:13px; color:#64748b;"></span>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>請假區間</th><th>時數</th><th>狀態</th><th>動作</th></tr>
+                        <tr>
+                            <th data-vi="Bộ phận">部門</th>
+                            <th data-vi="Mã số">工號</th>
+                            <th data-vi="Họ tên">姓名</th>
+                            <th data-vi="Loại phép">假別</th>
+                            <th data-vi="Khoảng thời gian">請假區間</th>
+                            <th data-vi="Số giờ">時數</th>
+                            <th data-vi="Trạng thái">狀態</th>
+                            <th data-vi="Thao tác">動作</th>
+                        </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
             </div>
+            <div class="pagination-ctrl">
+                <button id="prevBtn" class="btn-page" onclick="changePage(-1)" data-vi="Trang trước">上一頁</button>
+                <span id="pageInfo">1 / 1</span>
+                <button id="nextBtn" class="btn-page" onclick="changePage(1)" data-vi="Trang sau">下一頁</button>
+            </div>
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2>🛡️ 主管審核中心</h2>
+            <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>姓名/假別</th><th>請假區間</th><th>時數</th><th>證明</th><th>動作</th></tr>
+                        <tr>
+                            <th data-vi="Bộ phận">部門</th>
+                            <th data-vi="Họ tên/Loại">姓名/假別</th>
+                            <th data-vi="Thời gian">請假區間</th>
+                            <th data-vi="Số giờ">時數</th>
+                            <th data-vi="Chứng minh">證明</th>
+                            <th data-vi="Thao tác">動作</th>
+                        </tr>
                     </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
@@ -205,7 +259,11 @@
     const db = getFirestore(app);
 
     let allRecords = []; 
-    let currentShift = 'day';
+    let filteredRecords = []; 
+    let currentPage = 1;
+    const rowsPerPage = 10;
+    let currentShift = 'day'; 
+    window.currentAdminDept = "ALL";
     window.currentLang = 'zh';
 
     window.changeLanguage = (lang) => {
@@ -229,21 +287,28 @@
 
     window.setShift = (shift) => {
         currentShift = shift;
-        const sTime = document.getElementById('startTime');
-        const eTime = document.getElementById('endTime');
-        if(shift === 'day') { sTime.value = "08:30"; eTime.value = "17:30"; }
-        else { sTime.value = "18:00"; eTime.value = "02:30"; }
+        const sT = document.getElementById('startTime'), eT = document.getElementById('endTime');
+        if(shift === 'day') { sT.value = "08:30"; eT.value = "17:30"; }
+        else { sT.value = "18:00"; eT.value = "02:30"; }
         autoCalc();
     };
 
-    // 週末扣除計算邏輯
+    window.autoFetchName = async () => {
+        const id = document.getElementById('empId').value.trim().toUpperCase();
+        if (id.length < 5) return; 
+        const docSnap = await getDoc(doc(db, "employees", id));
+        if (docSnap.exists()) {
+            document.getElementById('empName').value = docSnap.data().name;
+            document.getElementById('dept').value = docSnap.data().dept;
+        }
+    };
+
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
         if(!d1 || !t1 || !d2 || !t2) return null;
         
-        const startDT = new Date(`${d1} ${t1}`);
-        const endDT = new Date(`${d2} ${t2}`);
+        const startDT = new Date(`${d1} ${t1}`), endDT = new Date(`${d2} ${t2}`);
         if(endDT <= startDT) return null;
 
         let totalMins = 0;
@@ -251,41 +316,32 @@
         if (currentShift === 'day') { s_min = 510; e_min = 1050; r_s = 720; r_e = 780; } 
         else { s_min = 1080; e_min = 1590; r_s = 1440; r_e = 1470; }
 
-        let cur = new Date(startDT);
-        cur.setHours(0,0,0,0);
+        let cur = new Date(startDT); cur.setHours(0,0,0,0);
         while(cur <= endDT) {
-            const day = cur.getDay();
-            if(day !== 0 && day !== 6) { // 週末不計
-                let shiftS = new Date(cur); shiftS.setMinutes(s_min);
-                let shiftE = new Date(cur); shiftE.setMinutes(e_min);
-                let restS = new Date(cur); restS.setMinutes(r_s);
-                let restE = new Date(cur); restE.setMinutes(r_e);
-
-                let overlapS = new Date(Math.max(startDT, shiftS));
-                let overlapE = new Date(Math.min(endDT, shiftE));
-
-                if (overlapS < overlapE) {
-                    let diff = (overlapE - overlapS) / 60000;
-                    let actRestS = new Date(Math.max(overlapS, restS));
-                    let actRestE = new Date(Math.min(overlapE, restE));
-                    if (actRestS < actRestE) diff -= (actRestE - actRestS) / 60000;
+            if(cur.getDay() !== 0 && cur.getDay() !== 6) {
+                let sS = new Date(cur); sS.setMinutes(s_min);
+                let sE = new Date(cur); sE.setMinutes(e_min);
+                let oS = new Date(Math.max(startDT, sS)), oE = new Date(Math.min(endDT, sE));
+                if (oS < oE) {
+                    let diff = (oE - oS) / 60000;
+                    let rS = new Date(cur); rS.setMinutes(r_s);
+                    let rE = new Date(cur); rE.setMinutes(r_e);
+                    let aS = new Date(Math.max(oS, rS)), aE = new Date(Math.min(oE, rE));
+                    if (aS < aE) diff -= (aE - aS) / 60000;
                     totalMins += diff;
                 }
             }
             cur.setDate(cur.getDate() + 1);
         }
-
-        const h = Math.floor(totalMins / 60);
-        const m = Math.round(totalMins % 60);
-        const displayStr = window.currentLang === 'vi' ? `${h} giờ ${m} phút` : `${h} 時 ${m} 分`;
-        document.getElementById('durationText').innerText = displayStr + (window.currentLang === 'vi' ? " (Trừ cuối tuần)" : " (已扣週末)");
-        return { h, m, durationHours: (totalMins / 60).toFixed(1), displayStr };
+        const h = Math.floor(totalMins / 60), m = Math.round(totalMins % 60);
+        const display = window.currentLang === 'vi' ? `${h} giờ ${m} phút` : `${h} 時 ${m} 分`;
+        document.getElementById('durationText').innerText = (window.currentLang === 'vi' ? "Kết quả: " : "計算結果：") + display;
+        return { display, durationHours: (totalMins/60).toFixed(1) };
     };
 
     window.saveToCloud = async () => {
-        const calcData = autoCalc();
-        if(!calcData) return alert("時間錯誤");
-        
+        const calc = autoCalc();
+        if(!calc) return alert("時間錯誤");
         const leaveType = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
         const editId = document.getElementById('editDocId').value;
@@ -297,8 +353,7 @@
             let photo = "";
             if(file) {
                 photo = await new Promise(r => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
+                    const reader = new FileReader(); reader.readAsDataURL(file);
                     reader.onload = (e) => {
                         const img = new Image(); img.src = e.target.result;
                         img.onload = () => {
@@ -306,7 +361,7 @@
                             let w = img.width, h = img.height;
                             if(w>800){ h*=(800/w); w=800; }
                             canvas.width = w; canvas.height = h;
-                            canvas.getContext('2d').drawImage(img, 0,0,w,h);
+                            canvas.getContext('2d').drawImage(img,0,0,w,h);
                             r(canvas.toDataURL('image/jpeg', 0.7));
                         }
                     }
@@ -318,12 +373,11 @@
                 name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value,
                 leaveType,
-                shift: currentShift === 'day' ? '早班' : '中班',
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
-                displayDuration: calcData.displayStr,
+                displayDuration: calc.display,
                 status: "審核中",
                 createdAt: new Date()
             };
@@ -340,8 +394,7 @@
         } catch(e) { alert(e.message); }
     };
 
-    // 修改功能：填回表格
-    window.editRecord = async (docId) => {
+    window.editRecord = (docId) => {
         const d = allRecords.find(r => r.docId === docId);
         if(!d) return;
         document.getElementById('editDocId').value = docId;
@@ -358,33 +411,22 @@
         switchPage('dashboard');
     };
 
-    // 銷假更正：將狀態改為銷假審核中
     window.requestCancel = async (docId) => {
-        if(!confirm("確定要申請銷假更正嗎？")) return;
+        if(!confirm("申請銷假更正？")) return;
         await updateDoc(doc(db, "formEntries", docId), { status: "銷假審核中" });
-        alert("已送出銷假申請");
+        alert("已送出申請");
         loadAllData();
     };
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
         const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).filter(r => r.id === id);
-        
-        const tbody = document.getElementById('personalTableBody');
-        tbody.innerHTML = data.map(r => {
+        document.getElementById('personalTableBody').innerHTML = data.map(r => {
             let action = "";
             if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
             else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
-            
-            return `<tr>
-                <td>${r.leaveType}</td>
-                <td style="font-size:11px">${r.sDate} ${r.sTime}<br>~${r.eDate} ${r.eTime}</td>
-                <td>${r.displayDuration}</td>
-                <td><span class="status-badge status-pending">${r.status}</span></td>
-                <td>${action}</td>
-            </tr>`;
+            return `<tr><td>${r.leaveType}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
         }).join('');
     };
 
@@ -397,46 +439,45 @@
     window.applyFilters = () => {
         const month = document.getElementById('filterMonth').value;
         const dept = document.getElementById('filterDept').value;
-        const filtered = allRecords.filter(r => (!month || r.sDate.startsWith(month)) && (!dept || r.dept === dept));
-        
-        document.getElementById('allTableBody').innerHTML = filtered.map(r => `
-            <tr>
-                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-                <td style="font-size:11px">${r.sDate}~${r.eDate}</td><td>${r.displayDuration}</td>
-                <td><span class="status-badge status-pending">${r.status}</span></td>
-                <td>${r.photo ? `<button onclick="openLightbox('${r.photo}')">圖</button>` : '-'}</td>
-            </tr>
-        `).join('');
+        const status = document.getElementById('filterStatus').value;
+        filteredRecords = allRecords.filter(r => (!month || r.sDate.startsWith(month)) && (!dept || r.dept === dept) && (!status || r.status === status));
+        document.getElementById('filterCount').innerText = `Count: ${filteredRecords.length}`;
+        currentPage = 1; renderTable();
     };
+
+    function renderTable() {
+        const start = (currentPage - 1) * rowsPerPage;
+        const pageData = filteredRecords.slice(start, start + rowsPerPage);
+        document.getElementById('allTableBody').innerHTML = pageData.map(r => {
+            let action = "";
+            if(r.status === "審核中") action = `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>`;
+            else if(r.status === "批准") action = `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假更正</button>`;
+            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}${r.photo?`<img src="${r.photo}" style="width:25px;margin-left:5px" onclick="openLightbox('${r.photo}')">`:''}</td><td>${r.leaveType}</td><td style="font-size:12px">${r.sDate}~${r.eDate}</td><td>${r.displayDuration}</td><td><span class="status-badge status-pending">${r.status}</span></td><td>${action}</td></tr>`;
+        }).join('');
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
+    }
+
+    window.changePage = (dir) => { currentPage += dir; renderTable(); };
 
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-        const pending = snap.docs.filter(d => d.data().status.includes("審核中"));
-        
-        document.getElementById('adminTableBody').innerHTML = pending.map(d => {
+        const pending = snap.docs.filter(d => {
             const r = d.data();
-            const isCancel = r.status === "銷假審核中";
-            return `<tr>
-                <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
-                <td style="font-size:11px">${r.sDate} ${r.sTime}~<br>${r.eDate} ${r.eTime}</td>
-                <td>${r.displayDuration}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-                <td>
-                    <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','${isCancel?'銷假':'批准'}')">${isCancel?'同意銷假':'批准'}</button>
-                    <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')">退件</button>
-                </td>
-            </tr>`;
+            const isP = (r.status.includes("審核中"));
+            return window.currentAdminDept === "ALL" ? isP : (isP && r.dept === window.currentAdminDept);
+        });
+        document.getElementById('adminTableBody').innerHTML = pending.map(d => {
+            const r = d.data(); const isC = r.status === "銷假審核中";
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td style="font-size:12px">${r.sDate} ${r.sTime}~<br>${r.eDate} ${r.eTime}</td><td>${r.displayDuration}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px" onclick="openLightbox('${r.photo}')">`:'-'}</td><td><button class="status-badge status-confirmed" onclick="updateS('${d.id}','${isC?'銷假':'批准'}')">${isC?'同意銷假':'批准'}</button><button class="status-badge status-rejected" onclick="updateS('${d.id}','退件')">退件</button></td></tr>`;
         }).join('');
     };
 
-    window.updateStatus = async (id, s) => {
-        await updateDoc(doc(db, "formEntries", id), { status: s });
-        loadAdminData();
-    };
+    window.updateS = async (id, s) => { await updateDoc(doc(db, "formEntries", id), { status: s }); loadAdminData(); };
 
     window.checkAdminAccess = () => {
         const p = prompt("密碼:");
-        if(p === "hr888") switchPage('admin'); else alert("錯");
+        const auth = { "hr888": "ALL", "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部" };
+        if(auth[p]) { window.currentAdminDept = auth[p]; switchPage('admin'); } else { alert("錯誤"); }
     };
 
     window.switchPage = (id) => {
@@ -447,15 +488,7 @@
         if(id === 'search') loadAllData();
     };
 
-    window.autoFetchName = async () => {
-        const id = document.getElementById('empId').value.toUpperCase();
-        if(id.length < 5) return;
-        const snap = await getDoc(doc(db, "employees", id));
-        if(snap.exists()){
-            document.getElementById('empName').value = snap.data().name;
-            document.getElementById('dept').value = snap.data().dept;
-        }
-    };
+    window.resetForm = () => { document.getElementById('editDocId').value = ""; location.reload(); };
 
 </script>
 </body>
