@@ -178,7 +178,7 @@
                         <tr>
                             <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th>
                             <th data-vi="Loại">假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th>
-                            <th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                            <th data-vi="Trạng thái">狀態</th><th data-vi="Hành動">動作</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
@@ -262,12 +262,15 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
+    // 修改功能：將資料帶回第一頁表單，刪除舊紀錄，並自動捲動到頂端
     window.editRecord = async (docId) => {
         const confirmMsg = currentLang === 'vi' ? "Xóa đơn cũ để điền lại?" : "確定要刪除舊單並重新填寫嗎？";
         if (!confirm(confirmMsg)) return;
         try {
             const docSnap = await getDoc(doc(db, "formEntries", docId));
             const data = docSnap.data();
+            
+            // 帶入資料到表單
             document.getElementById('empId').value = data.id;
             document.getElementById('empName').value = data.name;
             document.getElementById('dept').value = data.dept;
@@ -276,8 +279,17 @@
             document.getElementById('startTime').value = data.sTime;
             document.getElementById('endDate').value = data.eDate;
             document.getElementById('endTime').value = data.eTime;
+            document.getElementById('reason').value = data.reason || "";
+            
+            // 刪除舊資料
             await deleteDoc(doc(db, "formEntries", docId));
+            
+            // 切換到請假申請頁面 (第一頁)
             window.switchPage('dashboard');
+            
+            // 關鍵動作：強制畫面回到最上方
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
             alert(currentLang === 'vi' ? "Vui lòng chỉnh sửa và gửi lại." : "舊紀錄已刪除，請重新修改後送出。");
         } catch (e) { alert(e.message); }
     };
@@ -407,6 +419,7 @@
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
                 eTime: document.getElementById('endTime').value,
+                reason: document.getElementById('reason').value,
                 displayDuration: calcData.displayStr,
                 status: "審核中", photo, createdAt: new Date()
             });
@@ -523,7 +536,6 @@
         const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
         if (data.length === 0) return alert("無核准紀錄");
 
-        // 格式化輔助函數：將 "X 時 Y 分" 轉為 "000:00"
         const formatToTripleDigit = (displayStr) => {
             if (!displayStr) return "000:00";
             const match = displayStr.match(/(\d+)\s*時\s*(\d+)\s*分/);
@@ -544,10 +556,9 @@
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-        // 強制將時數欄位格式設為字串，防止 Excel 自動把 008:30 變回 8:30
         const range = XLSX.utils.decode_range(ws['!ref']);
         for (let R = 1; R <= range.e.r; ++R) {
-            const addr = XLSX.utils.encode_cell({c: 7, r: R}); // 第8欄 (Index 7) 為時數
+            const addr = XLSX.utils.encode_cell({c: 7, r: R}); 
             if (ws[addr]) ws[addr].t = 's';
         }
 
