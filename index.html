@@ -54,7 +54,6 @@
         .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         
-        /* 燈箱樣式修正 */
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         
@@ -109,7 +108,8 @@
                         <label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
-                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option><option>生理假</option>
+                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option>
+                            <option>生理假</option><option>工傷假</option>
                         </select>
                     </div>
                 </div>
@@ -228,14 +228,13 @@
     let currentShift = 'day'; 
     window.currentAdminDept = "ALL";
 
-    // --- 新增照片放大功能相關函式 ---
     window.openLightbox = (src) => {
         const modal = document.getElementById('imageLightbox');
         const img = document.getElementById('lightboxImg');
         if (modal && img) {
             img.src = src;
             modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden'; // 禁止底層捲動
+            document.body.style.overflow = 'hidden';
         }
     };
 
@@ -244,10 +243,9 @@
         if (modal) {
             modal.style.display = 'none';
             document.getElementById('lightboxImg').src = '';
-            document.body.style.overflow = 'auto'; // 恢復捲動
+            document.body.style.overflow = 'auto';
         }
     };
-    // 監聽鍵盤 ESC 鍵
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') window.closeLightbox();
     });
@@ -306,7 +304,7 @@
         const leaveType = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
         
-        if (leaveType === "病假" && !file) return alert("病假必須上傳證明文件照片！");
+        if ((leaveType === "病假" || leaveType === "工傷假") && !file) return alert(leaveType + "必須上傳證明文件照片！");
         if (leaveType === "特休" && totalMins < 60) return alert("特休申請最少需為 1 小時！");
 
         const id = document.getElementById('empId').value.trim().toUpperCase();
@@ -375,13 +373,19 @@
         }
 
         let checkDate = new Date(startDT);
-        checkDate.setDate(checkDate.getDate() - 1);
         checkDate.setHours(0, 0, 0, 0);
 
         const lastDate = new Date(endDT);
-        lastDate.setDate(lastDate.getDate() + 1);
+        lastDate.setHours(23, 59, 59, 999);
 
         while (checkDate <= lastDate) {
+            // 自動扣除週末邏輯：如果當天是週六 (6) 或週日 (0)，則跳過不計算
+            const dayOfWeek = checkDate.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                checkDate.setDate(checkDate.getDate() + 1);
+                continue;
+            }
+
             let shiftStart = new Date(checkDate); shiftStart.setMinutes(s_limit);
             let shiftEnd = new Date(checkDate); shiftEnd.setMinutes(e_limit);
             let restStart = new Date(checkDate); restStart.setMinutes(r_start);
@@ -403,7 +407,7 @@
         const h_res = Math.floor(totalMins / 60);
         const m_res = Math.round(totalMins % 60);
         const displayStr = `${h_res} 時 ${m_res} 分`;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
+        document.getElementById('durationText').innerHTML = `🕒 計算結果：${displayStr}<br><span style="font-size:12px; color:#ef4444;">(已自動扣除週末不計薪時段)</span>`;
         return { totalMins, durationHours: (totalMins / 60).toFixed(1), displayStr: displayStr };
     };
 
