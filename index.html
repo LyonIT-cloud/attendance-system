@@ -181,7 +181,7 @@
                         <tr>
                             <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th>
                             <th data-vi="Loại">假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th>
-                            <th data-vi="Trạng thái">狀態</th><th data-vi="Hành動">動作</th>
+                            <th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
@@ -202,7 +202,7 @@
             <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng證">證明</th><th data-vi="Hành động">動作</th></tr></thead>
+                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Hành động">動作</th></tr></thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
@@ -410,7 +410,6 @@
         
         if(!id || !name) return alert("工號或姓名錯誤");
 
-        // --- 關鍵修正：新增病假照片檢查 ---
         if(leaveType === "病假" && !file) {
             const msg = currentLang === 'vi' ? "Nghỉ bệnh phải có ảnh bằng chứng!" : "申請病假必須上傳照片證明！";
             return alert(msg);
@@ -482,18 +481,24 @@
                 if(r.status === "銷假") statusText = "Đã xóa";
                 if(r.status === "銷假審核中") statusText = "Đang chờ xóa";
             }
+
+            const photoHtml = r.photo ? 
+                `<img src="${r.photo}" style="width:30px;height:30px;border-radius:4px;cursor:pointer;object-fit:cover;border:1px solid #e2e8f0;" onclick="openLightbox('${r.photo}')">` : 
+                `<span style="color:#cbd5e1;">-</span>`;
+
             return `<tr>
                 <td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td>
                 <td><span class="badge-type">${r.leaveType}</span></td>
                 <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~${r.eDate} ${r.eTime}</td>
                 <td>${r.displayDuration}</td>
+                <td>${photoHtml}</td>
                 <td><span class="status-badge ${statusCls}">${statusText}</span></td>
                 <td>
                     ${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">${currentLang === 'vi' ? 'Sửa' : '修改'}</button>` : ''}
                     ${r.status === "批准" ? `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">${currentLang === 'vi' ? 'Xóa' : '銷假更正'}</button>` : ''}
                 </td>
             </tr>`;
-        }).join('') || "<tr><td colspan='8'>No records found</td></tr>";
+        }).join('') || "<tr><td colspan='9'>No records found</td></tr>";
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
@@ -568,14 +573,7 @@
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = 1; R <= range.e.r; ++R) {
-            const addr = XLSX.utils.encode_cell({c: 7, r: R}); 
-            if (ws[addr]) ws[addr].t = 's';
-        }
-
-        XLSX.utils.book_append_sheet(wb, ws, "Records");
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
         XLSX.writeFile(wb, `Attendance_${m}.xlsx`);
     };
 </script>
