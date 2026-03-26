@@ -39,11 +39,14 @@
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
         .btn-excel { background: #16a34a; color: white; }
-        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 10px; }
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .status-pending { background: #fff7ed; color: #c2410c; }
+        .status-confirmed { background: #f0fdf4; color: #15803d; }
+        .status-rejected { background: #fef2f2; color: #b91c1c; }
         .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
@@ -96,7 +99,7 @@
                         </select>
                     </div>
                 </div>
-                <div class="card" style="background: #f8fafc; margin-bottom: 20px;">
+                <div class="card" style="background: #f8fafc; margin-bottom: 20px; border: 1px solid #e2e8f0;">
                     <label data-vi="Chọn ca">選擇班別 (自動帶入時間)</label>
                     <div style="display: flex; gap: 15px; margin-top: 10px;">
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')">☀️ 早班 (08:30~17:30)</button>
@@ -122,12 +125,12 @@
                     <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
                     <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
                 </div>
-                <div id="personalResultArea" style="display:none; margin-top: 20px;">
+                <div id="personalResultContainer" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
                         <table>
                             <thead>
                                 <tr>
-                                    <th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">時間區間</th><th data-vi="Số giờ">時數</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                                    <th data-vi="Loại">假別</th><th data-vi="Thời gian">時間</th><th data-vi="Số giờ">時數</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
                                 </tr>
                             </thead>
                             <tbody id="personalTableBody"></tbody>
@@ -138,7 +141,7 @@
         </div>
 
         <div id="page-search" class="page-content">
-            <h2 data-vi="📅 Danh sách duyệt">📅 核准清單 (所有人紀錄)</h2>
+            <h2 data-vi="📅 Danh sách">📅 月度核准清單</h2>
             <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
                 <input type="month" id="filterMonth" onchange="applyFilters()">
                 <select id="filterDept" onchange="applyFilters()">
@@ -152,7 +155,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">時間區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng證">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                            <th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>時間區間</th><th>時數</th><th>證明</th><th>狀態</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
@@ -191,24 +194,25 @@
     const db = getFirestore(app);
 
     let allRecords = [];
+    let currentLang = 'zh';
 
-    // [核心] 個人查詢：獨立顯示不跳轉，且具備修改與銷假功能
+    // 個人查詢：修正為原頁面顯示，且補回功能按鈕
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!id) return alert("請輸入工號");
         const snap = await getDocs(query(collection(db, "formEntries"), where("id", "==", id)));
         const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        const resultArea = document.getElementById('personalResultArea');
+        const container = document.getElementById('personalResultContainer');
         const tbody = document.getElementById('personalTableBody');
         
-        if(records.length === 0) { alert("查無紀錄"); resultArea.style.display = 'none'; return; }
+        if(records.length === 0) { alert("查無紀錄"); container.style.display = 'none'; return; }
         
-        resultArea.style.display = 'block';
+        container.style.display = 'block';
         tbody.innerHTML = records.map(r => `<tr>
-            <td>${r.name}</td><td>${r.leaveType}</td>
-            <td style="font-size:12px;">${r.sDate}<br>~${r.eDate}</td>
+            <td>${r.leaveType}</td>
+            <td style="font-size:12px;">${r.sDate} ${r.sTime}<br>~ ${r.eDate} ${r.eTime}</td>
             <td>${r.displayDuration}</td>
-            <td><span class="status-badge">${r.status}</span></td>
+            <td><span class="status-badge ${r.status==='批准'?'status-confirmed':(r.status==='退件'?'status-rejected':'status-pending')}">${r.status}</span></td>
             <td>
                 ${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>` : ''}
                 ${r.status === "批准" ? `<button class="btn-cancel-request" onclick="requestCancel('${r.docId}')">銷假</button>` : ''}
@@ -224,70 +228,42 @@
         if(id === 'admin') loadAdminData();
     };
 
-    window.loadAllData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
-        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        window.applyFilters();
-    };
-
-    window.applyFilters = () => {
-        const fm = document.getElementById('filterMonth').value;
-        const fd = document.getElementById('filterDept').value;
-        const fs = document.getElementById('filterStatus').value;
-        const filtered = allRecords.filter(r => (fm ? r.sDate.startsWith(fm) : true) && (fd ? r.dept === fd : true) && (fs ? r.status === fs : true));
-        renderAllTable(filtered);
-    };
-
-    function renderAllTable(data) {
-        document.getElementById('allTableBody').innerHTML = data.map(r => `<tr>
-            <td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-            <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>~${r.eDate}</td><td>${r.displayDuration}</td>
-            <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-            <td><span class="status-badge">${r.status}</span></td><td>-</td>
-        </tr>`).join('');
+    // 核心功能：圖片壓縮
+    async function compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const max_size = 800; // 最大寬度
+                    if (width > max_size) {
+                        height *= max_size / width;
+                        width = max_size;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // 壓縮畫質 0.7
+                };
+            };
+        });
     }
 
-    // [需求] FHG 轉小寫 + 僅批准匯出
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇月份");
-        const data = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准" || r.status === "已銷假"));
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
-        const rows = data.map(r => {
-            let empId = r.id || "";
-            if(empId.toUpperCase().startsWith("FHG")) empId = empId.toLowerCase();
-            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, "", "", r.reason, r.dept, ""];
-        });
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "明細");
-        XLSX.writeFile(wb, `${m}_Records.xlsx`);
-    };
-
-    // [需求] 存檔時壓縮照片
     window.saveToCloud = async () => {
         const calc = window.autoCalc();
-        if(!calc) return alert("請檢查時間");
+        if(!calc) return alert("請檢查日期時間");
         const file = document.getElementById('leaveImg').files[0];
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = "";
-            if(file) {
-                photo = await new Promise(res => {
-                    const reader = new FileReader(); reader.readAsDataURL(file);
-                    reader.onload = e => {
-                        const img = new Image(); img.src = e.target.result;
-                        img.onload = () => {
-                            const cvs = document.createElement('canvas');
-                            let w = img.width, h = img.height;
-                            if(w > 800) { h *= 800/w; w = 800; }
-                            cvs.width = w; cvs.height = h;
-                            cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-                            res(cvs.toDataURL('image/jpeg', 0.7));
-                        };
-                    };
-                });
-            }
+            if(file) photo = await compressImage(file); // 執行壓縮
+
             await addDoc(collection(db, "formEntries"), {
                 id: document.getElementById('empId').value.toUpperCase(),
                 name: document.getElementById('empName').value,
@@ -302,23 +278,57 @@
                 status: "審核中", photo, createdAt: new Date()
             });
             alert("提交成功"); location.reload();
-        } catch(e) { alert("錯誤: " + e.message); }
+        } catch(e) { alert(e.message); }
     };
 
-    // [樣式還原] 主管審核中心
-    window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "in", ["審核中", "銷假審核中"])));
-        document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
-            const r = d.data();
-            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td>
-            <td><img src="${r.photo}" style="width:30px" onclick="openLightbox('${r.photo}')"></td>
-            <td>
-                <button class="btn btn-success" style="padding:5px 10px; min-height:auto;" onclick="updateStatus('${d.id}','批准')">批准</button>
-                <button class="btn" style="padding:5px 10px; min-height:auto; background:var(--danger); color:white;" onclick="updateStatus('${d.id}','退件')">駁回</button>
-            </td></tr>`;
-        }).join('');
+    window.loadAllData = async () => {
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        window.applyFilters();
     };
 
+    window.applyFilters = () => {
+        const fm = document.getElementById('filterMonth').value;
+        const fd = document.getElementById('filterDept').value;
+        const fs = document.getElementById('filterStatus').value;
+        const filtered = allRecords.filter(r => (fm?r.sDate.startsWith(fm):true) && (fd?r.dept===fd:true) && (fs?r.status===fs:true));
+        
+        document.getElementById('allTableBody').innerHTML = filtered.map(r => `<tr>
+            <td>${r.dept||""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+            <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>~${r.eDate} ${r.eTime}</td><td>${r.displayDuration}</td>
+            <td>${r.photo?`<img src="${r.photo}" style="width:30px;cursor:pointer" onclick="openLightbox('${r.photo}')">`:'-'}</td>
+            <td><span class="status-badge ${r.status==='批准'?'status-confirmed':(r.status==='退件'?'status-rejected':'status-pending')}">${r.status}</span></td>
+        </tr>`).join('');
+    };
+
+    // 核心功能：Excel 匯出格式對齊範本 + FGH 轉小寫
+    window.exportMonthExcel = () => {
+        const m = document.getElementById('exportMonth').value;
+        if(!m) return alert("請選擇月份");
+        const data = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
+        
+        // 對齊範本欄位
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
+        const rows = data.map(r => {
+            let empId = r.id || "";
+            // 功能：FGH 轉小寫
+            if(empId.toLowerCase().startsWith("fgh")) empId = empId.toLowerCase();
+            
+            // 轉換時數格式為 008:00
+            let formattedH = "000:00";
+            const match = r.displayDuration.match(/(\d+) 時 (\d+) 分/);
+            if(match) formattedH = `${match[1].padStart(3, '0')}:${match[2].padStart(2, '0')}`;
+
+            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, formattedH, "", "", r.reason, r.dept, ""];
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        XLSX.writeFile(wb, `鼎顓請假明細_${m}.xlsx`);
+    };
+
+    // 其他邏輯保持不變
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         if(id.length < 5) return;
@@ -326,7 +336,7 @@
         if(snap.exists()){ document.getElementById('empName').value = snap.data().name; document.getElementById('dept').value = snap.data().dept; }
     };
     window.setShift = (s) => {
-        if(s === 'day'){ document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; }
+        if(s==='day'){ document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; }
         else { document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; }
         window.autoCalc();
     };
@@ -339,6 +349,18 @@
         const displayStr = `${Math.floor(diff/60)} 時 ${diff%60} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
         return { displayStr };
+    };
+    window.loadAdminData = async () => {
+        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "in", ["審核中", "銷假審核中"])));
+        document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
+            const r = d.data();
+            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td>
+            <td><img src="${r.photo}" style="width:30px" onclick="openLightbox('${r.photo}')"></td>
+            <td>
+                <button class="status-badge status-confirmed" onclick="updateStatus('${d.id}','批准')">批准</button>
+                <button class="status-badge status-rejected" onclick="updateStatus('${d.id}','退件')">駁回</button>
+            </td></tr>`;
+        }).join('');
     };
     window.updateStatus = async (id, s) => { await updateDoc(doc(db, "formEntries", id), { status: s }); alert("更新成功"); loadAdminData(); };
     window.requestCancel = async (id) => { if(confirm("確定申請銷假？")) { await updateDoc(doc(db, "formEntries", id), { status: "銷假審核中" }); alert("已提交銷假申請"); searchPersonalRecords(); } };
