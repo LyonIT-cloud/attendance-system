@@ -181,7 +181,7 @@
                         <tr>
                             <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th>
                             <th data-vi="Loại">假別</th><th data-vi="Thời gian">請假區間</th><th data-vi="Số giờ">時數</th>
-                            <th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                            <th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành動">動作</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
@@ -232,7 +232,6 @@
     let currentLang = 'zh';
     window.currentAdminDept = "ALL";
 
-    // 監聽請假類別變化，如果是病假則顯示提示
     document.getElementById('leaveType').addEventListener('change', function() {
         const hint = document.getElementById('photoRequiredHint');
         hint.style.display = this.value === "病假" ? "inline" : "none";
@@ -288,7 +287,6 @@
             document.getElementById('endTime').value = data.eTime;
             document.getElementById('reason').value = data.reason || "";
             
-            // 觸發一次提示檢查
             document.getElementById('leaveType').dispatchEvent(new Event('change'));
 
             await deleteDoc(doc(db, "formEntries", docId));
@@ -419,10 +417,25 @@
             document.getElementById('submitBtn').disabled = true;
             let photo = "";
             if(file) {
-                photo = await new Promise(r => {
+                photo = await new Promise((resolve) => {
                     const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const max_size = 800;
+                            if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
+                            else { if (height > max_size) { width *= max_size / height; height = max_size; } }
+                            canvas.width = width; canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
+                        };
+                    };
                     reader.readAsDataURL(file);
-                    reader.onload = e => r(e.target.result);
                 });
             }
             await addDoc(collection(db, "formEntries"), {
@@ -549,32 +562,60 @@
 
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇月份");
-        const snap = await getDocs(collection(db, "formEntries"));
-        const data = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假"));
-        if (data.length === 0) return alert("無核准紀錄");
+        if(!m) {
+            alert(currentLang === 'vi' ? "Vui lòng chọn tháng" : "請選擇月份");
+            return;
+        }
+
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        const data = snap.docs.map(d => d.data()).filter(r => 
+            r.sDate && r.sDate.startsWith(m) && r.status === "批准"
+        );
+
+        if (data.length === 0) {
+            alert(currentLang === 'vi' ? "Không có dữ liệu đã duyệt" : "無核准紀錄");
+            return;
+        }
 
         const formatToTripleDigit = (displayStr) => {
             if (!displayStr) return "000:00";
             const match = displayStr.match(/(\d+)\s*時\s*(\d+)\s*分/);
             if (match) {
                 const h = parseInt(match[1]);
-                const m = parseInt(match[2]);
-                return `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
+                const min = parseInt(match[2]);
+                return `${h.toString().padStart(3, '0')}:${min.toString().padStart(2, '0')}`;
             }
             return "000:00";
         };
 
-        const wsData = [["員工代號", "員工姓名", "假別", "開始日期", "開始時間", "結束日期", "結束時間", "時數", "事由"]];
+        const excelHeader = ["員工代號", "員工姓名", "假別名稱", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "請假事由"];
+        const wsData = [excelHeader];
+
         data.forEach(r => {
-            const formattedDuration = formatToTripleDigit(r.displayDuration);
-            wsData.push([r.id, r.name, r.leaveType, r.sDate, r.sTime, r.eDate, r.eTime, formattedDuration, r.reason || ""]);
+            wsData.push([
+                r.id, 
+                r.name, 
+                r.leaveType, 
+                r.sDate.replace(/-/g, '/'), 
+                r.sTime, 
+                r.eDate.replace(/-/g, '/'), 
+                r.eTime, 
+                formatToTripleDigit(r.displayDuration), 
+                r.reason || ""
+            ]);
         });
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-        XLSX.writeFile(wb, `Attendance_${m}.xlsx`);
+
+        ws['!cols'] = [
+            {wch: 12}, {wch: 12}, {wch: 10}, {wch: 12}, {wch: 10}, 
+            {wch: 12}, {wch: 10}, {wch: 10}, {wch: 25}
+        ];
+
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        const fileName = `${m}_Attendance_Export.xlsx`;
+        XLSX.writeFile(wb, fileName);
     };
 </script>
 </body>
