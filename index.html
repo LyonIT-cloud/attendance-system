@@ -10,12 +10,9 @@
             --sidebar-bg: #1e293b; --main-bg: #f1f5f9; --primary: #3b82f6;
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #1e293b;
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            
-            /* 🛠️ 維護模式開關：要維護時改為 flex，正常使用改為 none */
             --maintenance-display: none; 
         }
 
-        /* 維護擋板樣式 */
         #maintenance-overlay {
             display: var(--maintenance-display);
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -443,6 +440,67 @@
         </tr>`).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
+
+    // --- 修改功能 ---
+    window.editExistingRecord = async (docId) => {
+        const docSnap = await getDoc(doc(db, "formEntries", docId));
+        if (!docSnap.exists()) return alert("找不到該筆資料");
+        
+        const data = docSnap.data();
+        if (data.status !== "審核中") {
+            return alert("只有「審核中」的資料可以修改。");
+        }
+
+        document.getElementById('editDocId').value = docId;
+        document.getElementById('empId').value = data.id;
+        document.getElementById('empName').value = data.name;
+        document.getElementById('dept').value = data.dept;
+        document.getElementById('leaveType').value = data.leaveType;
+        document.getElementById('startDate').value = data.sDate;
+        document.getElementById('startTime').value = data.sTime;
+        document.getElementById('endDate').value = data.eDate;
+        document.getElementById('endTime').value = data.eTime;
+        document.getElementById('reason').value = data.reason;
+        
+        document.getElementById('startDate').disabled = false;
+        document.getElementById('startTime').disabled = false;
+        document.getElementById('endDate').disabled = false;
+        document.getElementById('endTime').disabled = false;
+        document.getElementById('hasSelectedShift').value = "true";
+        
+        window.autoCalc();
+        switchPage('dashboard');
+        document.getElementById('submitBtn').innerText = "更新申請資料";
+        alert("資料已帶回表單，修改完成後請點選「更新申請資料」");
+    };
+
+    // --- 銷假功能 ---
+    window.cancelAndRemoveRecord = async (docId) => {
+        const docSnap = await getDoc(doc(db, "formEntries", docId));
+        if (!docSnap.exists()) return alert("找不到該筆資料");
+        
+        const data = docSnap.data();
+        if (data.status !== "批准") {
+            return alert("只有狀態為「批准」的資料可以執行銷假。");
+        }
+
+        if (confirm(`確定要對員工【${data.name}】進行銷假嗎？\n銷假後紀錄將永久移除，如需改期請重新申請。`)) {
+            try {
+                // 備份到銷假資料表供備查
+                await addDoc(collection(db, "deletedRecords"), {
+                    ...data,
+                    status: "已銷假",
+                    canceledAt: new Date()
+                });
+                // 從主表刪除
+                await deleteDoc(doc(db, "formEntries", docId));
+                alert("銷假成功，紀錄已移除。");
+                location.reload();
+            } catch (e) {
+                alert("銷假操作失敗：" + e.message);
+            }
+        }
+    };
 
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
