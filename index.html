@@ -10,7 +10,20 @@
             --sidebar-bg: #1e293b; --main-bg: #f1f5f9; --primary: #3b82f6;
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #1e293b;
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            
+            /* 🛠️ 維護模式開關：要維護時改為 flex，正常使用改為 none */
+            --maintenance-display: none; 
         }
+
+        /* 維護擋板樣式 */
+        #maintenance-overlay {
+            display: var(--maintenance-display);
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; z-index: 999999; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
+            padding: 20px; box-sizing: border-box;
+        }
+
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; flex-direction: row; min-height: 100vh; }
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 100; transition: all 0.3s; }
         .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
@@ -74,6 +87,19 @@
     </style>
 </head>
 <body>
+
+    <div id="maintenance-overlay">
+        <div style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+            <div style="font-size: 64px; margin-bottom: 20px;">🛠️</div>
+            <h1 style="color: #1e293b; margin-bottom: 10px;">系統維護中</h1>
+            <p style="color: #64748b; line-height: 1.6;">
+                我們正在更新系統以提供更好的服務。<br>
+                請稍後再試，造成您的不便敬請見諒。
+            </p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+            <p style="font-size: 13px; color: #94a3b8;">CÔNG TY ĐỈNH CHUYÊN - 鼎顓電子</p>
+        </div>
+    </div>
 
     <div class="lang-switcher">
         <button class="btn-lang" onclick="changeLanguage('zh')">繁體</button>
@@ -144,7 +170,7 @@
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Thời gian結束">結束時間</label>
+                        <label data-vi="Thời gian 結束">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()" disabled>
                             <input type="time" id="endTime" onchange="autoCalc()" disabled>
@@ -418,13 +444,11 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
-    // --- 完全修正後的導出函數 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
 
         try {
-            // 1. 抓取 Firebase 資料
             const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
             const snap = await getDocs(q);
             const approved = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m));
@@ -439,8 +463,6 @@
             
             const rows = combinedData.map(r => {
                 let finalMinutes = 0;
-
-                // 修正重點：如果 totalMinutes 是 0 或不存在，從 displayDuration 字串反推 (例如 "8 時 0 分")
                 if (r.totalMinutes && r.totalMinutes > 0) {
                     finalMinutes = r.totalMinutes;
                 } else if (r.displayDuration) {
@@ -450,8 +472,6 @@
                     const min = mMatch ? parseInt(mMatch[1]) : 0;
                     finalMinutes = (h * 60) + min;
                 }
-
-                // 格式化為 000:00
                 const totalH = Math.floor(finalMinutes / 60);
                 const totalM = Math.round(finalMinutes % 60);
                 const formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
@@ -468,9 +488,7 @@
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
             XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
-        } catch (e) {
-            alert("導出錯誤：" + e.message);
-        }
+        } catch (e) { alert("導出錯誤：" + e.message); }
     };
 
     window.checkAdminAccess = () => {
