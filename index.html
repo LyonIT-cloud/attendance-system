@@ -282,7 +282,7 @@
         const m = totalMinutes % 60;
         const displayStr = `${h} 時 ${m} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
-        return { displayStr };
+        return { displayStr, totalMinutes };
     };
 
     window.setShift = (s) => {
@@ -310,7 +310,6 @@
         const type = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
         
-        // 修正 1: 病假必須上傳證明
         if (type === "病假" && !file) {
             return alert("申請病假必須上傳證明文件！");
         }
@@ -336,6 +335,7 @@
                 eTime: document.getElementById('endTime').value,
                 reason: document.getElementById('reason').value,
                 displayDuration: calc.displayStr,
+                totalMinutes: calc.totalMinutes,
                 updatedAt: new Date(),
                 status: "審核中"
             };
@@ -352,7 +352,6 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 修正 2: 銷假邏輯變更 (自動刪除並紀錄備份)
     window.cancelAndRemoveRecord = async (docId) => {
         if(!confirm("確定要【銷假】嗎？\n此操作將會刪除此筆請假紀錄並留存於後台報表。")) return;
         try {
@@ -360,14 +359,12 @@
             const snap = await getDoc(docRef);
             if(snap.exists()){
                 const data = snap.data();
-                // 1. 將銷假紀錄存入備份集合，供 Excel 匯出
                 await addDoc(collection(db, "deletedRecords"), {
                     ...data,
                     originalDocId: docId,
                     status: "已銷假",
                     deletedAt: new Date()
                 });
-                // 2. 刪除原始紀錄
                 await deleteDoc(docRef);
                 alert("銷假完成，原紀錄已移除。");
                 location.reload();
@@ -499,26 +496,56 @@
         </tr>`).join('');
     };
 
+    // --- 關鍵修改：匯出邏輯優化以符合 CSV 格式且 FGH 小寫 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
         
-        // 抓取現有的批准紀錄
         const approved = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准"));
-        
-        // 同時抓取後台的銷假備份紀錄
         const deletedSnap = await getDocs(query(collection(db, "deletedRecords"), where("sDate", ">=", m + "-01"), where("sDate", "<=", m + "-31")));
         const deleted = deletedSnap.docs.map(d => d.data());
-        
         const combinedData = [...approved, ...deleted];
         
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "狀態"];
-        const rows = combinedData.map(r => [r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, r.reason, r.dept, r.status || "批准"]);
+        // 標題欄位（按照您的範例）
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
+        
+        const rows = combinedData.map(r => {
+            // 將 displayDuration (X 時 Y 分) 轉為 008:00 格式
+            let formattedHours = "000:00";
+            if(r.totalMinutes) {
+                const totalH = Math.floor(r.totalMinutes / 60);
+                const totalM = r.totalMinutes % 60;
+                formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
+            }
+
+            // F, G, H 對應：開始時間 (startTime), 結束日期 (eDate), 結束時間 (eTime)
+            // 在這裡我們直接使用變數，並確保輸出的陣列位置正確
+            const f_startTime = r.sTime || "";
+            const g_endDate = r.eDate || "";
+            const h_endTime = r.eTime || "";
+
+            return [
+                r.id,           // A 員工代號
+                r.name,         // B 員工姓名
+                r.leaveType,    // C 假別
+                r.sDate,        // D 出勤日期
+                r.sDate,        // E 開始日期
+                f_startTime,    // F 開始時間 (小寫對應變數)
+                g_endDate,      // G 結束日期 (小寫對應變數)
+                h_endTime,      // H 結束時間 (小寫對應變數)
+                formattedHours, // I 請假時數
+                "",             // J 扣伙食費 (留空)
+                "",             // K 扣交通津貼 (留空)
+                r.reason || "", // L 事由
+                r.dept || "",   // M 備註 (填入部門)
+                r.status === "已銷假" ? "已銷假" : "已批准" // N 主管批准時間 (狀態)
+            ];
+        });
         
         const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "人事核對表");
-        XLSX.writeFile(wb, `${m}_請假紀錄(含銷假).xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        XLSX.writeFile(wb, `鼎顓_${m}_請假導入報表.xlsx`);
     };
 
     window.changePage = (dir) => { 
