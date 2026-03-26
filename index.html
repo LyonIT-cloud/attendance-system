@@ -144,7 +144,7 @@
                         </div>
                     </div>
                     <div>
-                        <label data-vi="Thời gian kết thúc">結束時間</label>
+                        <label data-vi="Thời gian結束">結束時間</label>
                         <div style="display:flex; gap:5px;">
                             <input type="date" id="endDate" onchange="autoCalc()" disabled>
                             <input type="time" id="endTime" onchange="autoCalc()" disabled>
@@ -418,40 +418,43 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
-    // --- 修復後的導出函數 ---
+    // --- 完全修正後的導出函數 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
 
         try {
-            // 1. 從 Firebase 抓取所有已批准資料 (不論分頁)
+            // 1. 抓取 Firebase 資料
             const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
             const snap = await getDocs(q);
-            const approved = snap.docs
-                .map(d => d.data())
-                .filter(r => r.sDate && r.sDate.startsWith(m));
+            const approved = snap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m));
 
-            // 2. 抓取已銷假資料
             const deletedSnap = await getDocs(query(collection(db, "deletedRecords")));
-            const deleted = deletedSnap.docs
-                .map(d => d.data())
-                .filter(r => r.sDate && r.sDate.startsWith(m));
+            const deleted = deletedSnap.docs.map(d => d.data()).filter(r => r.sDate && r.sDate.startsWith(m));
 
             const combinedData = [...approved, ...deleted];
-            
-            if (combinedData.length === 0) {
-                return alert(m + " 月份目前沒有「批准」或「已銷假」的紀錄");
-            }
+            if (combinedData.length === 0) return alert(m + " 月份目前沒有「批准」或「已銷假」的紀錄");
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "狀態"];
             
             const rows = combinedData.map(r => {
-                let formattedHours = "000:00";
-                if(r.totalMinutes !== undefined && r.totalMinutes !== null) {
-                    const totalH = Math.floor(r.totalMinutes / 60);
-                    const totalM = Math.round(r.totalMinutes % 60);
-                    formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
+                let finalMinutes = 0;
+
+                // 修正重點：如果 totalMinutes 是 0 或不存在，從 displayDuration 字串反推 (例如 "8 時 0 分")
+                if (r.totalMinutes && r.totalMinutes > 0) {
+                    finalMinutes = r.totalMinutes;
+                } else if (r.displayDuration) {
+                    const hMatch = r.displayDuration.match(/(\d+)\s*時/);
+                    const mMatch = r.displayDuration.match(/(\d+)\s*分/);
+                    const h = hMatch ? parseInt(hMatch[1]) : 0;
+                    const min = mMatch ? parseInt(mMatch[1]) : 0;
+                    finalMinutes = (h * 60) + min;
                 }
+
+                // 格式化為 000:00
+                const totalH = Math.floor(finalMinutes / 60);
+                const totalM = Math.round(finalMinutes % 60);
+                const formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
                 
                 let empId = r.id || "";
                 if (empId.length > 0) {
