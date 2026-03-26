@@ -52,15 +52,25 @@
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
-        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-approved { background: #dcfce7; color: #166534; }
-        .status-rejected { background: #fee2e2; color: #991b1b; }
+        /* 狀態標籤優化：純文字、無背景 */
+        .status-badge { padding: 4px 0; font-size: 14px; font-weight: 700; white-space: nowrap; }
+        .status-pending { color: var(--warning); }
+        .status-approved { color: var(--accent); }
+        .status-rejected { color: var(--danger); }
 
-        .btn-action-s { padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: bold; }
-        .btn-edit { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
-        .btn-approve { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .btn-reject { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        /* 動作按鈕優化：點擊感、純文字 */
+        .btn-action-s { 
+            background: transparent; border: none; padding: 6px 10px; 
+            font-size: 14px; cursor: pointer; font-weight: bold; 
+            transition: all 0.1s ease;
+        }
+        .btn-action-s:active { transform: scale(0.9); opacity: 0.6; }
+        .btn-edit { color: var(--primary); }
+        .btn-edit:hover { text-decoration: underline; }
+        .btn-approve { color: var(--accent); }
+        .btn-approve:hover { text-decoration: underline; }
+        .btn-reject { color: var(--danger); }
+        .btn-reject:hover { text-decoration: underline; }
 
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
@@ -250,7 +260,31 @@
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // 切換分頁
+    // 語言切換邏輯修復
+    window.changeLanguage = (lang) => {
+        const elements = document.querySelectorAll('[data-vi]');
+        elements.forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                el.innerText = el.dataset.zh || el.innerText;
+            }
+        });
+        // 切換 Placeholder 與選項文字 (如果有 data-vi)
+        const inputs = document.querySelectorAll('input[data-vi], option[data-vi]');
+        inputs.forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zhText) el.dataset.zhText = el.placeholder || el.text;
+                if (el.placeholder) el.placeholder = el.dataset.vi;
+                if (el.text) el.text = el.dataset.vi;
+            } else {
+                if (el.placeholder) el.placeholder = el.dataset.zhText;
+                if (el.text) el.text = el.dataset.zhText;
+            }
+        });
+    };
+
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
@@ -259,7 +293,6 @@
         if(id === 'admin') loadAdminData();
     };
 
-    // 載入資料 (核准清單)
     window.loadAllData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
@@ -292,7 +325,6 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
-    // 主管審核中心載入
     window.loadAdminData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
         const tbody = document.getElementById('adminTableBody');
@@ -314,7 +346,6 @@
         }).join('');
     };
 
-    // 修改核准清單中的紀錄
     window.editExistingRecord = async (docId) => {
         const docSnap = await getDoc(doc(db, "formEntries", docId));
         if (docSnap.exists()) {
@@ -342,7 +373,6 @@
         loadAdminData();
     };
 
-    // 儲存或更新到雲端
     window.saveToCloud = async () => {
         const calc = window.autoCalc();
         if(!calc) return alert("請確認時間設定正確");
@@ -397,7 +427,6 @@
         } catch(e) { alert("發生錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 工具函數
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         if(id.length < 5) return;
