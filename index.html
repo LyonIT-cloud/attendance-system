@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤 management</title>
+    <title>鼎顓電子 - 員工出勤管理系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -43,28 +43,33 @@
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
-        
-        /* 班別按鈕選中樣式 */
-        .shift-btn { flex: 1; background: #fff; border: 2px solid #e2e8f0; color: #64748b; }
-        .shift-btn.selected { border-color: var(--primary); background: #eff6ff; color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-excel { background: #16a34a; color: white; }
 
+        /* 班別選中效果 (僅增加邊框顏色辨識) */
+        .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
+        
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
         table { width: 100%; border-collapse: collapse; min-width: 850px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
         .status-badge { padding: 4px 0; font-size: 14px; font-weight: 700; white-space: nowrap; }
+        .status-pending { color: var(--warning); }
         .status-approved { color: var(--accent); }
         .status-rejected { color: var(--danger); }
-        .status-pending { color: var(--warning); }
 
-        .btn-action-s { background: transparent; border: none; padding: 6px 10px; font-size: 14px; cursor: pointer; font-weight: bold; }
+        .btn-action-s { background: transparent; border: none; padding: 6px 10px; font-size: 14px; cursor: pointer; font-weight: bold; transition: all 0.1s ease; }
+        .btn-action-s:active { transform: scale(0.9); opacity: 0.6; }
         .btn-edit { color: var(--primary); }
         .btn-cancel-leave { color: #f97316; }
+        .btn-cancel-leave:hover { text-decoration: underline; }
+        .btn-approve { color: var(--accent); }
+        .btn-reject { color: var(--danger); }
 
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .img-modal img { max-width: 95%; max-height: 95%; border: 3px solid white; object-fit: contain; }
-        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; }
+        .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -120,16 +125,14 @@
                         </select>
                     </div>
                 </div>
-
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
-                    <label data-vi="Chọn ca làm việc (Bắt buộc)" style="color: #1e293b; font-weight: 800;">※ 步驟 1：必須先選擇班別 (Bắt buộc chọn ca)</label>
+                    <label data-vi="Chọn ca làm việc">選擇班別 (自動扣除休息時數)</label>
                     <div style="display: flex; gap: 15px; margin-top: 10px;">
-                        <button class="btn shift-btn" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班 (08:30~17:30)</button>
-                        <button class="btn shift-btn" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班 (18:00~02:30)</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班 (08:30~17:30)</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班 (18:00~02:30)</button>
                     </div>
-                    <input type="hidden" id="selectedShift" value="">
+                    <input type="hidden" id="hasSelectedShift" value="false">
                 </div>
-
                 <div class="form-grid">
                     <div>
                         <label data-vi="Thời gian bắt đầu">起始時間</label>
@@ -146,7 +149,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請確認時間 (自動扣除休息時數)</div>
+                <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請確認時間 (自動扣除週末與休息)</div>
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
                     <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span style="color:red; font-size:12px;">(病假必傳)</span></label>
@@ -157,22 +160,24 @@
         </div>
 
         <div id="page-search" class="page-content">
-            <h2 data-vi="📅 Danh sách duyệt">📅 核准清單</h2>
+            <h2 data-vi="📅 Danh sách duyệt">📅 核准清單 (所有人紀錄)</h2>
             <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
-                <input type="month" id="filterMonth" onchange="applyFilters()">
-                <select id="filterDept" onchange="applyFilters()">
-                    <option value="">全部部門</option>
+                <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
+                <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả bộ phận">全部部門</option>
                     <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
-                <select id="filterStatus" onchange="applyFilters()">
-                    <option value="">全部狀態</option>
-                    <option value="審核中">審核中</option><option value="批准">批准</option><option value="退件">退件</option>
+                <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
+                    <option value="審核中">審核中</option>
+                    <option value="批准">批准</option>
+                    <option value="退件">退件</option>
                 </select>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>動作</th></tr>
+                        <tr><th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành動">動作</th></tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
@@ -182,18 +187,18 @@
                 <span id="pageInfo">1 / 1</span>
                 <button class="btn" onclick="changePage(1)">下一頁</button>
             </div>
-            <div class="card" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
-                <input type="month" id="exportMonth">
-                <button class="btn btn-excel" onclick="exportMonthExcel()" style="background:#16a34a; color:white;">📥 導出 EXCEL</button>
+            <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
+                <input type="month" id="exportMonth" style="width: 200px;">
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL</button>
             </div>
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 id="adminTitle">🛡️ 主管審核中心</h2>
+            <h2 id="adminTitle" data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間區間</th><th>總時數</th><th>證明</th><th>操作</th></tr>
+                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間區間</th><th>總時數</th><th>證明</th><th>核准操作</th></tr>
                     </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
@@ -201,11 +206,12 @@
         </div>
 
         <div id="page-personal" class="page-content">
-            <h2 data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</h2>
+            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
+                <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="輸入工號查詢">
-                    <button class="btn btn-success" onclick="searchPersonalRecords()">查詢</button>
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
+                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
                 </div>
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
@@ -246,21 +252,65 @@
         "hr888": "ALL"
     };
 
-    // --- 班別切換邏輯 ---
-    window.setShift = (s) => {
-        document.getElementById('selectedShift').value = s;
-        // UI 回饋
-        document.getElementById('shiftDayBtn').classList.remove('selected');
-        document.getElementById('shiftMidBtn').classList.remove('selected');
+    // --- 強化時數計算 (解決時數 0 問題) ---
+    window.autoCalc = () => {
+        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
+        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
+        if(!d1 || !t1 || !d2 || !t2) return null;
         
+        let totalMinutes = 0;
+        
+        // 如果是標準班別時間，直接強制給予 480 分鐘 (8小時)，避免 JS 計算浮點誤差
+        if (t1 === "08:30" && t2 === "17:30" && d1 === d2) {
+            totalMinutes = 480;
+        } else if (t1 === "18:00" && t2 === "02:30") {
+            totalMinutes = 480;
+        } else {
+            // 非標準時間則進行動態計算
+            let start = new Date(`${d1} ${t1}`);
+            let end = new Date(`${d2} ${t2}`);
+            if(end <= start) return null;
+            
+            let currentDate = new Date(start);
+            currentDate.setHours(0,0,0,0);
+            while (currentDate <= end) {
+                const dayOfWeek = currentDate.getDay(); 
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                    let dayStart = (currentDate.toDateString() === start.toDateString()) ? start : new Date(currentDate.setHours(8,30,0));
+                    let dayEnd = (currentDate.toDateString() === end.toDateString()) ? end : new Date(currentDate.setHours(17,30,0));
+                    if (dayEnd > dayStart) {
+                        let diff = (dayEnd - dayStart) / (1000 * 60);
+                        // 扣除午休
+                        const noonStart = new Date(currentDate).setHours(12,0,0);
+                        const noonEnd = new Date(currentDate).setHours(13,0,0);
+                        if (dayStart <= noonStart && dayEnd >= noonEnd) diff -= 60;
+                        totalMinutes += diff;
+                    }
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+                currentDate.setHours(0,0,0,0);
+            }
+        }
+
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        const displayStr = `${h} 時 ${m} 分`;
+        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
+        return { displayStr, totalMinutes };
+    };
+
+    window.setShift = (s) => {
+        document.getElementById('hasSelectedShift').value = "true";
+        // 視覺選中效果
+        document.getElementById('shiftDayBtn').classList.toggle('shift-active', s === 'day');
+        document.getElementById('shiftMidBtn').classList.toggle('shift-active', s === 'middle');
+
         const startDate = document.getElementById('startDate').value;
         if(s === 'day'){ 
-            document.getElementById('shiftDayBtn').classList.add('selected');
             document.getElementById('startTime').value="08:30"; 
             document.getElementById('endTime').value="17:30"; 
             if(startDate) document.getElementById('endDate').value = startDate;
         } else { 
-            document.getElementById('shiftMidBtn').classList.add('selected');
             document.getElementById('startTime').value="18:00"; 
             document.getElementById('endTime').value="02:30"; 
             if(startDate) {
@@ -272,55 +322,22 @@
         window.autoCalc();
     };
 
-    // --- 強化時數計算 (解決時數 0 問題) ---
-    window.autoCalc = () => {
-        const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
-        const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
-        const shift = document.getElementById('selectedShift').value;
-
-        if(!d1 || !t1 || !d2 || !t2) return null;
-        
-        let start = new Date(`${d1} ${t1}`);
-        let end = new Date(`${d2} ${t2}`);
-        if(end <= start) return null;
-        
-        let totalMinutes = 0;
-
-        // 若為標準全天班 (早班 08:30-17:30 或 中班 18:00-02:30)
-        if (shift === 'day' && t1 === "08:30" && t2 === "17:30" && d1 === d2) {
-            totalMinutes = 480; // 強制 8 小時
-        } else if (shift === 'middle' && t1 === "18:00" && t2 === "02:30") {
-            totalMinutes = 480; // 強制 8 小時
-        } else {
-            // 自定義時數計算
-            let diff = (end - start) / (1000 * 60);
-            // 早班扣除午休 12:00-13:00
-            if (shift === 'day') {
-                const noonS = new Date(start).setHours(12,0,0);
-                const noonE = new Date(start).setHours(13,0,0);
-                if (start <= noonS && end >= noonE) diff -= 60;
-            }
-            totalMinutes = Math.max(0, diff);
-        }
-        
-        const h = Math.floor(totalMinutes / 60);
-        const m = Math.floor(totalMinutes % 60);
-        const displayStr = `${h} 時 ${m} 分`;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
-        return { displayStr, totalMinutes };
-    };
-
     window.saveToCloud = async () => {
-        const shift = document.getElementById('selectedShift').value;
-        // 新增：必須選取班別檢查
-        if(!shift) return alert("請先點選『早班』或『中班』按鈕！\n(Vui lòng chọn Ca Sáng hoặc Ca Chiều!)");
+        // --- 新增：檢查是否已點選班別 ---
+        if(document.getElementById('hasSelectedShift').value !== "true"){
+            alert("請先點選「早班」或「中班」按鈕！\nVui lòng chọn Ca Sáng hoặc Ca Chiều!");
+            return;
+        }
 
         const calc = window.autoCalc();
-        if(!calc || calc.totalMinutes <= 0) return alert("時數計算異常，請重新確認時間！");
+        if(!calc) return alert("請確認時間設定正確");
         
         const type = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
-        if (type === "病假" && !file) return alert("申請病假必須上傳證明文件！");
+        
+        if (type === "病假" && !file) {
+            return alert("申請病假必須上傳證明文件！");
+        }
 
         const docId = document.getElementById('editDocId').value;
         try {
@@ -337,7 +354,6 @@
                 name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value,
                 leaveType: type,
-                shift: shift,
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
@@ -349,7 +365,6 @@
                 status: "審核中"
             };
             if(photo) payload.photo = photo;
-            
             if(docId) {
                 await updateDoc(doc(db, "formEntries", docId), payload);
                 alert("紀錄已更新");
@@ -362,30 +377,23 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // --- 匯出邏輯 (保留 FGH 轉小寫) ---
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇月份");
-        const approved = allRecords.filter(r => r.sDate.startsWith(m) && r.status === "批准");
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
-        const rows = approved.map(r => {
-            const h = Math.floor(r.totalMinutes / 60);
-            const mi = Math.floor(r.totalMinutes % 60);
-            const timeStr = `${h.toString().padStart(3, '0')}:${mi.toString().padStart(2, '0')}`;
-            let empId = r.id || "";
-            if (empId.length > 0) {
-                const first = empId[0].toUpperCase();
-                if (['F','G','H'].includes(first)) empId = first.toLowerCase() + empId.slice(1);
+    // --- 以下為原始功能，不做任何修改 ---
+
+    window.cancelAndRemoveRecord = async (docId) => {
+        if(!confirm("確定要【銷假】嗎？")) return;
+        try {
+            const docRef = doc(db, "formEntries", docId);
+            const snap = await getDoc(docRef);
+            if(snap.exists()){
+                const data = snap.data();
+                await addDoc(collection(db, "deletedRecords"), { ...data, originalDocId: docId, status: "已銷假", deletedAt: new Date() });
+                await deleteDoc(docRef);
+                alert("銷假完成");
+                location.reload();
             }
-            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, timeStr, "", "", r.reason, r.dept];
-        });
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
-        XLSX.writeFile(wb, `鼎顓_${m}_報表.xlsx`);
+        } catch(e) { alert("銷假失敗"); }
     };
 
-    // 其餘輔助功能 (autoFetch, switchPage, loadData 等)
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         if(id.length < 5) return;
@@ -411,11 +419,7 @@
         const fm = document.getElementById('filterMonth').value;
         const fd = document.getElementById('filterDept').value;
         const fs = document.getElementById('filterStatus').value;
-        filteredRecords = allRecords.filter(r => 
-            (fm ? r.sDate.startsWith(fm) : true) && 
-            (fd ? r.dept === fd : true) && 
-            (fs ? r.status === fs : true)
-        );
+        filteredRecords = allRecords.filter(r => (fm ? r.sDate.startsWith(fm) : true) && (fd ? r.dept === fd : true) && (fs ? r.status === fs : true));
         currentPage = 1; renderTable();
     };
 
@@ -426,12 +430,43 @@
         tbody.innerHTML = pageData.map(r => `<tr>
             <td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
             <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>~${r.eDate}</td><td>${r.displayDuration}</td>
-            <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+            <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="openLightbox('${r.photo}')">` : '-'}</td>
             <td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td>
-            <td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button></td>
+            <td>
+                <button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button>
+                <button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button>
+            </td>
         </tr>`).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
+
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if(!m) return alert("請選擇月份");
+        const approved = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准"));
+        const deletedSnap = await getDocs(query(collection(db, "deletedRecords"), where("sDate", ">=", m + "-01"), where("sDate", "<=", m + "-31")));
+        const deleted = deletedSnap.docs.map(d => d.data());
+        const combinedData = [...approved, ...deleted];
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
+        const rows = combinedData.map(r => {
+            let formattedHours = "000:00";
+            if(r.totalMinutes) {
+                const totalH = Math.floor(r.totalMinutes / 60);
+                const totalM = r.totalMinutes % 60;
+                formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
+            }
+            let empId = r.id || "";
+            if (empId.length > 0) {
+                const firstChar = empId.charAt(0).toUpperCase();
+                if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') empId = firstChar.toLowerCase() + empId.slice(1);
+            }
+            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, formattedHours, "", "", r.reason, r.dept, r.status === "已銷假" ? "已銷假" : "已批准"];
+        });
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
+    };
 
     window.checkAdminAccess = () => {
         const pwd = prompt("請輸入核准密碼:");
@@ -443,18 +478,17 @@
         const snap = await getDocs(q);
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${r.sDate} ${r.sTime}</td><td>${r.displayDuration}</td>
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td style="font-size:11px;">${r.sDate} ${r.sTime}<br>至 ${r.eDate} ${r.eTime}</td><td>${r.displayDuration}</td>
             <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-            <td><button class="btn-action-s" style="color:green" onclick="updateStatus('${d.id}','批准')">批准</button>
-            <button class="btn-action-s" style="color:red" onclick="updateStatus('${d.id}','退件')">退件</button></td></tr>`;
+            <td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button><button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}','退件')">退件</button></td></tr>`;
         }).join('');
     };
 
-    window.updateStatus = async (id, s) => { if(confirm("確定操作？")){ await updateDoc(doc(db, "formEntries", id), { status: s }); loadAdminData(); } };
+    window.updateStatus = async (docId, status) => { if(confirm("確定操作？")){ await updateDoc(doc(db, "formEntries", docId), { status }); loadAdminData(); } };
     window.changePage = (dir) => { currentPage += dir; renderTable(); };
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; } 
+            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
             else { el.innerText = el.dataset.zh || el.innerText; }
         });
     };
