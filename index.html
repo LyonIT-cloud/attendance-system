@@ -191,7 +191,7 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
+            <h2 id="adminTitle" data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -224,7 +224,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -241,8 +241,22 @@
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
+    let currentAdminDept = ""; // 當前主管登入的部門
 
-    // --- 核心邏輯：修正時數計算 ---
+    // --- 密碼權限對照表 ---
+    const adminPasswords = {
+        "mgt888": "管理部",
+        "mfg888": "製造部",
+        "eng888": "工程部",
+        "smt888": "SMT",
+        "qa888": "品保部",
+        "log888": "資材部",
+        "sales888": "業務部",
+        "dip888": "DIP",
+        "hr888": "ALL" // 總管權限
+    };
+
+    // --- 核心邏輯：時數計算 ---
     window.autoCalc = () => {
         const d1 = document.getElementById('startDate').value, t1 = document.getElementById('startTime').value;
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
@@ -256,24 +270,19 @@
         let currentDate = new Date(start);
         currentDate.setHours(0,0,0,0);
 
-        // 逐日遍歷，排除週末
         while (currentDate <= end) {
-            const dayOfWeek = currentDate.getDay(); // 0 是週日, 6 是週六
+            const dayOfWeek = currentDate.getDay(); 
             if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                // 如果是上班日才計算
                 let dayStart = (currentDate.toDateString() === start.toDateString()) ? start : new Date(currentDate.setHours(8,30,0));
                 let dayEnd = (currentDate.toDateString() === end.toDateString()) ? end : new Date(currentDate.setHours(17,30,0));
                 
                 if (dayEnd > dayStart) {
                     let diff = (dayEnd - dayStart) / (1000 * 60);
-                    
-                    // 自動扣除休息邏輯
                     if (t1 === "08:30" && t2 === "17:30") {
-                        diff = 480; // 早班固定 8 小時
+                        diff = 480; 
                     } else if (t1 === "18:00" && t2 === "02:30") {
-                        diff = 480; // 中班固定 8 小時
+                        diff = 480; 
                     } else {
-                        // 自定義時間：跨過中午扣 60 分
                         const noonStart = new Date(currentDate).setHours(12,0,0);
                         const noonEnd = new Date(currentDate).setHours(13,0,0);
                         if (dayStart <= noonStart && dayEnd >= noonEnd) diff -= 60;
@@ -284,11 +293,10 @@
             currentDate.setDate(currentDate.getDate() + 1);
             currentDate.setHours(0,0,0,0);
         }
-
         const h = Math.floor(totalMinutes / 60);
         const m = totalMinutes % 60;
         const displayStr = `${h} 時 ${m} 分`;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr} (已扣除週末與休息)`;
+        document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
         return { displayStr };
     };
 
@@ -310,7 +318,6 @@
         window.autoCalc();
     };
 
-    // --- Firebase 與 原有介面邏輯 (完整保留) ---
     window.saveToCloud = async () => {
         const calc = window.autoCalc();
         if(!calc) return alert("請確認時間設定正確");
@@ -419,8 +426,28 @@
         window.autoCalc();
     };
 
+    // --- 主管審核中心邏輯 (含密碼過濾與退件) ---
+    window.checkAdminAccess = () => {
+        const pwd = prompt("請輸入部門專屬核准密碼:");
+        if (adminPasswords[pwd]) {
+            currentAdminDept = adminPasswords[pwd];
+            const label = currentAdminDept === "ALL" ? "所有部門" : currentAdminDept;
+            document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 - ${label}`;
+            switchPage('admin');
+        } else {
+            alert("密碼錯誤！");
+        }
+    };
+
     window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
+        let q;
+        if (currentAdminDept === "ALL") {
+            q = query(collection(db, "formEntries"), where("status", "==", "審核中"));
+        } else {
+            q = query(collection(db, "formEntries"), where("status", "==", "審核中"), where("dept", "==", currentAdminDept));
+        }
+
+        const snap = await getDocs(q);
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = snap.docs.map(d => {
             const r = d.data();
@@ -429,14 +456,21 @@
                 <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>至 ${r.eDate} ${r.eTime}</td>
                 <td>${r.displayDuration}</td>
                 <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-                <td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button></td>
+                <td>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button>
+                        <button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}','退件')">退件</button>
+                    </div>
+                </td>
             </tr>`;
         }).join('');
     };
 
     window.updateStatus = async (docId, status) => {
-        if(!confirm(`確定核准嗎？`)) return;
+        const actionText = status === "批准" ? "核准" : "退回";
+        if(!confirm(`確定要${actionText}此申請嗎？`)) return;
         await updateDoc(doc(db, "formEntries", docId), { status });
+        alert(`已完成${actionText}`);
         loadAdminData();
     };
 
@@ -468,11 +502,11 @@
         XLSX.writeFile(wb, `${m}_核准紀錄.xlsx`);
     };
 
-    window.checkAdminAccess = () => { if(prompt("管理員密碼:")==="hr888") switchPage('admin'); };
     window.changePage = (dir) => { 
         const maxPage = Math.ceil(filteredRecords.length/rowsPerPage);
         if(currentPage + dir >= 1 && currentPage + dir <= maxPage) { currentPage += dir; renderTable(); }
     };
+
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
             if (lang === 'vi') {
