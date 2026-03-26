@@ -52,13 +52,11 @@
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
-        /* 狀態標籤優化：純文字、無背景 */
         .status-badge { padding: 4px 0; font-size: 14px; font-weight: 700; white-space: nowrap; }
         .status-pending { color: var(--warning); }
         .status-approved { color: var(--accent); }
         .status-rejected { color: var(--danger); }
 
-        /* 動作按鈕優化：點擊感、純文字 */
         .btn-action-s { 
             background: transparent; border: none; padding: 6px 10px; 
             font-size: 14px; cursor: pointer; font-weight: bold; 
@@ -127,7 +125,7 @@
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
                             <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option>
                             <option>生理假</option><option>工傷假</option>
-                        </select>
+                            <option data-vi="Hủy phép">銷假</option> </select>
                     </div>
                 </div>
                 <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
@@ -182,7 +180,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                            <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành動">動作</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
@@ -260,7 +258,6 @@
     let currentPage = 1;
     const rowsPerPage = 10;
 
-    // 語言切換邏輯修復
     window.changeLanguage = (lang) => {
         const elements = document.querySelectorAll('[data-vi]');
         elements.forEach(el => {
@@ -271,7 +268,6 @@
                 el.innerText = el.dataset.zh || el.innerText;
             }
         });
-        // 切換 Placeholder 與選項文字 (如果有 data-vi)
         const inputs = document.querySelectorAll('input[data-vi], option[data-vi]');
         inputs.forEach(el => {
             if (lang === 'vi') {
