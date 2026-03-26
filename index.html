@@ -14,6 +14,7 @@
         body { margin: 0; font-family: 'Inter', "Microsoft JhengHei", sans-serif; background: var(--main-bg); color: var(--text-main); display: flex; flex-direction: row; min-height: 100vh; }
         .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 30px 20px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 100; transition: all 0.3s; }
         .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
+        
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
@@ -23,30 +24,44 @@
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
             .export-section { flex-direction: column; align-items: stretch !important; }
         }
+
         .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
         .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
         .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
         .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
+        
         .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+        
         .card { background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow); margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.05); }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
+        
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
         .btn-success { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
         .btn-excel { background: #16a34a; color: white; }
-        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; -webkit-overflow-scrolling: touch; background: white; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; min-width: 700px; }
+        
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+        
         .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-        .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
-        .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #dcfce7; color: #166534; }
+        .status-rejected { background: #fee2e2; color: #991b1b; }
+
+        .btn-action-s { padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: bold; }
+        .btn-edit { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+        .btn-approve { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .btn-reject { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
@@ -76,6 +91,7 @@
         <div id="page-dashboard" class="page-content active">
             <h2 data-vi="📝 Đơn xin nghỉ phép">📝 請假申請</h2>
             <div class="card">
+                <input type="hidden" id="editDocId">
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
@@ -130,36 +146,10 @@
                 <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請點選班別並確認時間</div>
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
-                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoRequiredHint" style="color:var(--danger); font-size:12px; display:none;">(病假必填)</span></label>
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳</label>
                     <input type="file" id="leaveImg" accept="image/*">
-                    <p id="uploadStatus" style="font-size:12px; color:var(--primary); margin-top:5px; display:none;">正在處理並壓縮圖片...</p>
                 </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
-            </div>
-        </div>
-
-        <div id="page-personal" class="page-content">
-            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
-            <div class="card">
-                <label data-vi="Nhập mã số">請輸入工號查詢</label>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
-                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
-                </div>
-                
-                <div id="personalResultArea" style="display:none; margin-top: 20px;">
-                    <h3 style="font-size: 16px; color: var(--primary);">查詢結果：</h3>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="personalTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -182,16 +172,16 @@
                 <table>
                     <thead>
                         <tr>
-                            <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng證">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
+                            <th data-vi="Bộ phận">部門</th><th data-vi="Mã số">工號</th><th data-vi="Họ tên">姓名</th><th data-vi="Loại">假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Trạng thái">狀態</th><th data-vi="Hành động">動作</th>
                         </tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
             </div>
             <div class="pagination-ctrl">
-                <button class="btn-page" onclick="changePage(-1)">上一頁</button>
+                <button class="btn" onclick="changePage(-1)">上一頁</button>
                 <span id="pageInfo">1 / 1</span>
-                <button class="btn-page" onclick="changePage(1)">下一頁</button>
+                <button class="btn" onclick="changePage(1)">下一頁</button>
             </div>
             <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
@@ -200,19 +190,49 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 data-vi="🛡️ Trung tâm quản lý" id="adminTitle">🛡️ 主管審核中心</h2>
+            <h2 data-vi="🛡️ Trung tâm quản lý">🛡️ 主管審核中心</h2>
             <div class="table-wrapper">
                 <table>
-                    <thead><tr><th data-vi="Bộ phận">部門</th><th data-vi="Tên/Loại">姓名/假別</th><th data-vi="Thời gian">區間</th><th data-vi="Số giờ">時數</th><th data-vi="Bằng chứng">證明</th><th data-vi="Hành動">動作</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th data-vi="Bộ phận">部門</th>
+                            <th data-vi="Tên/Loại">姓名 / 假別</th>
+                            <th data-vi="Thời gian">時間區間</th>
+                            <th data-vi="Số giờ">總時數</th>
+                            <th data-vi="Bằng chứng">證明</th>
+                            <th data-vi="Hành động">核准操作</th>
+                        </tr>
+                    </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
+            </div>
+        </div>
+
+        <div id="page-personal" class="page-content">
+            <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
+            <div class="card">
+                <label data-vi="Nhập mã số">請輸入工號查詢</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
+                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;" data-vi="Tra cứu">查詢</button>
+                </div>
+                <div id="personalResultArea" style="display:none; margin-top: 20px;">
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>狀態</th><th>動作</th></tr>
+                            </thead>
+                            <tbody id="personalTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc, query, orderBy, where, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -229,26 +249,17 @@
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
-    let currentShift = 'day';
 
-    // 個人查詢 (獨立渲染)
-    window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
-        const snap = await getDocs(query(collection(db, "formEntries"), where("id", "==", id)));
-        const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        const resultArea = document.getElementById('personalResultArea');
-        const tbody = document.getElementById('personalTableBody');
-        if(records.length === 0) { alert("查無此工號紀錄"); resultArea.style.display = 'none'; return; }
-        resultArea.style.display = 'block';
-        tbody.innerHTML = records.map(r => `<tr>
-            <td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${r.sDate}<br>~${r.eDate}</td><td>${r.displayDuration}</td>
-            <td><span class="status-badge">${r.status}</span></td>
-            <td>${r.status === "審核中" ? `<button class="btn-edit" onclick="editRecord('${r.docId}')">修改</button>` : ''}</td>
-        </tr>`).join('');
+    // 切換分頁
+    window.switchPage = (id) => {
+        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('page-'+id).classList.add('active');
+        document.getElementById('nav-'+id).classList.add('active');
+        if(id === 'search') loadAllData();
+        if(id === 'admin') loadAdminData();
     };
 
-    // 核心資料載入
+    // 載入資料 (核准清單)
     window.loadAllData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
@@ -259,7 +270,11 @@
         const fm = document.getElementById('filterMonth').value;
         const fd = document.getElementById('filterDept').value;
         const fs = document.getElementById('filterStatus').value;
-        filteredRecords = allRecords.filter(r => (fm ? r.sDate.startsWith(fm) : true) && (fd ? r.dept === fd : true) && (fs ? r.status === fs : true));
+        filteredRecords = allRecords.filter(r => 
+            (fm ? r.sDate.startsWith(fm) : true) && 
+            (fd ? r.dept === fd : true) && 
+            (fs ? r.status === fs : true)
+        );
         currentPage = 1; renderTable();
     };
 
@@ -270,50 +285,70 @@
         tbody.innerHTML = pageData.map(r => `<tr>
             <td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
             <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>~${r.eDate}</td><td>${r.displayDuration}</td>
-            <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
-            <td><span class="status-badge">${r.status}</span></td><td>-</td>
+            <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+            <td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td>
+            <td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button></td>
         </tr>`).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
-    // [重點修正] Excel 導出邏輯 - 加入 FHG 轉小寫
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value;
-        if(!m) return alert("請選擇月份");
-        const data = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准" || r.status === "已銷假"));
-        if(data.length === 0) return alert("該月份無核准資料");
-        
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
-        const rows = data.map(r => {
-            let empId = r.id || "";
-            // FHG 開頭轉小寫功能
-            if(empId.toUpperCase().startsWith("FHG")) { empId = empId.toLowerCase(); }
-            
-            return [
-                empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime,
-                r.displayDuration, "", "", r.reason, r.dept, ""
-            ];
-        });
-        
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-        XLSX.writeFile(wb, `${m}_Records.xlsx`);
+    // 主管審核中心載入
+    window.loadAdminData = async () => {
+        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = snap.docs.map(d => {
+            const r = d.data();
+            return `<tr>
+                <td>${r.dept}</td>
+                <td><b>${r.name}</b><br>${r.leaveType}</td>
+                <td style="font-size:11px;">${r.sDate} ${r.sTime}<br>至 ${r.eDate} ${r.eTime}</td>
+                <td>${r.displayDuration}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover" onclick="openLightbox('${r.photo}')">` : '-'}</td>
+                <td>
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}','批准')">批准</button>
+                        <button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}','退件')">駁回</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
     };
 
-    // 其他原有功能
-    window.switchPage = (id) => {
-        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('page-'+id).classList.add('active');
-        document.getElementById('nav-'+id).classList.add('active');
-        if(id === 'search') loadAllData();
-        if(id === 'admin') loadAdminData();
+    // 修改核准清單中的紀錄
+    window.editExistingRecord = async (docId) => {
+        const docSnap = await getDoc(doc(db, "formEntries", docId));
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            document.getElementById('editDocId').value = docId;
+            document.getElementById('empId').value = data.id;
+            document.getElementById('empName').value = data.name;
+            document.getElementById('dept').value = data.dept;
+            document.getElementById('leaveType').value = data.leaveType;
+            document.getElementById('startDate').value = data.sDate;
+            document.getElementById('startTime').value = data.sTime;
+            document.getElementById('endDate').value = data.eDate;
+            document.getElementById('endTime').value = data.eTime;
+            document.getElementById('reason').value = data.reason || "";
+            window.autoCalc();
+            window.switchPage('dashboard');
+            document.getElementById('submitBtn').innerText = "更新申請紀錄";
+        }
     };
 
+    window.updateStatus = async (docId, status) => {
+        if(!confirm(`確定要將此申請標記為【${status}】嗎？`)) return;
+        await updateDoc(doc(db, "formEntries", docId), { status });
+        alert("已更新狀態");
+        loadAdminData();
+    };
+
+    // 儲存或更新到雲端
     window.saveToCloud = async () => {
         const calc = window.autoCalc();
-        if(!calc) return alert("時間錯誤");
+        if(!calc) return alert("請確認時間設定正確");
+        const docId = document.getElementById('editDocId').value;
         const file = document.getElementById('leaveImg').files[0];
+        
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = "";
@@ -333,7 +368,8 @@
                     };
                 });
             }
-            await addDoc(collection(db, "formEntries"), {
+
+            const payload = {
                 id: document.getElementById('empId').value.toUpperCase(),
                 name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value,
@@ -344,12 +380,24 @@
                 eTime: document.getElementById('endTime').value,
                 reason: document.getElementById('reason').value,
                 displayDuration: calc.displayStr,
-                status: "審核中", photo, createdAt: new Date()
-            });
-            alert("提交成功"); location.reload();
-        } catch(e) { alert(e.message); }
+                updatedAt: new Date()
+            };
+            if(photo) payload.photo = photo;
+
+            if(docId) {
+                await updateDoc(doc(db, "formEntries", docId), payload);
+                alert("紀錄已更新");
+            } else {
+                payload.status = "審核中";
+                payload.createdAt = new Date();
+                await addDoc(collection(db, "formEntries"), payload);
+                alert("提交成功");
+            }
+            location.reload();
+        } catch(e) { alert("發生錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
+    // 工具函數
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
         if(id.length < 5) return;
@@ -375,21 +423,47 @@
         return { displayStr };
     };
 
-    window.updateStatus = async (docId, status) => { await updateDoc(doc(db, "formEntries", docId), { status }); alert("已更新"); loadAdminData(); };
-    window.loadAdminData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "審核中")));
-        document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
-            const r = d.data();
-            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td>
-            <td><img src="${r.photo}" style="width:30px" onclick="openLightbox('${r.photo}')"></td>
-            <td><button onclick="updateStatus('${d.id}','批准')">准</button><button onclick="updateStatus('${d.id}','退件')">駁</button></td></tr>`;
-        }).join('');
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if(!m) return alert("請選擇月份");
+        const data = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准"));
+        if(data.length === 0) return alert("該月份無核准資料");
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門"];
+        const rows = data.map(r => {
+            let empId = r.id || "";
+            if(empId.toUpperCase().startsWith("FHG")) empId = empId.toLowerCase();
+            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, r.reason, r.dept];
+        });
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+        XLSX.writeFile(wb, `${m}_核准紀錄.xlsx`);
     };
-    window.checkAdminAccess = () => { if(prompt("Pass:")==="hr888") switchPage('admin'); };
-    window.changePage = (dir) => { currentPage += dir; renderTable(); };
+
+    window.checkAdminAccess = () => { if(prompt("管理員密碼:")==="hr888") switchPage('admin'); };
+    window.changePage = (dir) => { 
+        const maxPage = Math.ceil(filteredRecords.length/rowsPerPage);
+        if(currentPage + dir >= 1 && currentPage + dir <= maxPage) {
+            currentPage += dir; renderTable(); 
+        }
+    };
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src=src; document.getElementById('imageLightbox').style.display='flex'; };
     window.closeLightbox = () => document.getElementById('imageLightbox').style.display='none';
-    window.changeLanguage = (l) => { /* 語言切換邏輯 */ };
+    window.searchPersonalRecords = async () => {
+        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!id) return alert("請輸入工號");
+        const snap = await getDocs(query(collection(db, "formEntries"), where("id", "==", id)));
+        const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        const resultArea = document.getElementById('personalResultArea');
+        const tbody = document.getElementById('personalTableBody');
+        if(records.length === 0) { alert("查無紀錄"); resultArea.style.display = 'none'; return; }
+        resultArea.style.display = 'block';
+        tbody.innerHTML = records.map(r => `<tr>
+            <td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td>
+            <td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td>
+            <td>${r.status === "審核中" ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button>` : '-'}</td>
+        </tr>`).join('');
+    };
 </script>
 </body>
 </html>
