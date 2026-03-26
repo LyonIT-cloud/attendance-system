@@ -39,8 +39,6 @@
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
         label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
         input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #fff; height: 48px; }
-        
-        /* 禁用狀態的樣式 */
         input:disabled { background-color: #f8fafc; cursor: not-allowed; opacity: 0.6; }
 
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
@@ -291,14 +289,13 @@
             }
         }
         const h = Math.floor(totalMinutes / 60);
-        const m = totalMinutes % 60;
+        const m = Math.round(totalMinutes % 60);
         const displayStr = `${h} 時 ${m} 分`;
         document.getElementById('durationText').innerText = `🕒 計算結果：${displayStr}`;
         return { displayStr, totalMinutes };
     };
 
     window.setShift = (s) => {
-        // 設定狀態並解鎖日期時間欄位
         document.getElementById('hasSelectedShift').value = "true";
         document.getElementById('startDate').disabled = false;
         document.getElementById('startTime').disabled = false;
@@ -421,32 +418,56 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
 
+    // --- 修復後的導出函數 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
-        const approved = allRecords.filter(r => r.sDate.startsWith(m) && (r.status === "批准"));
-        const deletedSnap = await getDocs(query(collection(db, "deletedRecords"), where("sDate", ">=", m + "-01"), where("sDate", "<=", m + "-31")));
-        const deleted = deletedSnap.docs.map(d => d.data());
-        const combinedData = [...approved, ...deleted];
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
-        const rows = combinedData.map(r => {
-            let formattedHours = "000:00";
-            if(r.totalMinutes) {
-                const totalH = Math.floor(r.totalMinutes / 60);
-                const totalM = r.totalMinutes % 60;
-                formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
+
+        try {
+            // 1. 從 Firebase 抓取所有已批准資料 (不論分頁)
+            const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
+            const snap = await getDocs(q);
+            const approved = snap.docs
+                .map(d => d.data())
+                .filter(r => r.sDate && r.sDate.startsWith(m));
+
+            // 2. 抓取已銷假資料
+            const deletedSnap = await getDocs(query(collection(db, "deletedRecords")));
+            const deleted = deletedSnap.docs
+                .map(d => d.data())
+                .filter(r => r.sDate && r.sDate.startsWith(m));
+
+            const combinedData = [...approved, ...deleted];
+            
+            if (combinedData.length === 0) {
+                return alert(m + " 月份目前沒有「批准」或「已銷假」的紀錄");
             }
-            let empId = r.id || "";
-            if (empId.length > 0) {
-                const firstChar = empId.charAt(0).toUpperCase();
-                if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') empId = firstChar.toLowerCase() + empId.slice(1);
-            }
-            return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, formattedHours, "", "", r.reason, r.dept, r.status === "已銷假" ? "已銷假" : "已批准"];
-        });
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "請假明細");
-        XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
+
+            const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "狀態"];
+            
+            const rows = combinedData.map(r => {
+                let formattedHours = "000:00";
+                if(r.totalMinutes !== undefined && r.totalMinutes !== null) {
+                    const totalH = Math.floor(r.totalMinutes / 60);
+                    const totalM = Math.round(r.totalMinutes % 60);
+                    formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
+                }
+                
+                let empId = r.id || "";
+                if (empId.length > 0) {
+                    const firstChar = empId.charAt(0).toUpperCase();
+                    if (['F', 'G', 'H'].includes(firstChar)) empId = firstChar.toLowerCase() + empId.slice(1);
+                }
+                return [empId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, formattedHours, "", "", r.reason, r.dept, r.status];
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "請假明細");
+            XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
+        } catch (e) {
+            alert("導出錯誤：" + e.message);
+        }
     };
 
     window.checkAdminAccess = () => {
