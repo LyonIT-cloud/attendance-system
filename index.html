@@ -496,7 +496,7 @@
         </tr>`).join('');
     };
 
-    // --- 關鍵修改：匯出邏輯優化以符合 CSV 格式且 FGH 小寫 ---
+    // --- 修改匯出邏輯：F/G/H開頭工號轉小寫 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
         if(!m) return alert("請選擇月份");
@@ -506,11 +506,9 @@
         const deleted = deletedSnap.docs.map(d => d.data());
         const combinedData = [...approved, ...deleted];
         
-        // 標題欄位（按照您的範例）
         const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
         
         const rows = combinedData.map(r => {
-            // 將 displayDuration (X 時 Y 分) 轉為 008:00 格式
             let formattedHours = "000:00";
             if(r.totalMinutes) {
                 const totalH = Math.floor(r.totalMinutes / 60);
@@ -518,34 +516,38 @@
                 formattedHours = `${totalH.toString().padStart(3, '0')}:${totalM.toString().padStart(2, '0')}`;
             }
 
-            // F, G, H 對應：開始時間 (startTime), 結束日期 (eDate), 結束時間 (eTime)
-            // 在這裡我們直接使用變數，並確保輸出的陣列位置正確
-            const f_startTime = r.sTime || "";
-            const g_endDate = r.eDate || "";
-            const h_endTime = r.eTime || "";
+            // 處理工號首字母轉換邏輯
+            let empId = r.id || "";
+            if (empId.length > 0) {
+                const firstChar = empId.charAt(0).toUpperCase();
+                // 若開頭為 F, G, H 則轉為小寫，其餘維持原樣
+                if (firstChar === 'F' || firstChar === 'G' || firstChar === 'H') {
+                    empId = firstChar.toLowerCase() + empId.slice(1);
+                }
+            }
 
             return [
-                r.id,           // A 員工代號
-                r.name,         // B 員工姓名
-                r.leaveType,    // C 假別
-                r.sDate,        // D 出勤日期
-                r.sDate,        // E 開始日期
-                f_startTime,    // F 開始時間 (小寫對應變數)
-                g_endDate,      // G 結束日期 (小寫對應變數)
-                h_endTime,      // H 結束時間 (小寫對應變數)
-                formattedHours, // I 請假時數
-                "",             // J 扣伙食費 (留空)
-                "",             // K 扣交通津貼 (留空)
-                r.reason || "", // L 事由
-                r.dept || "",   // M 備註 (填入部門)
-                r.status === "已銷假" ? "已銷假" : "已批准" // N 主管批准時間 (狀態)
+                empId,                          // A 員工代號 (FGH開頭已轉小寫)
+                r.name || "",                   // B 員工姓名
+                r.leaveType || "",              // C 假別
+                r.sDate || "",                  // D 出勤日期
+                r.sDate || "",                  // E 開始日期
+                r.sTime || "",                  // F 開始時間
+                r.eDate || "",                  // G 結束日期
+                r.eTime || "",                  // H 結束時間
+                formattedHours,                 // I 請假時數
+                "",                             // J 扣伙食費
+                "",                             // K 扣交通津貼
+                r.reason || "",                 // L 事由
+                r.dept || "",                   // M 備註 (填入部門)
+                r.status === "已銷假" ? "已銷假" : "已批准" // N 狀態
             ];
         });
         
         const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "請假明細");
-        XLSX.writeFile(wb, `鼎顓_${m}_請假導入報表.xlsx`);
+        XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
     };
 
     window.changePage = (dir) => { 
