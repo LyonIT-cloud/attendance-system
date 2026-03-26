@@ -48,9 +48,6 @@
         .status-pending { background: #fff7ed; color: #c2410c; }
         .status-confirmed { background: #f0fdf4; color: #15803d; }
         .status-rejected { background: #fef2f2; color: #b91c1c; }
-        .status-cancel { background: #f1f5f9; color: #64748b; text-decoration: line-through; }
-        .status-request-cancel { background: #fff1f2; color: #e11d48; border: 1px solid #fda4af; }
-        .badge-type { background: #eef2ff; color: #4f46e5; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
         .btn-edit { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .btn-cancel-request { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: bold; }
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
@@ -228,9 +225,7 @@
     const rowsPerPage = 10;
     let currentShift = 'day'; 
     let currentLang = 'zh';
-    window.currentAdminDept = "ALL";
 
-    // 介面與導覽邏輯保持不變...
     document.getElementById('leaveType').addEventListener('change', function() {
         const hint = document.getElementById('photoRequiredHint');
         hint.style.display = this.value === "病假" ? "inline" : "none";
@@ -379,7 +374,7 @@
     };
 
     /**
-     * [新增功能] 圖片壓縮邏輯
+     * 照片壓縮功能
      */
     const compressImage = async (file) => {
         return new Promise((resolve) => {
@@ -391,41 +386,34 @@
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     let width = img.width, height = img.height;
-                    const MAX_SIZE = 800; // 壓縮至最長邊 800 像素
+                    const MAX_SIZE = 800;
                     if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
                     else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // 0.7 為品質
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
                 };
             };
         });
     };
 
-    /**
-     * [整合] 送出申請 (含壓縮)
-     */
     window.saveToCloud = async () => {
         const calcData = window.autoCalc();
         if(!calcData) return alert("請正確選擇時間");
         const id = document.getElementById('empId').value.trim().toUpperCase();
         const name = document.getElementById('empName').value.trim();
-        const leaveType = document.getElementById('leaveType').value;
         const file = document.getElementById('leaveImg').files[0];
         if(!id || !name) return alert("工號或姓名錯誤");
-        if(leaveType === "病假" && !file) return alert("病假必須上傳照片！");
+        if(document.getElementById('leaveType').value === "病假" && !file) return alert("病假必須上傳照片！");
 
         try {
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('uploadStatus').style.display = 'block';
-            
-            let photo = "";
-            if(file) photo = await compressImage(file); // 調用壓縮
-
+            let photo = file ? await compressImage(file) : "";
             await addDoc(collection(db, "formEntries"), {
                 id, name, dept: document.getElementById('dept').value,
-                leaveType,
+                leaveType: document.getElementById('leaveType').value,
                 sDate: document.getElementById('startDate').value,
                 sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value,
@@ -434,14 +422,10 @@
                 displayDuration: calcData.displayStr,
                 status: "審核中", photo, createdAt: new Date()
             });
-            alert("成功提交！照片已自動壓縮優化。"); location.reload();
-        } catch(e) { alert(e.message); } finally { 
-            document.getElementById('submitBtn').disabled = false; 
-            document.getElementById('uploadStatus').style.display = 'none';
-        }
+            alert("成功提交！"); location.reload();
+        } catch(e) { alert(e.message); } finally { document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 列表載入與篩選邏輯...
     window.loadAllData = async () => {
         const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
@@ -495,7 +479,7 @@
     };
 
     /**
-     * [整合] 關鍵 Excel 導出功能 (對應範本)
+     * [修正版] Excel 導出功能 - 加入強健的資料處理
      */
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
@@ -503,34 +487,51 @@
 
         try {
             const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+            // 過濾該月份且狀態為「批准」的資料
             const data = snap.docs.map(d => d.data()).filter(r => 
-                r.sDate && r.sDate.startsWith(m) && r.status === "批准"
+                r.sDate && r.sDate.startsWith(m) && (r.status === "批准" || r.status === "銷假審核中")
             );
 
-            if (data.length === 0) return alert("該月份無核准資料");
+            if (data.length === 0) return alert("該月份無資料可導出");
 
             const formatTime = (str) => {
+                if (!str) return "000:00";
                 const match = str.match(/(\d+)\s*時\s*(\d+)\s*分/);
                 if (match) return `${match[1].padStart(3, '0')}:${match[2].padStart(2, '0')}`;
                 return "000:00";
             };
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
-            const wsData = [header];
+            
+            // 轉換每一列資料
+            const rows = data.map(r => [
+                r.id || "",
+                r.name || "",
+                r.leaveType || "",
+                r.sDate || "",
+                r.sDate || "",
+                r.sTime || "",
+                r.eDate || "",
+                r.eTime || "",
+                formatTime(r.displayDuration),
+                "", "", 
+                r.reason || "", 
+                r.dept || "", 
+                ""
+            ]);
 
-            data.forEach(r => {
-                wsData.push([
-                    r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, 
-                    formatTime(r.displayDuration), "", "", r.reason || "", r.dept || "", ""
-                ]);
-            });
-
+            const wsData = [header, ...rows];
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // 加入欄寬設定
+            ws['!cols'] = [{wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:12}, {wch:10}, {wch:12}, {wch:10}, {wch:10}, {wch:10}, {wch:10}, {wch:20}, {wch:15}, {wch:20}];
+
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
             XLSX.writeFile(wb, `${m}_Attendance.xlsx`);
         } catch (err) {
-            alert("導出失敗");
+            console.error("Export Error:", err);
+            alert("導出失敗，原因：" + err.message);
         }
     };
 </script>
