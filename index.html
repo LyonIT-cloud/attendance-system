@@ -179,7 +179,7 @@
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
                     <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span style="color:red; font-size:12px;">(病假必傳)</span></label>
-                    <input type="file" id="leaveImg" accept="image/*">
+                    <input type="file" id="leaveImg" accept="image/*" capture="environment">
                 </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
             </div>
@@ -278,7 +278,35 @@
         "hr888": "ALL"
     };
 
-    // --- 修復查詢問題：將查詢函數掛載到全域 window ---
+    // --- 新增：圖片壓縮功能函數 ---
+    async function compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const max_size = 1000; // 最大長邊壓縮至 1000px
+
+                    if (width > height) {
+                        if (width > max_size) { height *= max_size / width; width = max_size; }
+                    } else {
+                        if (height > max_size) { width *= max_size / height; height = max_size; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // 壓縮品質 0.7
+                };
+            };
+        });
+    }
+
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!id) return alert("請輸入工號");
@@ -377,7 +405,7 @@
         window.autoCalc();
     };
 
-    // --- 修復拍照與上傳邏輯 ---
+    // --- 已修正：支援拍照與自動壓縮的 saveToCloud ---
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true"){
             alert("請先點選「早班」或「中班」按鈕！");
@@ -395,16 +423,12 @@
         const docId = document.getElementById('editDocId').value;
         try {
             document.getElementById('submitBtn').disabled = true;
-            document.getElementById('submitBtn').innerText = "處理中...";
+            document.getElementById('submitBtn').innerText = "上傳處理中...";
             
             let photo = "";
             if(file) {
-                photo = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = e => resolve(e.target.result);
-                    reader.onerror = err => reject(err);
-                });
+                // 使用新增的壓縮功能，解決手機照片太大上傳失敗的問題
+                photo = await compressImage(file);
             }
 
             const payload = {
@@ -592,14 +616,25 @@
 
     window.updateStatus = async (docId, status) => { if(confirm("確定操作？")){ await updateDoc(doc(db, "formEntries", docId), { status }); loadAdminData(); } };
     window.changePage = (dir) => { currentPage += dir; renderTable(); };
+    
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
+    };
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
+    };
+
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
-            else { el.innerText = el.dataset.zh || el.innerText; }
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
         });
     };
-    window.openLightbox = (src) => { document.getElementById('lightboxImg').src=src; document.getElementById('imageLightbox').style.display='flex'; };
-    window.closeLightbox = () => document.getElementById('imageLightbox').style.display='none';
 </script>
 </body>
 </html>
