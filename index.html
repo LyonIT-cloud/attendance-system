@@ -71,8 +71,6 @@
         .btn-action-s:active { transform: scale(0.9); opacity: 0.6; }
         .btn-edit { color: var(--primary); }
         .btn-cancel-leave { color: #f97316; }
-        .btn-approve { color: var(--accent); }
-        .btn-reject { color: var(--danger); }
 
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
@@ -272,7 +270,6 @@
         "hr888": "ALL"
     };
 
-    // 輔助工具：安全獲取物件屬性 (處理 key 不一致問題)
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null) return obj[key];
@@ -405,7 +402,7 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 核心修正：匯出邏輯 (FGH 轉小寫、格式統整)
+    // 【修正：匯出 FGH 欄位轉小寫】
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; 
         if(!m) return alert("請選擇月份");
@@ -427,13 +424,9 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // 修正工號格式：D220119 -> D220119 (首字母大寫，其餘小寫處理)
-                let processedId = r.id || "";
-                if (processedId.length > 0) {
-                    processedId = processedId.charAt(0).toUpperCase() + processedId.slice(1).toLowerCase();
-                }
+                // 這裡將工號完全轉為小寫
+                let processedId = (r.id || "").toLowerCase(); 
                 
-                // 計算時數格式 000:00
                 const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
                 const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
                 const mm = String(Math.floor(totalMin % 60)).padStart(2, '0');
@@ -536,23 +529,24 @@
         }).join('');
     };
 
-    window.updateStatus = async (id, status) => {
-        if(!confirm(`確認${status}？`)) return;
-        await updateDoc(doc(db, "formEntries", id), { status: status, approvedAt: new Date().toLocaleString() });
-        alert("操作成功"); window.loadAdminData();
+    window.updateStatus = async (docId, status) => {
+        await updateDoc(doc(db, "formEntries", docId), { status });
+        alert("已更新狀態"); window.loadAdminData();
     };
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
     window.changePage = (dir) => { 
-        const max = Math.ceil(filteredRecords.length / rowsPerPage);
-        currentPage = Math.max(1, Math.min(max, currentPage + dir));  renderTable(); 
+        const total = Math.ceil(filteredRecords.length/rowsPerPage);
+        if(currentPage + dir >= 1 && currentPage + dir <= total) { currentPage += dir; renderTable(); }
     };
+
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            const vi = el.getAttribute('data-vi');
-            if (!el.dataset.zh) el.dataset.zh = el.innerText;
-            el.innerText = (lang === 'vi') ? vi : el.dataset.zh;
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.innerText;
+            el.setAttribute('data-zh', zhText);
+            el.innerText = (lang === 'vi') ? viText : el.getAttribute('data-zh');
         });
     };
 </script>
