@@ -325,11 +325,8 @@
         if(!d1 || !t1 || !d2 || !t2) return 0;
         let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
         if(end <= start) return 0;
-        
-        // 針對特定班別的捷徑計算
         if (t1 === "08:30" && t2 === "17:30" && d1 === d2) return 480;
         if (t1 === "18:00" && t2 === "02:30") return 480;
-
         let diff = (end - start) / 60000;
         return Math.max(0, Math.round(diff));
     }
@@ -384,7 +381,7 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // --- 重點修正：相容匯出邏輯 ---
+    // --- 修改核心邏輯：確保匯出讀取舊資料格式並修正工號與補零時數 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
@@ -399,29 +396,33 @@
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
             const rows = combined.map(r => {
-                // 1. 相容舊格式讀取時間
+                // 1. 相容舊格式讀取數據
                 const sd = safeGet(r, ['startDate', 'sDate']);
                 const st = safeGet(r, ['startTime', 'sTime']);
                 const ed = safeGet(r, ['endDate', 'eDate']);
                 const et = safeGet(r, ['endTime', 'eTime']);
                 
-                // 2. 工號邏輯：D大寫，其餘小寫
-                let processedId = r.id || "";
-                if (processedId.toUpperCase().startsWith("D")) {
-                    processedId = "D" + processedId.substring(1).toLowerCase();
-                } else {
-                    processedId = processedId.toLowerCase();
+                // 2. 工號邏輯：D大寫，其餘小寫 (例: D220119 -> D220119, D-Test -> D-test)
+                let rawId = (r.id || "").trim();
+                let processedId = "";
+                if (rawId.length > 0) {
+                    if (rawId.toUpperCase().startsWith("D")) {
+                        processedId = "D" + rawId.substring(1).toLowerCase();
+                    } else {
+                        processedId = rawId.toLowerCase();
+                    }
                 }
                 
-                // 3. 重新計算分鐘以確保相容舊資料，並補零格式化 000:00
+                // 3. 時數格式化：000:00 並確保舊資料時數能重新算出
                 let totalMin = r.totalMinutes;
-                if (!totalMin && sd && st && ed && et) {
+                if ((totalMin === undefined || totalMin === null) && sd && st && ed && et) {
                     totalMin = coreCalcMinutes(sd, st, ed, et);
                 }
-                const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
-                const mm = String(totalMin % 60).padStart(2, '0');
+                let hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
+                let mm = String(totalMin % 60).padStart(2, '0');
+                let formattedDuration = `${hh}:${mm}`;
                 
-                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
+                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, formattedDuration, "", "", r.reason || "", r.dept || "", ""];
             });
             const ws = XLSX.utils.aoa_to_sheet([header, ...rows]), wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
