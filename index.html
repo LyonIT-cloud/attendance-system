@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤管理系統</title>
+    <title>鼎顓電子 - 員工出勤 management 系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -321,44 +321,36 @@
         } catch (e) { alert("查詢失敗：" + e.message); }
     };
 
-    // --- 核心修正：扣除假日、處理跨日與中班邏輯 ---
+    // --- 核心邏輯：計算請假天數並轉換為時數 (1天=8小時，扣除週末) ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        let start = new Date(`${d1} ${t1}`);
-        let end = new Date(`${d2} ${t2}`);
-        if(end <= start) return 0;
-
-        // 班別判斷
-        const isDayShiftFull = (t1 === "08:30" && t2 === "17:30");
-        const isMidShiftFull = (t1 === "18:00" && t2 === "02:30");
-
-        // 1. 單日早班標準 8 小時
-        if (d1 === d2 && isDayShiftFull) return 480;
-
-        // 2. 中班標準跨日 8 小時
-        if (isMidShiftFull) {
-            let nextDay = new Date(d1);
-            nextDay.setDate(nextDay.getDate() + 1);
-            if (d2 === nextDay.toISOString().split('T')[0]) return 480;
-        }
-
-        // 3. 跨日且包含扣除假日的通用計算
-        let totalMinutes = 0;
-        let iterDate = new Date(start);
+        let start = new Date(d1);
+        let end = new Date(d2);
         
-        while (iterDate < end) {
-            let nextHour = new Date(iterDate.getTime() + 60 * 60000); // 每次跳 1 小時檢查
-            let dayOfWeek = iterDate.getDay(); // 0 是週日, 6 是週六
-            
-            // 只有非週六且非週日才累加
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                let chunkEnd = nextHour > end ? end : nextHour;
-                totalMinutes += (chunkEnd - iterDate) / 60000;
-            }
-            iterDate = nextHour;
+        const isMidShift = (t1 === "18:00" && t2 === "02:30");
+
+        let workdayCount = 0;
+        let iter = new Date(start);
+        
+        // 中班的結束日期跨日，所以計算天數時要看「起始日」的數量
+        // 例如：3/23 18:00 ~ 3/24 02:30 只算 1 個起始日 (3/23)
+        let limit = new Date(end);
+        if (isMidShift) {
+            limit.setDate(limit.getDate() - 1);
         }
 
-        return Math.max(0, Math.round(totalMinutes));
+        // 迭代日期，跳過週六(6)與週日(0)
+        while (iter <= limit) {
+            let dayOfWeek = iter.getDay(); 
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                workdayCount++;
+            }
+            iter.setDate(iter.getDate() + 1);
+        }
+
+        // 如果是同一天內請假且非完整班表（例如只請1小時），可以保留細算邏輯
+        // 但根據您的要求「一天就是八小時」，這裡直接回傳 workdayCount * 480 分鐘
+        return Math.max(0, workdayCount * 480);
     }
 
     window.autoCalc = () => {
