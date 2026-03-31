@@ -376,16 +376,29 @@
         const calc = window.autoCalc();
         const type = document.getElementById('leaveType').value, fileInput = document.getElementById('leaveImg'), file = fileInput.files[0];
         if (type === "病假" && !file && !document.getElementById('editDocId').value) return alert("病假必須上傳證明！");
+        
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = file ? await compressImage(file) : "";
+            
+            // 新增：將時數轉為 "8.0" 格式字串
+            const durationStr = (calc.totalMinutes / 60).toFixed(1);
+
             const payload = {
-                id: document.getElementById('empId').value.toUpperCase(), name: document.getElementById('empName').value,
-                dept: document.getElementById('dept').value, leaveType: type,
-                sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
-                eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
-                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
-                updatedAt: new Date(), status: "審核中"
+                id: document.getElementById('empId').value.toUpperCase(), 
+                name: document.getElementById('empName').value,
+                dept: document.getElementById('dept').value, 
+                leaveType: type,
+                sDate: document.getElementById('startDate').value, 
+                sTime: document.getElementById('startTime').value,
+                eDate: document.getElementById('endDate').value, 
+                eTime: document.getElementById('endTime').value,
+                reason: document.getElementById('reason').value, 
+                displayDuration: calc.displayStr, 
+                duration: durationStr, // ✨ 依照要求新增
+                totalMinutes: calc.totalMinutes,
+                updatedAt: new Date(), 
+                status: "審核中"
             };
             if(photo) payload.photo = photo;
             const docId = document.getElementById('editDocId').value;
@@ -395,15 +408,12 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 匯出 Excel (修正：僅限批准，維持工號及時數補零格式)
+    // 匯出 Excel (修正：優先讀取 duration 或補零)
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; 
         if(!m) return alert("請選擇月份");
         try {
-            // 僅抓取「批准」紀錄
             const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-            
-            // 過濾符合月份的資料
             const approvedRecords = snap.docs.map(d => d.data()).filter(r => {
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 return sd && sd.startsWith(m);
@@ -419,7 +429,6 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // --- 維持：工號處理邏輯 ---
                 let processedId = r.id || "";
                 if (processedId.toUpperCase().startsWith("D")) {
                     processedId = "D" + processedId.substring(1).toLowerCase();
@@ -427,12 +436,18 @@
                     processedId = processedId.toLowerCase();
                 }
                 
-                // --- 維持：補零格式 000:00 ---
-                const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
-                const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
-                const mm = String(totalMin % 60).padStart(2, '0');
+                // --- 維持格式判斷 ---
+                let finalDuration = "";
+                if (r.duration) {
+                    finalDuration = r.duration; // 使用 "8.0" 格式
+                } else {
+                    const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
+                    const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
+                    const mm = String(totalMin % 60).padStart(2, '0');
+                    finalDuration = `${hh}:${mm}`; // 維持補零格式
+                }
                 
-                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
+                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, finalDuration, "", "", r.reason || "", r.dept || "", ""];
             });
 
             const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -487,7 +502,14 @@
             const sd = safeGet(r, ['sDate', 'startDate']);
             const st = safeGet(r, ['sTime', 'startTime']);
             const ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
+            // 顯示邏輯：如果有 duration 則顯示格式化後的時數，否則顯示 displayDuration
+            let timeVal = r.displayDuration || "";
+            if (r.duration) {
+                const h = Math.floor(parseFloat(r.duration));
+                const m = Math.round((parseFloat(r.duration) - h) * 60);
+                timeVal = `${h.toString().padStart(3, '0')}:${m.toString().padStart(2, '0')}`;
+            }
+            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${timeVal}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
@@ -537,13 +559,33 @@
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-    
-    // 初始載入
+
+    // 初始化載入
     window.onload = () => {
         const today = new Date().toISOString().split('T')[0];
-        const month = today.substring(0, 7);
-        document.getElementById('filterMonth').value = month;
-        document.getElementById('exportMonth').value = month;
+        document.getElementById('filterMonth').value = today.substring(0, 7);
+        document.getElementById('exportMonth').value = today.substring(0, 7);
+    };
+    
+    window.changePage = (dir) => {
+        const maxPage = Math.ceil(filteredRecords.length / rowsPerPage);
+        if (currentPage + dir >= 1 && currentPage + dir <= maxPage) {
+            currentPage += dir;
+            renderTable();
+        }
+    };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.innerText;
+            if (lang === 'vi') {
+                if (!el.getAttribute('data-zh')) el.setAttribute('data-zh', zhText);
+                el.innerText = viText;
+            } else {
+                el.innerText = el.getAttribute('data-zh') || zhText;
+            }
+        });
     };
 </script>
 </body>
