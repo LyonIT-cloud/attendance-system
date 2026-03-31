@@ -215,7 +215,6 @@
 
         <div id="page-admin" class="page-content">
             <h2 id="adminTitle">🛡️ 主管審核中心</h2>
-            <button class="btn btn-warning" onclick="migrateDatabaseFormat()" style="margin-bottom: 15px; background: var(--warning); color: white; width: auto;">🔄 升級/修復舊有資料庫格式</button>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -248,8 +247,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // 新增 deleteField 引入以支援移除舊欄位
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -274,7 +272,6 @@
         "hr888": "ALL"
     };
 
-    // 核心容錯函數：優先取得指定 key 的值
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
@@ -324,14 +321,44 @@
         } catch (e) { alert("查詢失敗：" + e.message); }
     };
 
+    // --- 核心修正：扣除假日、處理跨日與中班邏輯 ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
+        let start = new Date(`${d1} ${t1}`);
+        let end = new Date(`${d2} ${t2}`);
         if(end <= start) return 0;
-        if (t1 === "08:30" && t2 === "17:30" && d1 === d2) return 480;
-        if (t1 === "18:00" && t2 === "02:30") return 480;
-        let diff = (end - start) / 60000;
-        return Math.max(0, Math.round(diff));
+
+        // 班別判斷
+        const isDayShiftFull = (t1 === "08:30" && t2 === "17:30");
+        const isMidShiftFull = (t1 === "18:00" && t2 === "02:30");
+
+        // 1. 單日早班標準 8 小時
+        if (d1 === d2 && isDayShiftFull) return 480;
+
+        // 2. 中班標準跨日 8 小時
+        if (isMidShiftFull) {
+            let nextDay = new Date(d1);
+            nextDay.setDate(nextDay.getDate() + 1);
+            if (d2 === nextDay.toISOString().split('T')[0]) return 480;
+        }
+
+        // 3. 跨日且包含扣除假日的通用計算
+        let totalMinutes = 0;
+        let iterDate = new Date(start);
+        
+        while (iterDate < end) {
+            let nextHour = new Date(iterDate.getTime() + 60 * 60000); // 每次跳 1 小時檢查
+            let dayOfWeek = iterDate.getDay(); // 0 是週日, 6 是週六
+            
+            // 只有非週六且非週日才累加
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                let chunkEnd = nextHour > end ? end : nextHour;
+                totalMinutes += (chunkEnd - iterDate) / 60000;
+            }
+            iterDate = nextHour;
+        }
+
+        return Math.max(0, Math.round(totalMinutes));
     }
 
     window.autoCalc = () => {
@@ -368,8 +395,6 @@
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = file ? await compressImage(file) : "";
-            
-            // 替換為圖片中的格式 (sDate, sTime, eDate, eTime, duration)
             const payload = {
                 id: document.getElementById('empId').value.toUpperCase(), name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value, leaveType: type,
@@ -377,11 +402,11 @@
                 eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
                 reason: document.getElementById('reason').value, 
                 displayDuration: calc.displayStr, 
-                duration: (calc.totalMinutes / 60).toFixed(1), // 計算為 8.0 格式字串
+                totalMinutes: calc.totalMinutes,
+                duration: (calc.totalMinutes / 60).toFixed(1),
                 updatedAt: new Date(), status: "審核中"
             };
             if(photo) payload.photo = photo;
-            
             const docId = document.getElementById('editDocId').value;
             if(docId) { await updateDoc(doc(db, "formEntries", docId), payload); }
             else { payload.createdAt = new Date(); await addDoc(collection(db, "formEntries"), payload); }
@@ -389,14 +414,11 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // --- 專業匯出修復版 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
             const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-            const delSnap = await getDocs(collection(db, "deletedRecords"));
-            
-            const combined = [...snap.docs.map(d=>d.data()), ...delSnap.docs.map(d=>d.data())].filter(r => {
+            const combined = snap.docs.map(d=>d.data()).filter(r => {
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 return sd && sd.startsWith(m);
             });
@@ -404,66 +426,31 @@
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
             const rows = combined.map(r => {
-                // 1. 容錯讀取
-                const sd = safeGet(r, ['sDate', 'startDate']);
-                const st = safeGet(r, ['sTime', 'startTime']);
-                const ed = safeGet(r, ['eDate', 'endDate']);
-                const et = safeGet(r, ['eTime', 'endTime']);
-                
-                // 2. 工號規範：D大寫，其餘小寫
+                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
                 let rawId = String(r.id || "").trim();
-                let processedId = "";
-                if(rawId) {
-                    processedId = rawId.toUpperCase().startsWith("D") 
-                        ? "D" + rawId.substring(1).toLowerCase() 
-                        : rawId.toLowerCase();
-                }
+                let processedId = rawId.toUpperCase().startsWith("D") ? "D" + rawId.substring(1).toLowerCase() : rawId.toLowerCase();
                 
-                // 3. 時數格式化為 000:00 (並強制計算舊資料)
-                let totalMin = r.totalMinutes;
-                // 若沒有舊的 totalMinutes，嘗試從新版的 duration (例如 "8.0") 反推
-                if ((totalMin === undefined || totalMin === null) && r.duration) {
-                    totalMin = parseFloat(r.duration) * 60;
-                }
-                if ((totalMin === undefined || totalMin === null || isNaN(totalMin)) && sd && st && ed && et) {
-                    totalMin = coreCalcMinutes(sd, st, ed, et);
-                }
-                let hh = String(Math.floor((totalMin || 0) / 60)).padStart(3, '0');
-                let mm = String((totalMin || 0) % 60).padStart(2, '0');
-                let formattedDuration = `${hh}:${mm}`;
+                let tMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
+                let hh = String(Math.floor(tMin / 60)).padStart(3, '0'), mm = String(tMin % 60).padStart(2, '0');
                 
-                // 4. 批准時間
                 let appTime = "";
                 if (r.approvedAt && r.approvedAt.toDate) {
                     const d = r.approvedAt.toDate();
                     appTime = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes()}`;
                 }
-
-                return [processedId, r.name || "", r.leaveType || "", sd, sd, st, ed, et, formattedDuration, "", "", r.reason || "", r.dept || "", appTime];
+                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason, r.dept, appTime];
             });
 
             const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-            
-            // 重要：遍歷所有時數欄位，強制設為 's' (string) 格式防止 Excel 自動轉換
             const range = XLSX.utils.decode_range(ws['!ref']);
             for (let R = 1; R <= range.e.row; ++R) {
-                const cellRef = XLSX.utils.encode_cell({r: R, c: 8}); // 第 9 欄 (Index 8)
+                const cellRef = XLSX.utils.encode_cell({r: R, c: 8});
                 if (ws[cellRef]) ws[cellRef].t = 's';
             }
-
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Attendance");
             XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
         } catch (e) { alert("導出錯誤：" + e.message); }
-    };
-
-    window.cancelAndRemoveRecord = async (docId) => {
-        const snap = await getDoc(doc(db, "formEntries", docId));
-        if (snap.exists() && confirm(`確定銷除【${snap.data().name}】的假單？紀錄將備份後移除。`)) {
-            await addDoc(collection(db, "deletedRecords"), { ...snap.data(), status: "已銷假", canceledAt: new Date() });
-            await deleteDoc(doc(db, "formEntries", docId));
-            alert("已完成銷假"); window.loadAllData();
-        }
     };
 
     window.autoFetchName = async () => {
@@ -498,9 +485,7 @@
     function renderTable() {
         const tbody = document.getElementById('allTableBody'), start = (currentPage - 1) * rowsPerPage, pageData = filteredRecords.slice(start, start + rowsPerPage);
         tbody.innerHTML = pageData.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const st = safeGet(r, ['sTime', 'startTime']);
-            const ed = safeGet(r, ['eDate', 'endDate']);
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
             return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
@@ -521,7 +506,6 @@
             document.getElementById('empName').value = r.name;
             document.getElementById('dept').value = r.dept;
             document.getElementById('leaveType').value = r.leaveType;
-            // 讀取時兼容新舊格式
             document.getElementById('startDate').value = safeGet(r, ['sDate', 'startDate']);
             document.getElementById('startTime').value = safeGet(r, ['sTime', 'startTime']);
             document.getElementById('endDate').value = safeGet(r, ['eDate', 'endDate']);
@@ -530,6 +514,13 @@
             document.getElementById('hasSelectedShift').value = "true";
             document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
             window.autoCalc(); switchPage('dashboard');
+        }
+    };
+
+    window.cancelAndRemoveRecord = async (docId) => {
+        if (confirm("確定銷除此張假單？紀錄將直接移除。")) {
+            await deleteDoc(doc(db, "formEntries", docId));
+            alert("已移除"); window.loadAllData();
         }
     };
 
@@ -543,85 +534,19 @@
         const snap = await getDocs(q);
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const st = safeGet(r, ['sTime', 'startTime']);
-            const ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}', '批准')">准</button><button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}', '退件')">退</button></td></tr>`;
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td style="font-size:12px;">${sd} ${st}<br>至 ${ed} ${et}</td><td>${r.displayDuration}</td><td>${r.photo?`<img src="${r.photo}" style="width:40px;height:40px;object-fit:cover" onclick="window.openLightbox('${r.photo}')">`:'-'}</td><td><button class="btn-action-s btn-approve" onclick="approveLeave('${d.id}', '批准')">批准</button><button class="btn-action-s btn-reject" onclick="approveLeave('${d.id}', '退件')">退件</button></td></tr>`;
         }).join('');
     };
 
-    // --- 以下為補齊原本結尾截斷的功能與新功能 ---
-
-    window.updateStatus = async (docId, newStatus) => {
-        if(confirm(`確定要變更狀態為【${newStatus}】嗎？`)) {
-            try {
-                await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approvedAt: new Date() });
-                alert("更新成功"); 
-                window.loadAdminData();
-            } catch(e) { 
-                alert("更新失敗：" + e.message); 
-            }
-        }
+    window.approveLeave = async (docId, status) => {
+        await updateDoc(doc(db, "formEntries", docId), { status: status, approvedAt: new Date() });
+        alert("操作成功"); window.loadAdminData();
     };
 
-    window.openLightbox = (src) => { 
-        document.getElementById('lightboxImg').src = src; 
-        document.getElementById('imageLightbox').style.display = 'flex'; 
-    };
-
-    window.closeLightbox = () => { 
-        document.getElementById('imageLightbox').style.display = 'none'; 
-    };
-
-    const langVi = document.querySelectorAll('[data-vi]');
-    window.changeLanguage = (lang) => {
-        langVi.forEach(el => {
-            if(!el.dataset.zh) el.dataset.zh = el.innerText;
-            el.innerText = lang === 'vi' ? el.dataset.vi : el.dataset.zh;
-        });
-    };
-
-    // 一鍵升級資料庫中舊格式的功能
-    window.migrateDatabaseFormat = async () => {
-        if(!confirm("確定要執行格式升級嗎？\n這將會掃描所有舊資料，將 startDate 轉換為 sDate，並將 totalMinutes 轉換為 duration。")) return;
-        
-        try {
-            const snap = await getDocs(collection(db, "formEntries"));
-            let count = 0;
-            
-            for (const d of snap.docs) {
-                const data = d.data();
-                let updates = {};
-                let needsUpdate = false;
-
-                if (data.startDate) { updates.sDate = data.startDate; updates.startDate = deleteField(); needsUpdate = true; }
-                if (data.startTime) { updates.sTime = data.startTime; updates.startTime = deleteField(); needsUpdate = true; }
-                if (data.endDate) { updates.eDate = data.endDate; updates.endDate = deleteField(); needsUpdate = true; }
-                if (data.endTime) { updates.eTime = data.endTime; updates.endTime = deleteField(); needsUpdate = true; }
-                
-                // 如果有 totalMinutes 但沒有新的 duration 字串，進行轉換並移除舊的 totalMinutes
-                if (data.totalMinutes !== undefined && data.duration === undefined) {
-                    updates.duration = (data.totalMinutes / 60).toFixed(1);
-                    updates.totalMinutes = deleteField();
-                    needsUpdate = true;
-                }
-
-                if (needsUpdate) {
-                    await updateDoc(doc(db, "formEntries", d.id), updates);
-                    count++;
-                }
-            }
-            alert(`✅ 升級完成！共更新了 ${count} 筆舊資料格式。`);
-            window.loadAdminData();
-        } catch (e) {
-            alert("遷移失敗: " + e.message);
-        }
-    };
-
-    // 頁面載入時初始化資料
-    window.onload = () => {
-        window.loadAllData();
-    };
+    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
 </script>
+
 </body>
 </html>
