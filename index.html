@@ -395,26 +395,31 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 匯出 Excel (重點修正：FGH轉小寫、D保持大寫、補零格式 000:00)
+    // 匯出 Excel (修正：僅限批准，維持工號及時數補零格式)
     window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
+        const m = document.getElementById('exportMonth').value; 
+        if(!m) return alert("請選擇月份");
         try {
+            // 僅抓取「批准」紀錄
             const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-            const delSnap = await getDocs(collection(db, "deletedRecords"));
-            const combined = [...snap.docs.map(d=>d.data()), ...delSnap.docs.map(d=>d.data())].filter(r => {
+            
+            // 過濾符合月份的資料
+            const approvedRecords = snap.docs.map(d => d.data()).filter(r => {
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 return sd && sd.startsWith(m);
             });
-            if (combined.length === 0) return alert("無紀錄可導出");
+
+            if (approvedRecords.length === 0) return alert("該月份無批准紀錄可導出");
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
-            const rows = combined.map(r => {
+            
+            const rows = approvedRecords.map(r => {
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 const st = safeGet(r, ['sTime', 'startTime']);
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // --- 1. 工號邏輯修正：D保持大寫，其餘轉小寫 ---
+                // --- 維持：工號處理邏輯 ---
                 let processedId = r.id || "";
                 if (processedId.toUpperCase().startsWith("D")) {
                     processedId = "D" + processedId.substring(1).toLowerCase();
@@ -422,15 +427,19 @@
                     processedId = processedId.toLowerCase();
                 }
                 
-                // 2. 時數補零格式 000:00
+                // --- 維持：補零格式 000:00 ---
                 const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
-                const hh = String(Math.floor(totalMin / 60)).padStart(3, '0'), mm = String(totalMin % 60).padStart(2, '0');
+                const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
+                const mm = String(totalMin % 60).padStart(2, '0');
                 
                 return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
             });
-            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]), wb = XLSX.utils.book_new();
+
+            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+            const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
             XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
+            
         } catch (e) { alert("導出錯誤：" + e.message); }
     };
 
@@ -528,20 +537,13 @@
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-    window.changePage = (dir) => { 
-        const max = Math.ceil(filteredRecords.length/rowsPerPage);
-        if(currentPage + dir > 0 && currentPage + dir <= max) { currentPage += dir; renderTable(); }
-    };
-
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if(lang === 'vi') {
-                if(!el.dataset.zh) el.dataset.zh = el.innerText;
-                el.innerText = el.dataset.vi;
-            } else {
-                if(el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
+    
+    // 初始載入
+    window.onload = () => {
+        const today = new Date().toISOString().split('T')[0];
+        const month = today.substring(0, 7);
+        document.getElementById('filterMonth').value = month;
+        document.getElementById('exportMonth').value = month;
     };
 </script>
 </body>
