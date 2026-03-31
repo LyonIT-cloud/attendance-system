@@ -215,6 +215,7 @@
 
         <div id="page-admin" class="page-content">
             <h2 id="adminTitle">🛡️ 主管審核中心</h2>
+            <button class="btn btn-warning" onclick="migrateDatabaseFormat()" style="margin-bottom: 15px; background: var(--warning); color: white; width: auto;">🔄 升級/修復舊有資料庫格式</button>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -247,7 +248,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    // 新增 deleteField 引入以支援移除舊欄位
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -312,9 +314,9 @@
             else {
                 tbody.innerHTML = snap.docs.map(d => {
                     const r = d.data();
-                    const sd = safeGet(r, ['startDate', 'sDate']);
-                    const st = safeGet(r, ['startTime', 'sTime']);
-                    const ed = safeGet(r, ['endDate', 'eDate']);
+                    const sd = safeGet(r, ['sDate', 'startDate']);
+                    const st = safeGet(r, ['sTime', 'startTime']);
+                    const ed = safeGet(r, ['eDate', 'endDate']);
                     return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
                 }).join('');
             }
@@ -366,15 +368,20 @@
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = file ? await compressImage(file) : "";
+            
+            // 替換為圖片中的格式 (sDate, sTime, eDate, eTime, duration)
             const payload = {
                 id: document.getElementById('empId').value.toUpperCase(), name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value, leaveType: type,
-                startDate: document.getElementById('startDate').value, startTime: document.getElementById('startTime').value,
-                endDate: document.getElementById('endDate').value, endTime: document.getElementById('endTime').value,
-                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
+                sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
+                eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
+                reason: document.getElementById('reason').value, 
+                displayDuration: calc.displayStr, 
+                duration: (calc.totalMinutes / 60).toFixed(1), // 計算為 8.0 格式字串
                 updatedAt: new Date(), status: "審核中"
             };
             if(photo) payload.photo = photo;
+            
             const docId = document.getElementById('editDocId').value;
             if(docId) { await updateDoc(doc(db, "formEntries", docId), payload); }
             else { payload.createdAt = new Date(); await addDoc(collection(db, "formEntries"), payload); }
@@ -390,7 +397,7 @@
             const delSnap = await getDocs(collection(db, "deletedRecords"));
             
             const combined = [...snap.docs.map(d=>d.data()), ...delSnap.docs.map(d=>d.data())].filter(r => {
-                const sd = safeGet(r, ['startDate', 'sDate']);
+                const sd = safeGet(r, ['sDate', 'startDate']);
                 return sd && sd.startsWith(m);
             });
             if (combined.length === 0) return alert("無紀錄可導出");
@@ -398,10 +405,10 @@
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
             const rows = combined.map(r => {
                 // 1. 容錯讀取
-                const sd = safeGet(r, ['startDate', 'sDate']);
-                const st = safeGet(r, ['startTime', 'sTime']);
-                const ed = safeGet(r, ['endDate', 'eDate']);
-                const et = safeGet(r, ['endTime', 'eTime']);
+                const sd = safeGet(r, ['sDate', 'startDate']);
+                const st = safeGet(r, ['sTime', 'startTime']);
+                const ed = safeGet(r, ['eDate', 'endDate']);
+                const et = safeGet(r, ['eTime', 'endTime']);
                 
                 // 2. 工號規範：D大寫，其餘小寫
                 let rawId = String(r.id || "").trim();
@@ -414,7 +421,11 @@
                 
                 // 3. 時數格式化為 000:00 (並強制計算舊資料)
                 let totalMin = r.totalMinutes;
-                if ((totalMin === undefined || totalMin === null) && sd && st && ed && et) {
+                // 若沒有舊的 totalMinutes，嘗試從新版的 duration (例如 "8.0") 反推
+                if ((totalMin === undefined || totalMin === null) && r.duration) {
+                    totalMin = parseFloat(r.duration) * 60;
+                }
+                if ((totalMin === undefined || totalMin === null || isNaN(totalMin)) && sd && st && ed && et) {
                     totalMin = coreCalcMinutes(sd, st, ed, et);
                 }
                 let hh = String(Math.floor((totalMin || 0) / 60)).padStart(3, '0');
@@ -478,7 +489,7 @@
     window.applyFilters = () => {
         const fm = document.getElementById('filterMonth').value, fd = document.getElementById('filterDept').value, fs = document.getElementById('filterStatus').value;
         filteredRecords = allRecords.filter(r => {
-            const sd = safeGet(r, ['startDate', 'sDate']);
+            const sd = safeGet(r, ['sDate', 'startDate']);
             return (fm ? sd.startsWith(fm) : true) && (fd ? r.dept === fd : true) && (fs ? r.status === fs : true);
         });
         currentPage = 1; renderTable();
@@ -487,9 +498,9 @@
     function renderTable() {
         const tbody = document.getElementById('allTableBody'), start = (currentPage - 1) * rowsPerPage, pageData = filteredRecords.slice(start, start + rowsPerPage);
         tbody.innerHTML = pageData.map(r => {
-            const sd = safeGet(r, ['startDate', 'sDate']);
-            const st = safeGet(r, ['startTime', 'sTime']);
-            const ed = safeGet(r, ['endDate', 'eDate']);
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            const st = safeGet(r, ['sTime', 'startTime']);
+            const ed = safeGet(r, ['eDate', 'endDate']);
             return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
@@ -510,10 +521,11 @@
             document.getElementById('empName').value = r.name;
             document.getElementById('dept').value = r.dept;
             document.getElementById('leaveType').value = r.leaveType;
-            document.getElementById('startDate').value = safeGet(r, ['startDate', 'sDate']);
-            document.getElementById('startTime').value = safeGet(r, ['startTime', 'sTime']);
-            document.getElementById('endDate').value = safeGet(r, ['endDate', 'eDate']);
-            document.getElementById('endTime').value = safeGet(r, ['endTime', 'eTime']);
+            // 讀取時兼容新舊格式
+            document.getElementById('startDate').value = safeGet(r, ['sDate', 'startDate']);
+            document.getElementById('startTime').value = safeGet(r, ['sTime', 'startTime']);
+            document.getElementById('endDate').value = safeGet(r, ['eDate', 'endDate']);
+            document.getElementById('endTime').value = safeGet(r, ['eTime', 'endTime']);
             document.getElementById('reason').value = r.reason || "";
             document.getElementById('hasSelectedShift').value = "true";
             document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
@@ -531,26 +543,84 @@
         const snap = await getDocs(q);
         document.getElementById('adminTableBody').innerHTML = snap.docs.map(d => {
             const r = d.data();
-            const sd = safeGet(r, ['startDate', 'sDate']);
-            const st = safeGet(r, ['startTime', 'sTime']);
-            const ed = safeGet(r, ['endDate', 'eDate']);
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            const st = safeGet(r, ['sTime', 'startTime']);
+            const ed = safeGet(r, ['eDate', 'endDate']);
             return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}', '批准')">准</button><button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}', '退件')">退</button></td></tr>`;
         }).join('');
     };
 
-    window.updateStatus = async (id, status) => {
-        if(!confirm(`確認${status}？`)) return;
-        await updateDoc(doc(db, "formEntries", id), { status: status, approvedAt: new Date() });
-        window.loadAdminData();
+    // --- 以下為補齊原本結尾截斷的功能與新功能 ---
+
+    window.updateStatus = async (docId, newStatus) => {
+        if(confirm(`確定要變更狀態為【${newStatus}】嗎？`)) {
+            try {
+                await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approvedAt: new Date() });
+                alert("更新成功"); 
+                window.loadAdminData();
+            } catch(e) { 
+                alert("更新失敗：" + e.message); 
+            }
+        }
     };
 
-    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
-    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+    window.openLightbox = (src) => { 
+        document.getElementById('lightboxImg').src = src; 
+        document.getElementById('imageLightbox').style.display = 'flex'; 
+    };
 
+    window.closeLightbox = () => { 
+        document.getElementById('imageLightbox').style.display = 'none'; 
+    };
+
+    const langVi = document.querySelectorAll('[data-vi]');
+    window.changeLanguage = (lang) => {
+        langVi.forEach(el => {
+            if(!el.dataset.zh) el.dataset.zh = el.innerText;
+            el.innerText = lang === 'vi' ? el.dataset.vi : el.dataset.zh;
+        });
+    };
+
+    // 一鍵升級資料庫中舊格式的功能
+    window.migrateDatabaseFormat = async () => {
+        if(!confirm("確定要執行格式升級嗎？\n這將會掃描所有舊資料，將 startDate 轉換為 sDate，並將 totalMinutes 轉換為 duration。")) return;
+        
+        try {
+            const snap = await getDocs(collection(db, "formEntries"));
+            let count = 0;
+            
+            for (const d of snap.docs) {
+                const data = d.data();
+                let updates = {};
+                let needsUpdate = false;
+
+                if (data.startDate) { updates.sDate = data.startDate; updates.startDate = deleteField(); needsUpdate = true; }
+                if (data.startTime) { updates.sTime = data.startTime; updates.startTime = deleteField(); needsUpdate = true; }
+                if (data.endDate) { updates.eDate = data.endDate; updates.endDate = deleteField(); needsUpdate = true; }
+                if (data.endTime) { updates.eTime = data.endTime; updates.endTime = deleteField(); needsUpdate = true; }
+                
+                // 如果有 totalMinutes 但沒有新的 duration 字串，進行轉換並移除舊的 totalMinutes
+                if (data.totalMinutes !== undefined && data.duration === undefined) {
+                    updates.duration = (data.totalMinutes / 60).toFixed(1);
+                    updates.totalMinutes = deleteField();
+                    needsUpdate = true;
+                }
+
+                if (needsUpdate) {
+                    await updateDoc(doc(db, "formEntries", d.id), updates);
+                    count++;
+                }
+            }
+            alert(`✅ 升級完成！共更新了 ${count} 筆舊資料格式。`);
+            window.loadAdminData();
+        } catch (e) {
+            alert("遷移失敗: " + e.message);
+        }
+    };
+
+    // 頁面載入時初始化資料
     window.onload = () => {
-        const m = new Date().toISOString().slice(0, 7);
-        document.getElementById('filterMonth').value = m;
-        document.getElementById('exportMonth').value = m;
+        window.loadAllData();
     };
 </script>
 </body>
