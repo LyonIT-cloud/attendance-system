@@ -272,7 +272,6 @@
         "hr888": "ALL"
     };
 
-    // 核心工具：解決資料庫欄位不一致 (sDate/startDate)
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null) return obj[key];
@@ -280,7 +279,6 @@
         return defaultVal;
     }
 
-    // 格式化顯示時數：將分鐘轉為「X時X分」，支援新舊格式
     function getDisplayDuration(r) {
         if (r.totalMinutes !== undefined) {
             const h = Math.floor(r.totalMinutes / 60);
@@ -334,11 +332,10 @@
 
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        // 特殊規則處理
         if (t1 === "08:30" && t2 === "17:30" && d1 === d2) return 480;
         if (t1 === "18:00" && t2 === "02:30") return 480;
         
-        let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
+        let start = new Date(`${d1.replace(/\//g, '-')} ${t1}`), end = new Date(`${d2.replace(/\//g, '-')} ${t2}`);
         if(end <= start) return 0;
         
         let total = 0, current = new Date(start); current.setHours(0,0,0,0);
@@ -429,7 +426,6 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // 工號補丁
                 let processedId = r.id || "";
                 if (processedId.toUpperCase().startsWith("D")) {
                     processedId = "D" + processedId.substring(1).toLowerCase();
@@ -437,10 +433,18 @@
                     processedId = processedId.toLowerCase();
                 }
                 
-                // 時數補零 000:00
-                const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
+                // --- 時數修正核心：保底計算絕不空白 ---
+                let totalMin = 0;
+                if (r.totalMinutes !== undefined) {
+                    totalMin = r.totalMinutes;
+                } else if (sd && st && ed && et) {
+                    totalMin = coreCalcMinutes(sd, st, ed, et);
+                } else if (r.duration) {
+                    totalMin = parseFloat(r.duration) * 60;
+                }
+                
                 const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
-                const mm = String(totalMin % 60).padStart(2, '0');
+                const mm = String(Math.floor(totalMin % 60)).padStart(2, '0');
                 
                 return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
             });
@@ -540,25 +544,21 @@
 
     window.updateStatus = async (id, status) => {
         if(!confirm(`確認${status}？`)) return;
-        await updateDoc(doc(db, "formEntries", id), { status: status, approvedAt: new Date() });
-        window.loadAdminData();
+        await updateDoc(doc(db, "formEntries", id), { status: status, approvedAt: new Date().toLocaleString() });
+        alert("操作成功"); window.loadAdminData();
     };
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
     window.changePage = (dir) => { 
-        const max = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        currentPage = Math.max(1, Math.min(max, currentPage + dir)); 
-        renderTable(); 
+        const max = Math.ceil(filteredRecords.length / rowsPerPage);
+        currentPage = Math.max(1, Math.min(max, currentPage + dir));  renderTable(); 
     };
-
-    // 全域語系切換 (保留)
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            const viText = el.getAttribute('data-vi');
-            const zhText = el.innerText;
-            if(!el.dataset.zh) el.dataset.zh = zhText;
-            el.innerText = lang === 'vi' ? viText : el.dataset.zh;
+            const vi = el.getAttribute('data-vi');
+            if (!el.dataset.zh) el.dataset.zh = el.innerText;
+            el.innerText = (lang === 'vi') ? vi : el.dataset.zh;
         });
     };
 </script>
