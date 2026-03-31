@@ -272,6 +272,7 @@
         "hr888": "ALL"
     };
 
+    // 核心容錯函數：優先取得指定 key 的值
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
@@ -381,7 +382,7 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // --- 修改核心邏輯：確保匯出讀取舊資料格式並修正工號與補零時數 ---
+    // --- 專業匯出修復版 ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
@@ -396,37 +397,52 @@
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准時間"];
             const rows = combined.map(r => {
-                // 1. 相容舊格式讀取數據
+                // 1. 容錯讀取
                 const sd = safeGet(r, ['startDate', 'sDate']);
                 const st = safeGet(r, ['startTime', 'sTime']);
                 const ed = safeGet(r, ['endDate', 'eDate']);
                 const et = safeGet(r, ['endTime', 'eTime']);
                 
-                // 2. 工號邏輯：D大寫，其餘小寫 (例: D220119 -> D220119, D-Test -> D-test)
-                let rawId = (r.id || "").trim();
+                // 2. 工號規範：D大寫，其餘小寫
+                let rawId = String(r.id || "").trim();
                 let processedId = "";
-                if (rawId.length > 0) {
-                    if (rawId.toUpperCase().startsWith("D")) {
-                        processedId = "D" + rawId.substring(1).toLowerCase();
-                    } else {
-                        processedId = rawId.toLowerCase();
-                    }
+                if(rawId) {
+                    processedId = rawId.toUpperCase().startsWith("D") 
+                        ? "D" + rawId.substring(1).toLowerCase() 
+                        : rawId.toLowerCase();
                 }
                 
-                // 3. 時數格式化：000:00 並確保舊資料時數能重新算出
+                // 3. 時數格式化為 000:00 (並強制計算舊資料)
                 let totalMin = r.totalMinutes;
                 if ((totalMin === undefined || totalMin === null) && sd && st && ed && et) {
                     totalMin = coreCalcMinutes(sd, st, ed, et);
                 }
-                let hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
-                let mm = String(totalMin % 60).padStart(2, '0');
+                let hh = String(Math.floor((totalMin || 0) / 60)).padStart(3, '0');
+                let mm = String((totalMin || 0) % 60).padStart(2, '0');
                 let formattedDuration = `${hh}:${mm}`;
                 
-                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, formattedDuration, "", "", r.reason || "", r.dept || "", ""];
+                // 4. 批准時間
+                let appTime = "";
+                if (r.approvedAt && r.approvedAt.toDate) {
+                    const d = r.approvedAt.toDate();
+                    appTime = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes()}`;
+                }
+
+                return [processedId, r.name || "", r.leaveType || "", sd, sd, st, ed, et, formattedDuration, "", "", r.reason || "", r.dept || "", appTime];
             });
-            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]), wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "請假明細");
-            XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
+
+            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+            
+            // 重要：遍歷所有時數欄位，強制設為 's' (string) 格式防止 Excel 自動轉換
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = 1; R <= range.e.row; ++R) {
+                const cellRef = XLSX.utils.encode_cell({r: R, c: 8}); // 第 9 欄 (Index 8)
+                if (ws[cellRef]) ws[cellRef].t = 's';
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+            XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
         } catch (e) { alert("導出錯誤：" + e.message); }
     };
 
