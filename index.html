@@ -272,11 +272,22 @@
         "hr888": "ALL"
     };
 
+    // 核心工具：解決資料庫欄位不一致 (sDate/startDate)
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null) return obj[key];
         }
         return defaultVal;
+    }
+
+    // 格式化顯示時數：將分鐘轉為「X時X分」，支援新舊格式
+    function getDisplayDuration(r) {
+        if (r.totalMinutes !== undefined) {
+            const h = Math.floor(r.totalMinutes / 60);
+            const m = r.totalMinutes % 60;
+            return `${h} 時 ${m} 分`;
+        }
+        return r.displayDuration || "";
     }
 
     async function compressImage(file) {
@@ -314,7 +325,7 @@
                     const sd = safeGet(r, ['sDate', 'startDate']);
                     const st = safeGet(r, ['sTime', 'startTime']);
                     const ed = safeGet(r, ['eDate', 'endDate']);
-                    return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
+                    return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${getDisplayDuration(r)}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
                 }).join('');
             }
             document.getElementById('personalResultArea').style.display = 'block';
@@ -323,10 +334,13 @@
 
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
+        // 特殊規則處理
         if (t1 === "08:30" && t2 === "17:30" && d1 === d2) return 480;
         if (t1 === "18:00" && t2 === "02:30") return 480;
+        
         let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
         if(end <= start) return 0;
+        
         let total = 0, current = new Date(start); current.setHours(0,0,0,0);
         while (current <= end) {
             const day = current.getDay();
@@ -395,15 +409,11 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 匯出 Excel (修正：僅限批准，維持工號及時數補零格式)
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; 
         if(!m) return alert("請選擇月份");
         try {
-            // 僅抓取「批准」紀錄
             const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-            
-            // 過濾符合月份的資料
             const approvedRecords = snap.docs.map(d => d.data()).filter(r => {
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 return sd && sd.startsWith(m);
@@ -419,7 +429,7 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // --- 維持：工號處理邏輯 ---
+                // 工號補丁
                 let processedId = r.id || "";
                 if (processedId.toUpperCase().startsWith("D")) {
                     processedId = "D" + processedId.substring(1).toLowerCase();
@@ -427,7 +437,7 @@
                     processedId = processedId.toLowerCase();
                 }
                 
-                // --- 維持：補零格式 000:00 ---
+                // 時數補零 000:00
                 const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
                 const hh = String(Math.floor(totalMin / 60)).padStart(3, '0');
                 const mm = String(totalMin % 60).padStart(2, '0');
@@ -439,7 +449,6 @@
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
             XLSX.writeFile(wb, `鼎顓_${m}_導入報表.xlsx`);
-            
         } catch (e) { alert("導出錯誤：" + e.message); }
     };
 
@@ -487,7 +496,7 @@
             const sd = safeGet(r, ['sDate', 'startDate']);
             const st = safeGet(r, ['sTime', 'startTime']);
             const ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
+            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${getDisplayDuration(r)}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
@@ -525,7 +534,7 @@
             const sd = safeGet(r, ['sDate', 'startDate']);
             const st = safeGet(r, ['sTime', 'startTime']);
             const ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}', '批准')">准</button><button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}', '退件')">退</button></td></tr>`;
+            return `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${getDisplayDuration(r)}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-action-s btn-approve" onclick="updateStatus('${d.id}', '批准')">准</button><button class="btn-action-s btn-reject" onclick="updateStatus('${d.id}', '退件')">退</button></td></tr>`;
         }).join('');
     };
 
@@ -537,13 +546,20 @@
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-    
-    // 初始載入
-    window.onload = () => {
-        const today = new Date().toISOString().split('T')[0];
-        const month = today.substring(0, 7);
-        document.getElementById('filterMonth').value = month;
-        document.getElementById('exportMonth').value = month;
+    window.changePage = (dir) => { 
+        const max = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        currentPage = Math.max(1, Math.min(max, currentPage + dir)); 
+        renderTable(); 
+    };
+
+    // 全域語系切換 (保留)
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.innerText;
+            if(!el.dataset.zh) el.dataset.zh = zhText;
+            el.innerText = lang === 'vi' ? viText : el.dataset.zh;
+        });
     };
 </script>
 </body>
