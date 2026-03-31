@@ -272,7 +272,6 @@
         "hr888": "ALL"
     };
 
-    // 輔助工具：安全讀取資料，防止 undefined
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null) return obj[key];
@@ -280,7 +279,6 @@
         return defaultVal;
     }
 
-    // 圖片壓縮
     async function compressImage(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -302,7 +300,6 @@
         });
     }
 
-    // 個人紀錄查詢
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!id) return alert("請輸入工號");
@@ -324,17 +321,13 @@
         } catch (e) { alert("查詢失敗：" + e.message); }
     };
 
-    // 時間計算邏輯 (核心計算機)
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
         if (t1 === "08:30" && t2 === "17:30" && d1 === d2) return 480;
         if (t1 === "18:00" && t2 === "02:30") return 480;
-
         let start = new Date(`${d1} ${t1}`), end = new Date(`${d2} ${t2}`);
         if(end <= start) return 0;
-        
-        let total = 0;
-        let current = new Date(start); current.setHours(0,0,0,0);
+        let total = 0, current = new Date(start); current.setHours(0,0,0,0);
         while (current <= end) {
             const day = current.getDay();
             if (day !== 0 && day !== 6) { 
@@ -383,7 +376,6 @@
         const calc = window.autoCalc();
         const type = document.getElementById('leaveType').value, fileInput = document.getElementById('leaveImg'), file = fileInput.files[0];
         if (type === "病假" && !file && !document.getElementById('editDocId').value) return alert("病假必須上傳證明！");
-        
         try {
             document.getElementById('submitBtn').disabled = true;
             let photo = file ? await compressImage(file) : "";
@@ -403,7 +395,7 @@
         } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
     };
 
-    // 匯出 Excel (重點修正：工號轉小寫、補零格式 000:00)
+    // 匯出 Excel (重點修正：FGH轉小寫、D保持大寫、補零格式 000:00)
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
@@ -422,14 +414,19 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const et = safeGet(r, ['eTime', 'endTime']);
                 
-                // 1. 工號轉小寫
-                const lowerId = r.id ? r.id.toLowerCase() : "";
+                // --- 1. 工號邏輯修正：D保持大寫，其餘轉小寫 ---
+                let processedId = r.id || "";
+                if (processedId.toUpperCase().startsWith("D")) {
+                    processedId = "D" + processedId.substring(1).toLowerCase();
+                } else {
+                    processedId = processedId.toLowerCase();
+                }
                 
                 // 2. 時數補零格式 000:00
                 const totalMin = r.totalMinutes || coreCalcMinutes(sd, st, ed, et);
                 const hh = String(Math.floor(totalMin / 60)).padStart(3, '0'), mm = String(totalMin % 60).padStart(2, '0');
                 
-                return [lowerId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
+                return [processedId, r.name, r.leaveType, sd, sd, st, ed, et, `${hh}:${mm}`, "", "", r.reason || "", r.dept || "", ""];
             });
             const ws = XLSX.utils.aoa_to_sheet([header, ...rows]), wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假明細");
