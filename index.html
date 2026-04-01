@@ -426,7 +426,7 @@
         });
     }
 
-    // --- ⬇️ 修改：EXCEL 匯出時數格式轉換 ⬇️ ---
+    // --- ⬇️ 修改：EXCEL 匯出時數格式轉換與工號大小寫邏輯 ⬇️ ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
@@ -456,8 +456,17 @@
                     }
                 }
 
+                // 🌟 新增需求：工號FGH開頭都要轉小寫，其餘保持不變 (包含D會維持原樣)
+                let exportId = r.id || "";
+                if (exportId) {
+                    const firstChar = exportId.charAt(0).toUpperCase();
+                    if (['F', 'G', 'H'].includes(firstChar)) {
+                        exportId = exportId.toLowerCase();
+                    }
+                }
+
                 return [
-                    r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, excelDuration, r.reason, r.dept
+                    exportId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, excelDuration, r.reason, r.dept
                 ];
             });
 
@@ -544,6 +553,7 @@
         if (adminPasswords[pwd]) { currentAdminDept = adminPasswords[pwd]; switchPage('admin'); } else { alert("密碼錯誤"); }
     };
 
+    // ⬇️ 補充並修復原本截斷的區塊 ⬇️
     window.loadAdminData = async () => {
         let q = currentAdminDept === "ALL" ? query(collection(db, "formEntries"), where("status", "==", "審核中")) : query(collection(db, "formEntries"), where("status", "==", "審核中"), where("dept", "==", currentAdminDept));
         const snap = await getDocs(q);
@@ -551,17 +561,34 @@
         tbody.innerHTML = snap.docs.map(d => {
             const r = d.data();
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;object-fit:cover;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn-action-s btn-approve" onclick="processDoc('${d.id}', '批准')">✔️ 批准</button><button class="btn-action-s btn-reject" onclick="processDoc('${d.id}', '退件')">❌ 退件</button></td></tr>`;
+            return `<tr>
+                <td>${r.dept || ""}</td>
+                <td>${r.name}<br><span style="font-size:12px;color:#64748b">${r.leaveType}</span></td>
+                <td style="font-size:12px;">${sd} ${st}<br>~${ed}</td>
+                <td>${r.displayDuration || ""}</td>
+                <td>${r.photo ? `<button class="btn-action-s" onclick="window.openLightbox('${r.photo}')">查看證明</button>` : '-'}</td>
+                <td>
+                    <button class="btn btn-success" onclick="updateStatus('${d.id}', '批准')" style="padding:6px 12px; min-height:auto;">核准</button> 
+                    <button class="btn btn-danger" onclick="updateStatus('${d.id}', '退件')" style="padding:6px 12px; min-height:auto;">退件</button>
+                </td>
+            </tr>`;
         }).join('');
     };
 
-    window.processDoc = async (docId, status) => {
-        await updateDoc(doc(db, "formEntries", docId), { status: status, approvedAt: serverTimestamp() });
-        alert("處理完成"); window.loadAdminData();
+    window.updateStatus = async (id, status) => {
+        await updateDoc(doc(db, "formEntries", id), { status });
+        window.loadAdminData();
     };
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (!el.dataset.zh) el.dataset.zh = el.innerText;
+            el.innerText = lang === 'vi' ? el.dataset.vi : el.dataset.zh;
+        });
+    };
 </script>
 </body>
 </html>
