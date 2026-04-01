@@ -321,36 +321,62 @@
         } catch (e) { alert("查詢失敗：" + e.message); }
     };
 
-    // --- 核心邏輯：計算請假天數並轉換為時數 (1天=8小時，扣除週末) ---
+    // --- 修正核心邏輯：精確計算分鐘數 (修正半小時問題) ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        let start = new Date(d1);
-        let end = new Date(d2);
         
-        const isMidShift = (t1 === "18:00" && t2 === "02:30");
+        let startDT = new Date(`${d1}T${t1}`);
+        let endDT = new Date(`${d2}T${t2}`);
+        if (endDT <= startDT) return 0;
 
-        let workdayCount = 0;
-        let iter = new Date(start);
-        
-        // 中班的結束日期跨日，所以計算天數時要看「起始日」的數量
-        // 例如：3/23 18:00 ~ 3/24 02:30 只算 1 個起始日 (3/23)
-        let limit = new Date(end);
-        if (isMidShift) {
-            limit.setDate(limit.getDate() - 1);
-        }
+        // 判斷班別以決定基準時間與休息時間
+        const isDayShift = (t1 >= "08:30" && t1 <= "17:30");
+        const sWorkTime = isDayShift ? "08:30" : "18:00";
+        const eWorkTime = isDayShift ? "17:30" : "02:30";
+        const breakStart = isDayShift ? "12:00" : "22:00";
+        const breakEnd = isDayShift ? "13:00" : "22:30";
 
-        // 迭代日期，跳過週六(6)與週日(0)
-        while (iter <= limit) {
-            let dayOfWeek = iter.getDay(); 
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                workdayCount++;
+        let totalMinutes = 0;
+        let iterDate = new Date(d1);
+        let lastDate = new Date(d2);
+
+        // 遍歷每一天計算交集
+        while (iterDate <= lastDate) {
+            let dayOfWeek = iterDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 排除週六日
+                let dayStr = iterDate.toISOString().split('T')[0];
+                let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
+                let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
+                
+                // 中班跨日處理
+                if (!isDayShift) {
+                    shiftEnd.setDate(shiftEnd.getDate() + 1);
+                }
+
+                // 計算請假範圍與上班時間範圍的重疊
+                let actualStart = new Date(Math.max(startDT, shiftStart));
+                let actualEnd = new Date(Math.min(endDT, shiftEnd));
+
+                if (actualStart < actualEnd) {
+                    let diffMins = (actualEnd - actualStart) / (1000 * 60);
+                    
+                    // 扣除休息時間 (如果請假區間包含休息時間)
+                    let bS = new Date(`${dayStr}T${breakStart}`);
+                    let bE = new Date(`${dayStr}T${breakEnd}`);
+                    // 中班休息跨日判定 (22:00 通常在起始日)
+                    
+                    let intersectStart = new Date(Math.max(actualStart, bS));
+                    let intersectEnd = new Date(Math.min(actualEnd, bE));
+                    
+                    if (intersectStart < intersectEnd) {
+                        diffMins -= (intersectEnd - intersectStart) / (1000 * 60);
+                    }
+                    totalMinutes += diffMins;
+                }
             }
-            iter.setDate(iter.getDate() + 1);
+            iterDate.setDate(iterDate.getDate() + 1);
         }
-
-        // 如果是同一天內請假且非完整班表（例如只請1小時），可以保留細算邏輯
-        // 但根據您的要求「一天就是八小時」，這裡直接回傳 workdayCount * 480 分鐘
-        return Math.max(0, workdayCount * 480);
+        return Math.max(0, Math.round(totalMinutes));
     }
 
     window.autoCalc = () => {
@@ -359,8 +385,9 @@
             document.getElementById('endDate').value, document.getElementById('endTime').value
         );
         const h = Math.floor(min / 60), m = min % 60;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${h} 時 ${m} 分`;
-        return { displayStr: `${h} 時 ${m} 分`, totalMinutes: min };
+        const display = `${h} 時 ${m} 分`;
+        document.getElementById('durationText').innerText = `🕒 計算結果：${display}`;
+        return { displayStr: display, totalMinutes: min };
     };
 
     window.setShift = (s) => {
@@ -538,7 +565,14 @@
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-</script>
 
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const zh = el.innerHTML.includes('</span>') ? el.innerHTML : el.innerText;
+            if(!el.dataset.zh) el.dataset.zh = zh;
+            el.innerText = lang === 'vi' ? el.dataset.vi : el.dataset.zh;
+        });
+    };
+</script>
 </body>
 </html>
