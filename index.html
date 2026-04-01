@@ -426,6 +426,7 @@
         });
     }
 
+    // --- ⬇️ 修改：EXCEL 匯出時數格式轉換 ⬇️ ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         try {
@@ -437,9 +438,28 @@
             if (combined.length === 0) return alert("無紀錄可導出");
 
             const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門"];
-            const rows = combined.map(r => [
-                r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, r.displayDuration, r.reason, r.dept
-            ]);
+            
+            const rows = combined.map(r => {
+                // 將時數轉換為 HHH:MM 格式 (例如 008:00)
+                let excelDuration = r.displayDuration;
+                if (r.totalMinutes != null) {
+                    const h = Math.floor(r.totalMinutes / 60);
+                    const mins = r.totalMinutes % 60;
+                    excelDuration = `${String(h).padStart(3, '0')}:${String(mins).padStart(2, '0')}`;
+                } else if (r.displayDuration) {
+                    // 兼容舊資料 (若舊資料無 totalMinutes 欄位，從字串解析)
+                    const match = r.displayDuration.match(/(\d+)\s*時\s*(\d+)\s*分/);
+                    if (match) {
+                        const h = parseInt(match[1], 10);
+                        const mins = parseInt(match[2], 10);
+                        excelDuration = `${String(h).padStart(3, '0')}:${String(mins).padStart(2, '0')}`;
+                    }
+                }
+
+                return [
+                    r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, excelDuration, r.reason, r.dept
+                ];
+            });
 
             const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
             const wb = XLSX.utils.book_new();
@@ -447,6 +467,7 @@
             XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
         } catch (e) { alert("導出錯誤：" + e.message); }
     };
+    // --- ⬆️ 修改結束 ⬆️ ---
 
     window.autoFetchName = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase(); if(id.length < 4) return;
@@ -541,18 +562,6 @@
 
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-
-    // 初始語言設置
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if (lang === 'vi') {
-                if (!el.dataset.zh) el.dataset.zh = el.innerText;
-                el.innerText = el.dataset.vi;
-            } else {
-                if (el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
-    };
 </script>
 </body>
 </html>
