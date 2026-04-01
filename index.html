@@ -289,8 +289,10 @@
         const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
         const sWorkTime = isDayShift ? "08:30" : "18:00";
         const eWorkTime = isDayShift ? "17:30" : "02:30";
+        
+        // 修正新需求：中班請假不扣除休息時間 (將休息起迄設為同時間即不扣除)
         const breakStart = isDayShift ? "12:00" : "22:00";
-        const breakEnd = isDayShift ? "13:00" : "22:30";
+        const breakEnd = isDayShift ? "13:00" : (isDayShift ? "22:30" : "22:00"); // 這裡確保非早班時休息區間為0
 
         let totalMinutes = 0;
         let iterDate = new Date(d1);
@@ -540,12 +542,15 @@
     window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
 
-    // 語言切換
+    // 初始語言設置
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            const viText = el.getAttribute('data-vi');
-            if (!el.getAttribute('data-zh')) el.setAttribute('data-zh', el.innerText);
-            el.innerText = lang === 'vi' ? viText : el.getAttribute('data-zh');
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
         });
     };
 </script>
