@@ -11,6 +11,10 @@
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #1e293b;
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --maintenance-display: none; 
+            /* 新增按鈕優化顏色 */
+            --approve-hover: #059669;
+            --reject-hover: #dc2626;
+            --bulk-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
         #maintenance-overlay {
             display: var(--maintenance-display);
@@ -51,8 +55,26 @@
 
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
-        .btn-success { background: var(--accent); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
+        
+        /* 批准與退件按鈕樣式優化 */
+        .btn-success { background: var(--accent); color: white; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2); }
+        .btn-success:hover { background: var(--approve-hover); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); }
+        .btn-danger { background: var(--danger); color: white; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2); }
+        .btn-danger:hover { background: var(--reject-hover); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3); }
+        
+        /* 一鍵批准按鈕樣式優化 */
+        .btn-bulk { 
+            background: var(--bulk-gradient); 
+            color: white; 
+            padding: 10px 24px; 
+            border-radius: 12px; 
+            font-size: 15px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .btn-bulk:hover { transform: scale(1.02); filter: brightness(1.1); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.5); }
+        .btn-bulk:active { transform: scale(0.98); }
+
         .btn-excel { background: #16a34a; color: white; }
 
         .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
@@ -212,9 +234,9 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 id="adminTitle" style="margin: 0;">🛡️ 主管審核中心</h2>
-                <button id="bulkApproveBtn" class="btn btn-success" onclick="bulkApprove()" style="width: auto; display: none;">一鍵批准所有申請</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow);">
+                <h2 id="adminTitle" style="margin: 0; font-size: 20px; color: var(--sidebar-bg);">🛡️ 主管審核中心</h2>
+                <button id="bulkApproveBtn" class="btn btn-bulk" onclick="bulkApprove()" style="display: none;">一鍵批准所有申請</button>
             </div>
             <div class="table-wrapper">
                 <table>
@@ -266,7 +288,7 @@
     let currentPage = 1;
     const rowsPerPage = 10;
     let currentAdminDept = "";
-    let currentPendingDocs = []; // 用於暫存當前畫面上待審核的 ID
+    let currentPendingDocs = []; 
 
     const adminPasswords = {
         "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
@@ -281,23 +303,126 @@
         return defaultVal;
     }
 
-    // --- 核心邏輯：精確計算分鐘數 ---
+    // --- 自動清理舊資料邏輯 (僅保留本月與上月) ---
+    async function autoCleanupRecords() {
+        try {
+            const now = new Date();
+            // 計算上個月的第一天。例如：現在是 4/8，則 cutoff 是 3/1
+            const cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const cutoffStr = cutoffDate.toISOString().split('T')[0]; // "YYYY-MM-01"
+
+            // 查詢所有 startDate 小於 cutoffStr 的資料
+            const q = query(collection(db, "formEntries"), where("sDate", "<", cutoffStr));
+            const snap = await getDocs(q);
+            
+            if (snap.empty) return;
+
+            let deleteCount = 0;
+            const deletePromises = snap.docs.map(d => {
+                deleteCount++;
+                return deleteDoc(doc(db, "formEntries", d.id));
+            });
+            await Promise.all(deletePromises);
+            console.log(`系統維護：已自動刪除 ${deleteCount} 筆過期月份紀錄。`);
+        } catch (e) {
+            console.error("自動清理失敗:", e);
+        }
+    }
+
+    // --- 審核中心相關功能 ---
+    window.checkAdminAccess = () => {
+        const pw = prompt("請輸入主管管理密碼:");
+        if (adminPasswords[pw]) {
+            currentAdminDept = adminPasswords[pw];
+            window.switchPage('admin');
+            // 進入審核頁面時執行清理動作
+            autoCleanupRecords();
+        } else if (pw !== null) {
+            alert("密碼錯誤！");
+        }
+    };
+
+    window.loadAdminData = async () => {
+        const tbody = document.getElementById('adminTableBody');
+        const bulkBtn = document.getElementById('bulkApproveBtn');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+        
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        
+        const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
+            if (currentAdminDept === "ALL") return r.status === "審核中";
+            return r.dept === currentAdminDept && r.status === "審核中";
+        });
+
+        currentPendingDocs = filtered; 
+        document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
+            bulkBtn.style.display = "none";
+            return;
+        }
+
+        bulkBtn.style.display = "inline-flex";
+        bulkBtn.innerText = `✅ 一鍵批准 ${filtered.length} 筆`;
+
+        tbody.innerHTML = filtered.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding: 6px 15px; min-height: 36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding: 6px 15px; min-height: 36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+        }).join('');
+    };
+
+    window.updateStatus = async (docId, newStatus) => {
+        if (!confirm(`確定要${newStatus}此假單？`)) return;
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
+        alert("處理成功"); window.loadAdminData();
+    };
+
+    window.bulkApprove = async () => {
+        if (currentPendingDocs.length === 0) return;
+        if (!confirm(`確定要一次批准目前畫面中所有 ${currentPendingDocs.length} 筆申請嗎？`)) return;
+
+        const btn = document.getElementById('bulkApproveBtn');
+        btn.disabled = true;
+        btn.innerText = "批次處理中...";
+
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+        try {
+            const updatePromises = currentPendingDocs.map(docData => 
+                updateDoc(doc(db, "formEntries", docData.docId), { 
+                    status: "批准", 
+                    approveTime: timeStr 
+                })
+            );
+            await Promise.all(updatePromises);
+            alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
+            window.loadAdminData();
+        } catch (e) {
+            alert("批次處理時發生錯誤：" + e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    // --- 核心邏輯：精確計算分鐘數 (保留原有邏輯) ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
         let startDT = new Date(`${d1}T${t1}`);
         let endDT = new Date(`${d2}T${t2}`);
         if (endDT <= startDT) return 0;
-
         const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
         const sWorkTime = isDayShift ? "08:30" : "18:00";
         const eWorkTime = isDayShift ? "17:30" : "02:30";
         const breakStartStr = isDayShift ? "12:00" : "00:00";
         const breakEndStr = isDayShift ? "13:00" : "00:30";
-
         let totalMinutes = 0;
         let iterDate = new Date(d1);
         let lastDate = new Date(d2);
-
         while (iterDate <= lastDate) {
             let dayOfWeek = iterDate.getDay();
             if (dayOfWeek !== 0 && dayOfWeek !== 6) {
@@ -305,20 +430,16 @@
                 let m = String(iterDate.getMonth() + 1).padStart(2, '0');
                 let d = String(iterDate.getDate()).padStart(2, '0');
                 let dayStr = `${y}-${m}-${d}`;
-
                 let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
                 let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
                 if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
-
                 let actualStart = new Date(Math.max(startDT, shiftStart));
                 let actualEnd = new Date(Math.min(endDT, shiftEnd));
-
                 if (actualStart < actualEnd) {
                     let diffMins = (actualEnd - actualStart) / (1000 * 60);
                     let bS = new Date(`${dayStr}T${breakStartStr}`);
                     let bE = new Date(`${dayStr}T${breakEndStr}`);
                     if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
-                    
                     let intersectStart = new Date(Math.max(actualStart, bS));
                     let intersectEnd = new Date(Math.min(actualEnd, bE));
                     if (intersectStart < intersectEnd) { diffMins -= (intersectEnd - intersectStart) / (1000 * 60); }
@@ -357,87 +478,6 @@
         window.autoCalc();
     };
 
-    // --- 審核中心相關功能 ---
-    window.checkAdminAccess = () => {
-        const pw = prompt("請輸入主管管理密碼:");
-        if (adminPasswords[pw]) {
-            currentAdminDept = adminPasswords[pw];
-            window.switchPage('admin');
-        } else if (pw !== null) {
-            alert("密碼錯誤！");
-        }
-    };
-
-    window.loadAdminData = async () => {
-        const tbody = document.getElementById('adminTableBody');
-        const bulkBtn = document.getElementById('bulkApproveBtn');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
-        
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        
-        const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
-            if (currentAdminDept === "ALL") return r.status === "審核中";
-            return r.dept === currentAdminDept && r.status === "審核中";
-        });
-
-        currentPendingDocs = filtered; // 存儲過濾後的待審核清單供一鍵批准使用
-        document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${currentAdminDept})`;
-        
-        if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
-            bulkBtn.style.display = "none";
-            return;
-        }
-
-        bulkBtn.style.display = "inline-flex";
-        bulkBtn.innerText = `一鍵批准 ${filtered.length} 筆申請`;
-
-        tbody.innerHTML = filtered.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" onclick="updateStatus('${r.docId}', '批准')">核准</button> <button class="btn btn-danger" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
-        }).join('');
-    };
-
-    window.updateStatus = async (docId, newStatus) => {
-        if (!confirm(`確定要${newStatus}此假單？`)) return;
-        const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
-        alert("處理成功"); window.loadAdminData();
-    };
-
-    // [新功能] 一鍵批准功能
-    window.bulkApprove = async () => {
-        if (currentPendingDocs.length === 0) return;
-        if (!confirm(`確定要一次批准目前畫面中所有 ${currentPendingDocs.length} 筆申請嗎？`)) return;
-
-        const btn = document.getElementById('bulkApproveBtn');
-        btn.disabled = true;
-        btn.innerText = "批次處理中...";
-
-        const now = new Date();
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-        try {
-            // 使用 Promise.all 併行更新所有文件
-            const updatePromises = currentPendingDocs.map(docData => 
-                updateDoc(doc(db, "formEntries", docData.docId), { 
-                    status: "批准", 
-                    approveTime: timeStr 
-                })
-            );
-            await Promise.all(updatePromises);
-            alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
-            window.loadAdminData();
-        } catch (e) {
-            alert("批次處理時發生錯誤：" + e.message);
-        } finally {
-            btn.disabled = false;
-        }
-    };
-
-    // --- 資料提交與查詢 ---
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const calc = window.autoCalc();
@@ -548,18 +588,19 @@
         const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
         const tbody = document.getElementById('personalTableBody');
-        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>'; }
-        else {
-            tbody.innerHTML = snap.docs.map(d => {
-                const r = d.data();
-                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-                return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
-            }).join('');
+        if(snap.empty) {
+            alert("查無此工號紀錄");
+            document.getElementById('personalResultArea').style.display = 'none';
+            return;
         }
         document.getElementById('personalResultArea').style.display = 'block';
+        tbody.innerHTML = snap.docs.map(d => {
+            const r = d.data();
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${d.id}')">銷假</button></td></tr>`;
+        }).join('');
     };
 
-    // 其他現有功能... (燈箱、多國語言切換等)
     window.openLightbox = (src) => {
         document.getElementById('lightboxImg').src = src;
         document.getElementById('imageLightbox').style.display = 'flex';
@@ -567,17 +608,15 @@
     window.closeLightbox = () => {
         document.getElementById('imageLightbox').style.display = 'none';
     };
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            const viText = el.getAttribute('data-vi');
-            const zhText = el.innerText;
-            if (lang === 'vi') {
-                if(!el.getAttribute('data-zh')) el.setAttribute('data-zh', zhText);
-                el.innerText = viText;
-            } else {
-                el.innerText = el.getAttribute('data-zh') || zhText;
-            }
-        });
+
+    // 其他原有全域函式掛載
+    window.cancelAndRemoveRecord = async (docId) => {
+        if(!confirm("確定要執行『銷假』嗎？此動作將直接刪除此筆紀錄且不可復原。")) return;
+        try {
+            await deleteDoc(doc(db, "formEntries", docId));
+            alert("銷假成功，紀錄已刪除");
+            location.reload();
+        } catch(e) { alert("刪除失敗：" + e.message); }
     };
 </script>
 </body>
