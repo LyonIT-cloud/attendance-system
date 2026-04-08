@@ -212,7 +212,10 @@
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 id="adminTitle">🛡️ 主管審核中心</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 id="adminTitle" style="margin: 0;">🛡️ 主管審核中心</h2>
+                <button id="bulkApproveBtn" class="btn btn-success" onclick="bulkApprove()" style="width: auto; display: none;">一鍵批准所有申請</button>
+            </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -263,6 +266,7 @@
     let currentPage = 1;
     const rowsPerPage = 10;
     let currentAdminDept = "";
+    let currentPendingDocs = []; // 用於暫存當前畫面上待審核的 ID
 
     const adminPasswords = {
         "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
@@ -366,18 +370,29 @@
 
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
+        const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+        
         const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
+        
         const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
-            if (currentAdminDept === "ALL") return true;
+            if (currentAdminDept === "ALL") return r.status === "審核中";
             return r.dept === currentAdminDept && r.status === "審核中";
         });
+
+        currentPendingDocs = filtered; // 存儲過濾後的待審核清單供一鍵批准使用
         document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${currentAdminDept})`;
+        
         if (filtered.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
+            bulkBtn.style.display = "none";
             return;
         }
+
+        bulkBtn.style.display = "inline-flex";
+        bulkBtn.innerText = `一鍵批准 ${filtered.length} 筆申請`;
+
         tbody.innerHTML = filtered.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
             return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" onclick="updateStatus('${r.docId}', '批准')">核准</button> <button class="btn btn-danger" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
@@ -390,6 +405,36 @@
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
         alert("處理成功"); window.loadAdminData();
+    };
+
+    // [新功能] 一鍵批准功能
+    window.bulkApprove = async () => {
+        if (currentPendingDocs.length === 0) return;
+        if (!confirm(`確定要一次批准目前畫面中所有 ${currentPendingDocs.length} 筆申請嗎？`)) return;
+
+        const btn = document.getElementById('bulkApproveBtn');
+        btn.disabled = true;
+        btn.innerText = "批次處理中...";
+
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+        try {
+            // 使用 Promise.all 併行更新所有文件
+            const updatePromises = currentPendingDocs.map(docData => 
+                updateDoc(doc(db, "formEntries", docData.docId), { 
+                    status: "批准", 
+                    approveTime: timeStr 
+                })
+            );
+            await Promise.all(updatePromises);
+            alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
+            window.loadAdminData();
+        } catch (e) {
+            alert("批次處理時發生錯誤：" + e.message);
+        } finally {
+            btn.disabled = false;
+        }
     };
 
     // --- 資料提交與查詢 ---
@@ -514,44 +559,25 @@
         document.getElementById('personalResultArea').style.display = 'block';
     };
 
-    window.editExistingRecord = async (docId) => {
-        const snap = await getDoc(doc(db, "formEntries", docId));
-        if(snap.exists()) {
-            const r = snap.data();
-            document.getElementById('editDocId').value = docId;
-            document.getElementById('empId').value = r.id;
-            document.getElementById('empName').value = r.name;
-            document.getElementById('dept').value = r.dept;
-            document.getElementById('leaveType').value = r.leaveType;
-            document.getElementById('startDate').value = safeGet(r, ['sDate', 'startDate']);
-            document.getElementById('startTime').value = safeGet(r, ['sTime', 'startTime']);
-            document.getElementById('endDate').value = safeGet(r, ['eDate', 'endDate']);
-            document.getElementById('endTime').value = safeGet(r, ['eTime', 'endTime']);
-            document.getElementById('reason').value = r.reason || "";
-            document.getElementById('hasSelectedShift').value = "true";
-            document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-            window.autoCalc(); window.switchPage('dashboard');
-        }
+    // 其他現有功能... (燈箱、多國語言切換等)
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
     };
-
-    window.cancelAndRemoveRecord = async (docId) => {
-        if (confirm("確定銷除此張假單？")) { await deleteDoc(doc(db, "formEntries", docId)); alert("已銷假"); window.loadAllData(); }
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
     };
-
-    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
-    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
-            else { el.innerText = el.dataset.zh || el.innerText; }
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.innerText;
+            if (lang === 'vi') {
+                if(!el.getAttribute('data-zh')) el.setAttribute('data-zh', zhText);
+                el.innerText = viText;
+            } else {
+                el.innerText = el.getAttribute('data-zh') || zhText;
+            }
         });
-    };
-
-    window.onload = () => {
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('filterMonth').value = today.substring(0, 7);
-        document.getElementById('exportMonth').value = today.substring(0, 7);
     };
 </script>
 </body>
