@@ -277,22 +277,16 @@
         return defaultVal;
     }
 
-    // --- 修正核心邏輯：精確計算分鐘數 (中班休息時間為 00:00~00:30) ---
+    // --- 核心邏輯：精確計算分鐘數 ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        
         let startDT = new Date(`${d1}T${t1}`);
         let endDT = new Date(`${d2}T${t2}`);
         if (endDT <= startDT) return 0;
 
-        // 判斷班別 (以起始時間判斷)
         const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
         const sWorkTime = isDayShift ? "08:30" : "18:00";
         const eWorkTime = isDayShift ? "17:30" : "02:30";
-        
-        // 設定休息時間
-        // 早班：12:00 - 13:00 (扣 60 分鐘)
-        // 中班：00:00 - 00:30 (扣 30 分鐘)，使 18:00-02:30 從 8.5h 變成 8h
         const breakStartStr = isDayShift ? "12:00" : "00:00";
         const breakEndStr = isDayShift ? "13:00" : "00:30";
 
@@ -302,7 +296,7 @@
 
         while (iterDate <= lastDate) {
             let dayOfWeek = iterDate.getDay();
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 排除週六日
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
                 let y = iterDate.getFullYear();
                 let m = String(iterDate.getMonth() + 1).padStart(2, '0');
                 let d = String(iterDate.getDate()).padStart(2, '0');
@@ -310,33 +304,20 @@
 
                 let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
                 let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
-                
-                // 中班跨日處理
                 if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
 
-                // 計算請假範圍與工作時間範圍的重疊
                 let actualStart = new Date(Math.max(startDT, shiftStart));
                 let actualEnd = new Date(Math.min(endDT, shiftEnd));
 
                 if (actualStart < actualEnd) {
                     let diffMins = (actualEnd - actualStart) / (1000 * 60);
-                    
-                    // 休息時間計算
                     let bS = new Date(`${dayStr}T${breakStartStr}`);
                     let bE = new Date(`${dayStr}T${breakEndStr}`);
-                    
-                    // 重要：中班的休息時間 (00:00) 實際上是在班別起始日期的「隔天」
-                    if (!isDayShift) {
-                        bS.setDate(bS.getDate() + 1);
-                        bE.setDate(bE.getDate() + 1);
-                    }
+                    if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
                     
                     let intersectStart = new Date(Math.max(actualStart, bS));
                     let intersectEnd = new Date(Math.min(actualEnd, bE));
-                    
-                    if (intersectStart < intersectEnd) {
-                        diffMins -= (intersectEnd - intersectStart) / (1000 * 60);
-                    }
+                    if (intersectStart < intersectEnd) { diffMins -= (intersectEnd - intersectStart) / (1000 * 60); }
                     totalMinutes += diffMins;
                 }
             }
@@ -372,25 +353,46 @@
         window.autoCalc();
     };
 
-    window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
-        try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            const tbody = document.getElementById('personalTableBody');
-            if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>'; }
-            else {
-                tbody.innerHTML = snap.docs.map(d => {
-                    const r = d.data();
-                    const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-                    return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
-                }).join('');
-            }
-            document.getElementById('personalResultArea').style.display = 'block';
-        } catch (e) { alert("查詢失敗：" + e.message); }
+    // --- 審核中心相關功能 ---
+    window.checkAdminAccess = () => {
+        const pw = prompt("請輸入主管管理密碼:");
+        if (adminPasswords[pw]) {
+            currentAdminDept = adminPasswords[pw];
+            window.switchPage('admin');
+        } else if (pw !== null) {
+            alert("密碼錯誤！");
+        }
     };
 
+    window.loadAdminData = async () => {
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
+            if (currentAdminDept === "ALL") return true;
+            return r.dept === currentAdminDept && r.status === "審核中";
+        });
+        document.getElementById('adminTitle').innerText = `🛡️ 主管審核中心 (${currentAdminDept})`;
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
+            return;
+        }
+        tbody.innerHTML = filtered.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" onclick="updateStatus('${r.docId}', '批准')">核准</button> <button class="btn btn-danger" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+        }).join('');
+    };
+
+    window.updateStatus = async (docId, newStatus) => {
+        if (!confirm(`確定要${newStatus}此假單？`)) return;
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
+        alert("處理成功"); window.loadAdminData();
+    };
+
+    // --- 資料提交與查詢 ---
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const calc = window.autoCalc();
@@ -404,11 +406,8 @@
                 dept: document.getElementById('dept').value, leaveType: type,
                 sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
-                reason: document.getElementById('reason').value, 
-                displayDuration: calc.displayStr, 
-                totalMinutes: calc.totalMinutes,
-                duration: (calc.totalMinutes / 60).toFixed(1),
-                updatedAt: serverTimestamp(), status: "審核中"
+                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
+                duration: (calc.totalMinutes / 60).toFixed(1), updatedAt: serverTimestamp(), status: "審核中"
             };
             if(photo) payload.photo = photo;
             const docId = document.getElementById('editDocId').value;
@@ -436,55 +435,22 @@
         });
     }
 
-    // --- EXCEL 匯出時數格式轉換與工號大小寫邏輯 (包含核准時間顯示) ---
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
-        try {
-            const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-            const combined = snap.docs.map(d=>d.data()).filter(r => {
-                const sd = safeGet(r, ['sDate', 'startDate']);
-                return sd && sd.startsWith(m);
-            });
-            if (combined.length === 0) return alert("無紀錄可導出");
-
-            const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
-            
-            const rows = combined.map(r => {
-                // 將時數轉換為 HHH:MM 格式 (例如 008:00)
-                let excelDuration = r.displayDuration;
-                if (r.totalMinutes != null) {
-                    const h = Math.floor(r.totalMinutes / 60);
-                    const mins = r.totalMinutes % 60;
-                    excelDuration = `${String(h).padStart(3, '0')}:${String(mins).padStart(2, '0')}`;
-                } else if (r.displayDuration) {
-                    const match = r.displayDuration.match(/(\d+)\s*時\s*(\d+)\s*分/);
-                    if (match) {
-                        const h = parseInt(match[1], 10);
-                        const mins = parseInt(match[2], 10);
-                        excelDuration = `${String(h).padStart(3, '0')}:${String(mins).padStart(2, '0')}`;
-                    }
-                }
-
-                // 工號 FGH 開頭轉小寫，其餘保持不變 (包含 D 維持大寫)
-                let exportId = r.id || "";
-                if (exportId) {
-                    const firstChar = exportId.charAt(0).toUpperCase();
-                    if (['F', 'G', 'H'].includes(firstChar)) {
-                        exportId = exportId.toLowerCase();
-                    }
-                }
-
-                // 匯出資料陣列最後補上核准時間 (approveTime 欄位)
-                return [
-                    exportId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, excelDuration, r.reason, r.dept, (r.approveTime || "")
-                ];
-            });
-
-            const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-            XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
-        } catch (e) { alert("導出錯誤：" + e.message); }
+        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
+        const combined = snap.docs.map(d=>d.data()).filter(r => safeGet(r, ['sDate', 'startDate']).startsWith(m));
+        if (combined.length === 0) return alert("無紀錄可導出");
+        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
+        const rows = combined.map(r => {
+            let h = Math.floor(r.totalMinutes / 60), mins = r.totalMinutes % 60;
+            let exportId = r.id || "";
+            if (['F', 'G', 'H'].includes(exportId.charAt(0).toUpperCase())) exportId = exportId.toLowerCase();
+            return [exportId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, `${String(h).padStart(3,'0')}:${String(mins).padStart(2,'0')}`, r.reason, r.dept, r.approveTime || ""];
+        });
+        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+        XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
     };
 
     window.autoFetchName = async () => {
@@ -520,7 +486,7 @@
         const tbody = document.getElementById('allTableBody'), start = (currentPage - 1) * rowsPerPage, pageData = filteredRecords.slice(start, start + rowsPerPage);
         tbody.innerHTML = pageData.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;object-fit:cover;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
+            return `<tr><td>${r.dept || ""}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td><button class="btn-action-s btn-edit" onclick="editExistingRecord('${r.docId}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelAndRemoveRecord('${r.docId}')">銷假</button></td></tr>`;
         }).join('');
         document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage) || 1}`;
     }
@@ -529,6 +495,23 @@
         const max = Math.ceil(filteredRecords.length / rowsPerPage);
         currentPage = Math.max(1, Math.min(max, currentPage + dir));
         renderTable();
+    };
+
+    window.searchPersonalRecords = async () => {
+        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!id) return alert("請輸入工號");
+        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        const tbody = document.getElementById('personalTableBody');
+        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>'; }
+        else {
+            tbody.innerHTML = snap.docs.map(d => {
+                const r = d.data();
+                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+                return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:11px;">${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td><span class="status-badge ${r.status==='批准'?'status-approved':r.status==='退件'?'status-rejected':'status-pending'}">${r.status}</span></td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editExistingRecord('${d.id}')">修改</button>` : '-'}</td></tr>`;
+            }).join('');
+        }
+        document.getElementById('personalResultArea').style.display = 'block';
     };
 
     window.editExistingRecord = async (docId) => {
@@ -547,37 +530,29 @@
             document.getElementById('reason').value = r.reason || "";
             document.getElementById('hasSelectedShift').value = "true";
             document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-            window.autoCalc(); switchPage('dashboard');
+            window.autoCalc(); window.switchPage('dashboard');
         }
     };
 
     window.cancelAndRemoveRecord = async (docId) => {
-        if (confirm("確定銷除此張假單？紀錄將直接移除。")) {
-            await deleteDoc(doc(db, "formEntries", docId)); alert("已移除"); window.loadAllData();
-        }
+        if (confirm("確定銷除此張假單？")) { await deleteDoc(doc(db, "formEntries", docId)); alert("已銷假"); window.loadAllData(); }
     };
 
-    window.checkAdminAccess = () => {
-        const pwd = prompt("請輸入核准密碼:");
-        if (adminPasswords[pwd]) { 
-            currentAdminDept = adminPasswords[pwd];
-            window.switchPage('admin');
-        } else {
-            alert("密碼錯誤");
-        }
+    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
+            else { el.innerText = el.dataset.zh || el.innerText; }
+        });
     };
 
-    window.openLightbox = (src) => {
-        const lb = document.getElementById('imageLightbox');
-        document.getElementById('lightboxImg').src = src;
-        lb.style.display = 'flex';
+    window.onload = () => {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('filterMonth').value = today.substring(0, 7);
+        document.getElementById('exportMonth').value = today.substring(0, 7);
     };
-
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = 'none';
-    };
-
-    // 其他原本應有的功能 (如 loadAdminData 等) 請保留在您的專案中。
 </script>
 </body>
 </html>
