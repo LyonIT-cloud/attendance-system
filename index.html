@@ -191,7 +191,7 @@
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
                     <label data-vi="Tải ảnh bằng證">證明文件上傳 <span style="color:red; font-size:12px;">(病假必傳)</span></label>
-                    <input type="file" id="leaveImg" accept="image/*" capture="environment">
+                    <input type="file" id="leaveImg" accept="image/*">
                 </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
             </div>
@@ -549,112 +549,30 @@
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('page-'+id).classList.add('active');
         document.getElementById('nav-'+id).classList.add('active');
-        if(id === 'search') window.loadAllData();
         if(id === 'admin') window.loadAdminData();
+        if(id === 'search') window.applyFilters();
     };
 
-    window.loadAllData = async () => {
-        // 保留原有的數據加載與分頁邏輯
-        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("updatedAt", "desc")));
-        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        window.applyFilters();
-    };
-
-    window.applyFilters = () => {
-        const m = document.getElementById('filterMonth').value;
-        const d = document.getElementById('filterDept').value;
-        const s = document.getElementById('filterStatus').value;
-        filteredRecords = allRecords.filter(r => {
-            const matchM = !m || safeGet(r, ['sDate', 'startDate']).startsWith(m);
-            const matchD = !d || r.dept === d;
-            const matchS = !s || r.status === s;
-            return matchM && matchD && matchS;
-        });
-        currentPage = 1;
-        window.renderTable();
-    };
-
-    window.renderTable = () => {
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        const paged = filteredRecords.slice(start, end);
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = paged.map(r => {
-            let sClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-            const updateTime = r.approveTime || (r.updatedAt ? new Date(r.updatedAt.seconds*1000).toLocaleString() : "-");
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="status-badge ${sClass}">${r.status}</td><td style="font-size:11px;">${updateTime}</td></tr>`;
-        }).join('');
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length / rowsPerPage) || 1}`;
-    };
-
-    window.changePage = (dir) => {
-        const max = Math.ceil(filteredRecords.length / rowsPerPage);
-        currentPage = Math.max(1, Math.min(max, currentPage + dir));
-        window.renderTable();
-    };
-
+    // 其他必要全域函式補齊
     window.openLightbox = (src) => {
-        document.getElementById('lightboxImg').src = src;
-        document.getElementById('imageLightbox').style.display = 'flex';
+        const modal = document.getElementById('imageLightbox');
+        const img = document.getElementById('lightboxImg');
+        img.src = src;
+        modal.style.display = 'flex';
     };
-
     window.closeLightbox = () => {
         document.getElementById('imageLightbox').style.display = 'none';
     };
-
-    window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("updatedAt", "desc"));
-        const snap = await getDocs(q);
-        const tbody = document.getElementById('personalTableBody');
-        document.getElementById('personalResultArea').style.display = 'block';
-        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
-        tbody.innerHTML = snap.docs.map(d => {
-            const r = d.data();
-            let sClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const actionBtn = r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editLeave('${d.id}')">編</button><button class="btn-action-s btn-cancel-leave" onclick="deleteLeave('${d.id}')">刪</button>` : '-';
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px;">${r.sDate}<br>~${r.eDate}</td><td>${r.displayDuration || ""}</td><td class="status-badge ${sClass}">${r.status}</td><td>${actionBtn}</td></tr>`;
-        }).join('');
-    };
-
-    window.editLeave = async (docId) => {
-        const snap = await getDoc(doc(db, "formEntries", docId));
-        if(!snap.exists()) return;
-        const r = snap.data();
-        document.getElementById('editDocId').value = docId;
-        document.getElementById('empId').value = r.id;
-        document.getElementById('empName').value = r.name;
-        document.getElementById('dept').value = r.dept;
-        document.getElementById('leaveType').value = r.leaveType;
-        document.getElementById('startDate').value = r.sDate;
-        document.getElementById('startTime').value = r.sTime;
-        document.getElementById('endDate').value = r.eDate;
-        document.getElementById('endTime').value = r.eTime;
-        document.getElementById('reason').value = r.reason;
-        document.getElementById('hasSelectedShift').value = "true";
-        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-        window.switchPage('dashboard');
-        window.autoCalc();
-        alert("已載入資料，修改後請按確認送出");
-    };
-
-    window.deleteLeave = async (docId) => {
-        if(!confirm("確定要刪除/撤回此申請嗎？")) return;
-        await deleteDoc(doc(db, "formEntries", docId));
-        alert("已刪除");
-        window.searchPersonalRecords();
-    };
-
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            const zh = el.getAttribute('data-zh') || el.innerText;
-            if(!el.getAttribute('data-zh')) el.setAttribute('data-zh', zh);
-            el.innerText = lang === 'vi' ? el.getAttribute('data-vi') : el.getAttribute('data-zh');
+            if(lang === 'vi') {
+                if(!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                if(el.dataset.zh) el.innerText = el.dataset.zh;
+            }
         });
     };
 </script>
-
 </body>
 </html>
