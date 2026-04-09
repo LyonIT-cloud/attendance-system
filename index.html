@@ -513,7 +513,7 @@
         });
     }
 
-    // 修正 NAN:NAN 問題
+    // 修正 NAN:NAN 問題並新增 T 選項處理
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
@@ -525,7 +525,12 @@
             const tMin = (r.totalMinutes && !isNaN(r.totalMinutes)) ? r.totalMinutes : 0;
             let h = Math.floor(tMin / 60), mins = tMin % 60;
             let exportId = r.id || "";
-            if (['F', 'G', 'H'].includes(exportId.charAt(0).toUpperCase())) exportId = exportId.toLowerCase();
+            // 邏輯調整：僅 F, G, H 開頭轉小寫，其餘（包含 T）維持大寫
+            if (['F', 'G', 'H'].includes(exportId.charAt(0).toUpperCase())) {
+                exportId = exportId.toLowerCase();
+            } else {
+                exportId = exportId.toUpperCase();
+            }
             return [exportId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, `${String(h).padStart(3,'0')}:${String(mins).padStart(2,'0')}`, r.reason, r.dept, r.approveTime || ""];
         });
         const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -549,117 +554,107 @@
     };
 
     window.loadAllData = async () => {
-        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("createdAt", "desc")));
+        // 保留原有的數據加載與分頁邏輯
+        const snap = await getDocs(query(collection(db, "formEntries"), orderBy("updatedAt", "desc")));
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
         window.applyFilters();
     };
 
     window.applyFilters = () => {
-        const fm = document.getElementById('filterMonth').value;
-        const fd = document.getElementById('filterDept').value;
-        const fs = document.getElementById('filterStatus').value;
+        const m = document.getElementById('filterMonth').value;
+        const d = document.getElementById('filterDept').value;
+        const s = document.getElementById('filterStatus').value;
         filteredRecords = allRecords.filter(r => {
-            const dateMatch = !fm || safeGet(r, ['sDate', 'startDate']).startsWith(fm);
-            const deptMatch = !fd || r.dept === fd;
-            const statusMatch = !fs || r.status === fs;
-            return dateMatch && deptMatch && statusMatch;
+            const matchM = !m || safeGet(r, ['sDate', 'startDate']).startsWith(m);
+            const matchD = !d || r.dept === d;
+            const matchS = !s || r.status === s;
+            return matchM && matchD && matchS;
         });
         currentPage = 1;
-        renderTable();
+        window.renderTable();
     };
 
-    function renderTable() {
-        const tbody = document.getElementById('allTableBody');
+    window.renderTable = () => {
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
-        const paginated = filteredRecords.slice(start, end);
-        if (paginated.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無資料</td></tr>';
-            document.getElementById('pageInfo').innerText = "1 / 1";
-            return;
-        }
-        tbody.innerHTML = paginated.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+        const paged = filteredRecords.slice(start, end);
+        const tbody = document.getElementById('allTableBody');
+        tbody.innerHTML = paged.map(r => {
             let sClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="status-badge ${sClass}">${r.status}</td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="window.editLeave('${r.docId}')">編</button>` : '-'}</td></tr>`;
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+            const updateTime = r.approveTime || (r.updatedAt ? new Date(r.updatedAt.seconds*1000).toLocaleString() : "-");
+            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="status-badge ${sClass}">${r.status}</td><td style="font-size:11px;">${updateTime}</td></tr>`;
         }).join('');
-        const totalP = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalP}`;
-    }
-
-    window.changePage = (dir) => {
-        const totalP = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        currentPage += dir;
-        if (currentPage < 1) currentPage = 1;
-        if (currentPage > totalP) currentPage = totalP;
-        renderTable();
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length / rowsPerPage) || 1}`;
     };
 
-    window.editLeave = async (docId) => {
-        const snap = await getDoc(doc(db, "formEntries", docId));
-        if(!snap.exists()) return;
-        const data = snap.data();
-        document.getElementById('editDocId').value = docId;
-        document.getElementById('empId').value = data.id;
-        document.getElementById('empName').value = data.name;
-        document.getElementById('dept').value = data.dept;
-        document.getElementById('leaveType').value = data.leaveType;
-        document.getElementById('startDate').value = data.sDate || data.startDate;
-        document.getElementById('startTime').value = data.sTime || data.startTime;
-        document.getElementById('endDate').value = data.eDate || data.endDate;
-        document.getElementById('endTime').value = data.eTime || data.endTime;
-        document.getElementById('reason').value = data.reason || "";
-        document.getElementById('hasSelectedShift').value = "true";
-        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-        window.switchPage('dashboard');
-        window.autoCalc();
-        document.getElementById('submitBtn').innerText = "更新申請單資料";
+    window.changePage = (dir) => {
+        const max = Math.ceil(filteredRecords.length / rowsPerPage);
+        currentPage = Math.max(1, Math.min(max, currentPage + dir));
+        window.renderTable();
+    };
+
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
+    };
+
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
     };
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!id) return alert("請輸入工號");
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
+        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("updatedAt", "desc"));
         const snap = await getDocs(q);
-        const area = document.getElementById('personalResultArea');
         const tbody = document.getElementById('personalTableBody');
-        area.style.display = "block";
-        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>'; return; }
+        document.getElementById('personalResultArea').style.display = 'block';
+        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
         tbody.innerHTML = snap.docs.map(d => {
             const r = d.data();
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.status}</td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-cancel-leave" onclick="window.deleteEntry('${d.id}')">撤</button>` : '-'}</td></tr>`;
+            let sClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            const actionBtn = r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="editLeave('${d.id}')">編</button><button class="btn-action-s btn-cancel-leave" onclick="deleteLeave('${d.id}')">刪</button>` : '-';
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px;">${r.sDate}<br>~${r.eDate}</td><td>${r.displayDuration || ""}</td><td class="status-badge ${sClass}">${r.status}</td><td>${actionBtn}</td></tr>`;
         }).join('');
     };
 
-    window.deleteEntry = async (docId) => {
-        if(!confirm("確定要撤回此申請嗎？")) return;
+    window.editLeave = async (docId) => {
+        const snap = await getDoc(doc(db, "formEntries", docId));
+        if(!snap.exists()) return;
+        const r = snap.data();
+        document.getElementById('editDocId').value = docId;
+        document.getElementById('empId').value = r.id;
+        document.getElementById('empName').value = r.name;
+        document.getElementById('dept').value = r.dept;
+        document.getElementById('leaveType').value = r.leaveType;
+        document.getElementById('startDate').value = r.sDate;
+        document.getElementById('startTime').value = r.sTime;
+        document.getElementById('endDate').value = r.eDate;
+        document.getElementById('endTime').value = r.eTime;
+        document.getElementById('reason').value = r.reason;
+        document.getElementById('hasSelectedShift').value = "true";
+        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
+        window.switchPage('dashboard');
+        window.autoCalc();
+        alert("已載入資料，修改後請按確認送出");
+    };
+
+    window.deleteLeave = async (docId) => {
+        if(!confirm("確定要刪除/撤回此申請嗎？")) return;
         await deleteDoc(doc(db, "formEntries", docId));
-        alert("已撤回"); window.searchPersonalRecords();
-    };
-
-    window.openLightbox = (src) => {
-        const modal = document.getElementById('imageLightbox');
-        const img = document.getElementById('lightboxImg');
-        img.src = src; modal.style.display = "flex";
-    };
-
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = "none";
+        alert("已刪除");
+        window.searchPersonalRecords();
     };
 
     window.changeLanguage = (lang) => {
         document.querySelectorAll('[data-vi]').forEach(el => {
-            const viText = el.getAttribute('data-vi');
-            const zhText = el.innerText;
-            if (lang === 'vi') {
-                if (!el.getAttribute('data-zh')) el.setAttribute('data-zh', zhText);
-                el.innerText = viText;
-            } else {
-                el.innerText = el.getAttribute('data-zh') || zhText;
-            }
+            const zh = el.getAttribute('data-zh') || el.innerText;
+            if(!el.getAttribute('data-zh')) el.setAttribute('data-zh', zh);
+            el.innerText = lang === 'vi' ? el.getAttribute('data-vi') : el.getAttribute('data-zh');
         });
     };
 </script>
+
 </body>
 </html>
