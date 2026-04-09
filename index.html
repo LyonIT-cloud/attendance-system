@@ -268,7 +268,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, limit, where, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -303,6 +303,31 @@
         if (eMonth) eMonth.value = yearMonth;
     });
 
+    // [新增功能] 自動帶入姓名與部門
+    window.autoFetchName = async () => {
+        const idInput = document.getElementById('empId');
+        const id = idInput.value.trim().toUpperCase();
+        if (id.length < 3) return; 
+
+        try {
+            // 查詢該工號最近的一筆申請紀錄
+            const q = query(
+                collection(db, "formEntries"), 
+                where("id", "==", id), 
+                orderBy("createdAt", "desc"), 
+                limit(1)
+            );
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const data = snap.docs[0].data();
+                document.getElementById('empName').value = data.name || "";
+                if (data.dept) document.getElementById('dept').value = data.dept;
+            }
+        } catch (e) {
+            console.error("自動帶入失敗:", e);
+        }
+    };
+
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
@@ -310,7 +335,6 @@
         return defaultVal;
     }
 
-    // [新增功能] 準備修改假單
     window.prepareEdit = (recordJson) => {
         const r = JSON.parse(decodeURIComponent(recordJson));
         document.getElementById('editDocId').value = r.docId;
@@ -324,7 +348,6 @@
         document.getElementById('endTime').value = r.eTime || r.endTime;
         document.getElementById('reason').value = r.reason || "";
         
-        // 切換班別按鈕外觀與邏輯觸發
         const isDayShift = (r.sTime >= "07:00" && r.sTime <= "17:30");
         window.setShift(isDayShift ? 'day' : 'middle');
         
@@ -334,32 +357,17 @@
         window.scrollTo(0,0);
     };
 
-    // [新增功能] 銷假 (刪除紀錄)
     window.cancelLeave = async (docId) => {
-        if (!confirm("確定要銷假嗎？這將會永久刪除此筆請假紀錄，避免後續報表統計誤算。")) return;
+        if (!confirm("確定要銷假嗎？這將會永久刪除此筆請假紀錄。")) return;
         try {
             await deleteDoc(doc(db, "formEntries", docId));
             alert("已成功銷假");
-            if (document.getElementById('page-personal').classList.contains('active')) searchPersonalRecords();
-            if (document.getElementById('page-search').classList.contains('active')) applyFilters();
+            if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
+            if (document.getElementById('page-search').classList.contains('active')) window.applyFilters();
         } catch (e) {
             alert("銷假失敗：" + e.message);
         }
     };
-
-    async function autoCleanupRecords() {
-        try {
-            const now = new Date();
-            const cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const cutoffStr = cutoffDate.toISOString().split('T')[0]; 
-            const q = query(collection(db, "formEntries"), where("sDate", "<", cutoffStr));
-            const snap = await getDocs(q);
-            if (snap.empty) return;
-            const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "formEntries", d.id)));
-            await Promise.all(deletePromises);
-            console.log("系統維護：已清理過期紀錄。");
-        } catch (e) { console.error("清理失敗:", e); }
-    }
 
     window.checkAdminAccess = () => {
         const pw = prompt("請輸入主管管理密碼:");
@@ -367,7 +375,6 @@
             currentAdminDept = adminPasswords[pw];
             window.switchPage('admin');
             window.loadAdminData();
-            autoCleanupRecords();
         } else if (pw !== null) { alert("密碼錯誤！"); }
     };
 
@@ -526,7 +533,7 @@
         });
     }
 
-    // [增補與完成原有功能] 核准清單過濾器
+    // 核准清單邏輯
     window.applyFilters = async () => {
         const m = document.getElementById('filterMonth').value;
         const d = document.getElementById('filterDept').value;
@@ -535,170 +542,87 @@
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">加載中...</td></tr>';
         
         try {
-            const q = query(collection(db, "formEntries")); // 移除 orderBy 避免缺索引問題
+            const q = query(collection(db, "formEntries")); 
             const snap = await getDocs(q);
             allRecords = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
             
-            // 排序資料：依據 sDate 或 startDate 降序
             allRecords.sort((a, b) => {
                 const dateA = safeGet(a, ['sDate', 'startDate']);
                 const dateB = safeGet(b, ['sDate', 'startDate']);
-                if(dateA < dateB) return 1;
-                if(dateA > dateB) return -1;
-                return 0;
+                return dateB.localeCompare(dateA);
             });
 
             filteredRecords = allRecords.filter(r => {
-                const dateStr = safeGet(r, ['sDate', 'startDate']);
-                const matchM = !m || dateStr.startsWith(m);
-                const matchD = !d || r.dept === d;
-                const matchS = !s || r.status === s;
-                return matchM && matchD && matchS;
+                const sd = safeGet(r, ['sDate', 'startDate']);
+                const matchMonth = !m || sd.startsWith(m);
+                const matchDept = !d || r.dept === d;
+                const matchStatus = !s || r.status === s;
+                return matchMonth && matchDept && matchStatus;
             });
+
             currentPage = 1;
-            window.renderTable();
-        } catch (e) {
-            console.error("加載清單錯誤:", e);
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red;">讀取失敗: ${e.message}</td></tr>`;
-        }
+            renderTable();
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="9">讀取失敗: ${e.message}</td></tr>`; }
     };
 
-    // [增補功能] 渲染核准清單列表，包含修改與銷假選項
-    window.renderTable = () => {
+    function renderTable() {
         const tbody = document.getElementById('allTableBody');
-        if (filteredRecords.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無資料</td></tr>';
-            document.getElementById('pageInfo').innerText = "1 / 1";
-            return;
-        }
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
         const start = (currentPage - 1) * rowsPerPage;
         const pageData = filteredRecords.slice(start, start + rowsPerPage);
         
         tbody.innerHTML = pageData.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']);
-            const st = safeGet(r, ['sTime', 'startTime']);
-            const ed = safeGet(r, ['eDate', 'endDate']);
             const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const recordJson = encodeURIComponent(JSON.stringify(r));
             return `<tr>
-                <td>${r.dept}</td>
-                <td>${r.id || ''}</td>
-                <td>${r.name}</td>
-                <td>${r.leaveType}</td>
-                <td>${sd} ${st}<br>~${ed}</td>
-                <td>${r.displayDuration || ""}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td class="status-badge ${statusClass}">${r.status || '審核中'}</td>
+                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+                <td>${sd}</td><td>${r.displayDuration || (r.duration + '時')}</td>
+                <td>${r.photo ? `<button onclick="window.openLightbox('${r.photo}')">圖</button>` : '-'}</td>
+                <td class="${statusClass}">${r.status}</td>
                 <td>
-                    <button class="btn-action-s btn-edit" onclick="prepareEdit('${recordJson}')">修改</button>
-                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>
+                    <button class="btn-action-s btn-edit" onclick="prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">改</button>
+                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button>
                 </td>
             </tr>`;
         }).join('');
+        
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+    }
+
+    window.changePage = (dir) => {
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        currentPage = Math.max(1, Math.min(totalPages, currentPage + dir));
+        renderTable();
     };
 
-    // [新增功能] 個人紀錄查詢功能，同時也包含修改與銷假
-    window.searchPersonalRecords = async () => {
-        const empId = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if (!empId) return alert("請輸入工號！");
-        const tbody = document.getElementById('personalTableBody');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
-        document.getElementById('personalResultArea').style.display = "block";
-
-        try {
-            const q = query(collection(db, "formEntries"), where("id", "==", empId));
-            const snap = await getDocs(q);
-            let records = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-
-            // 確保本地排序，避免 Firebase 需要額外建立複合索引
-            records.sort((a, b) => {
-                let timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-                let timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-                return timeB - timeA;
-            });
-
-            if (records.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無此人工號的請假紀錄</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = records.map(r => {
-                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-                const ed = safeGet(r, ['eDate', 'endDate']);
-                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-                const recordJson = encodeURIComponent(JSON.stringify(r));
-                return `<tr>
-                    <td>${r.name}</td>
-                    <td>${r.leaveType}</td>
-                    <td>${sd} ${st}<br>~${ed}</td>
-                    <td>${r.displayDuration || ""}</td>
-                    <td class="status-badge ${statusClass}">${r.status || '審核中'}</td>
-                    <td>
-                        <button class="btn-action-s btn-edit" onclick="prepareEdit('${recordJson}')">修改</button>
-                        <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>
-                    </td>
-                </tr>`;
-            }).join('');
-        } catch (e) {
-            console.error("個人查詢錯誤:", e);
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">查詢失敗: ${e.message}</td></tr>`;
-        }
-    };
-
-    // [增補與完成原有功能] 其他 UI 功能與導航
     window.switchPage = (pageId) => {
         document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById(`page-${pageId}`).classList.add('active');
         const nav = document.getElementById(`nav-${pageId}`);
         if(nav) nav.classList.add('active');
-        if(pageId === 'search') applyFilters();
+        if(pageId === 'search') window.applyFilters();
     };
 
-    window.changePage = (dir) => {
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
-        if (currentPage + dir >= 1 && currentPage + dir <= totalPages) {
-            currentPage += dir;
-            window.renderTable();
-        }
+    window.searchPersonalRecords = async () => {
+        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!id) return alert("請輸入工號");
+        const tbody = document.getElementById('personalTableBody');
+        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
+        document.getElementById('personalResultArea').style.display = "block";
+        const q = query(collection(db, "formEntries"), where("id", "==", id));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).sort((a,b) => safeGet(b,['sDate']).localeCompare(safeGet(a,['sDate'])));
+        if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
+        tbody.innerHTML = data.map(r => `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${safeGet(r,['sDate'])}</td><td>${r.displayDuration||''}</td><td>${r.status}</td><td><button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button></td></tr>`).join('');
     };
 
     window.openLightbox = (src) => {
         document.getElementById('lightboxImg').src = src;
         document.getElementById('imageLightbox').style.display = 'flex';
     };
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
 
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = 'none';
-    };
-
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if(lang === 'vi') {
-                if(!el.dataset.zh) el.dataset.zh = el.innerText;
-                el.innerText = el.dataset.vi;
-            } else {
-                if(el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
-    };
-
-    window.autoFetchName = () => {
-        // 保留給後續如果需要自動帶入姓名的擴充空間
-    };
-
-    window.exportMonthExcel = () => {
-        if(typeof XLSX !== 'undefined') {
-            const ws = XLSX.utils.json_to_sheet(filteredRecords);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Records");
-            XLSX.writeFile(wb, `Leave_Records_${document.getElementById('exportMonth').value}.xlsx`);
-        } else {
-            alert("Excel導出套件尚未載入");
-        }
-    };
 </script>
 </body>
 </html>
