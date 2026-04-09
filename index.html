@@ -303,25 +303,37 @@
         if (eMonth) eMonth.value = yearMonth;
     });
 
-    // [新增功能] 自動帶入姓名與部門
+    // [新增/修改功能] 自動帶入姓名與部門：從資料庫搜尋歷史紀錄
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
         const id = idInput.value.trim().toUpperCase();
-        if (id.length < 3) return; 
+        
+        // 基本長度校驗，避免頻繁查詢
+        if (id.length < 3) {
+            document.getElementById('empName').value = "";
+            return;
+        } 
 
         try {
-            // 查詢該工號最近的一筆申請紀錄
+            // 查詢該工號最近的一筆申請紀錄（無論狀態為何）
             const q = query(
                 collection(db, "formEntries"), 
                 where("id", "==", id), 
                 orderBy("createdAt", "desc"), 
                 limit(1)
             );
+            
             const snap = await getDocs(q);
             if (!snap.empty) {
                 const data = snap.docs[0].data();
+                // 成功抓到資料，帶入姓名與部門
                 document.getElementById('empName').value = data.name || "";
-                if (data.dept) document.getElementById('dept').value = data.dept;
+                if (data.dept) {
+                    document.getElementById('dept').value = data.dept;
+                }
+            } else {
+                // 如果是全新工號，清空自動帶入欄位讓使用者自行填寫
+                document.getElementById('empName').value = "";
             }
         } catch (e) {
             console.error("自動帶入失敗:", e);
@@ -553,68 +565,116 @@
             });
 
             filteredRecords = allRecords.filter(r => {
-                const sd = safeGet(r, ['sDate', 'startDate']);
-                const matchMonth = !m || sd.startsWith(m);
-                const matchDept = !d || r.dept === d;
-                const matchStatus = !s || r.status === s;
-                return matchMonth && matchDept && matchStatus;
+                const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
+                const matchM = !m || rMonth === m;
+                const matchD = !d || r.dept === d;
+                const matchS = !s || r.status === s;
+                return matchM && matchD && matchS;
             });
 
             currentPage = 1;
             renderTable();
-        } catch (e) { tbody.innerHTML = `<tr><td colspan="9">讀取失敗: ${e.message}</td></tr>`; }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">讀取失敗</td></tr>';
+        }
     };
 
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
         const start = (currentPage - 1) * rowsPerPage;
-        const pageData = filteredRecords.slice(start, start + rowsPerPage);
-        
-        tbody.innerHTML = pageData.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            return `<tr>
-                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-                <td>${sd}</td><td>${r.displayDuration || (r.duration + '時')}</td>
-                <td>${r.photo ? `<button onclick="window.openLightbox('${r.photo}')">圖</button>` : '-'}</td>
-                <td class="${statusClass}">${r.status}</td>
-                <td>
-                    <button class="btn-action-s btn-edit" onclick="prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">改</button>
-                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button>
-                </td>
-            </tr>`;
-        }).join('');
+        const end = start + rowsPerPage;
+        const pageData = filteredRecords.slice(start, end);
+
+        if (pageData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">無相符資料</td></tr>';
+        } else {
+            tbody.innerHTML = pageData.map(r => {
+                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
+                let statusClass = "status-pending";
+                if (r.status === "批准") statusClass = "status-approved";
+                if (r.status === "退件") statusClass = "status-rejected";
+                
+                return `<tr>
+                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+                    <td>${sd} ${st}</td><td>${r.displayDuration || (r.duration + " 小時")}</td>
+                    <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
+                    <td class="status-badge ${statusClass}">${r.status}</td>
+                    <td>
+                        <button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">編</button>
+                        <button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
         
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
-    window.changePage = (dir) => {
+    window.changePage = (offset) => {
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        currentPage = Math.max(1, Math.min(totalPages, currentPage + dir));
-        renderTable();
-    };
-
-    window.switchPage = (pageId) => {
-        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById(`page-${pageId}`).classList.add('active');
-        const nav = document.getElementById(`nav-${pageId}`);
-        if(nav) nav.classList.add('active');
-        if(pageId === 'search') window.applyFilters();
+        let newPage = currentPage + offset;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            renderTable();
+        }
     };
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
+        if (!id) return alert("請輸入工號");
         const tbody = document.getElementById('personalTableBody');
-        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">搜尋中...</td></tr>';
         document.getElementById('personalResultArea').style.display = "block";
+
         const q = query(collection(db, "formEntries"), where("id", "==", id));
         const snap = await getDocs(q);
-        const data = snap.docs.map(d => ({docId: d.id, ...d.data()})).sort((a,b) => safeGet(b,['sDate']).localeCompare(safeGet(a,['sDate'])));
-        if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
-        tbody.innerHTML = data.map(r => `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${safeGet(r,['sDate'])}</td><td>${r.displayDuration||''}</td><td>${r.status}</td><td><button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button></td></tr>`).join('');
+        const results = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        results.sort((a,b) => (b.sDate||b.startDate).localeCompare(a.sDate||a.startDate));
+
+        if (results.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>';
+        } else {
+            tbody.innerHTML = results.map(r => {
+                const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+                return `<tr>
+                    <td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>~${ed}</td><td>${r.displayDuration || ""}</td>
+                    <td>${r.status}</td>
+                    <td><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button></td>
+                </tr>`;
+            }).join('');
+        }
+    };
+
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if (!m) return alert("請選擇月份");
+        const q = query(collection(db, "formEntries"));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(d => d.data()).filter(r => (r.sDate||r.startDate||"").startsWith(m));
+        
+        if (data.length === 0) return alert("該月份無資料");
+
+        const excelData = data.map(r => ({
+            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
+            "起始": `${safeGet(r, ['sDate', 'startDate'])} ${safeGet(r, ['sTime', 'startTime'])}`,
+            "結束": `${safeGet(r, ['eDate', 'endDate'])} ${safeGet(r, ['eTime', 'endTime'])}`,
+            "時數": r.displayDuration || "", "狀態": r.status, "核准時間": r.approveTime || ""
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+        XLSX.writeFile(wb, `Attendance_${m}.xlsx`);
+    };
+
+    window.switchPage = (pid) => {
+        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('page-' + pid).classList.add('active');
+        document.getElementById('nav-' + pid).classList.add('active');
+        if (pid === 'search') window.applyFilters();
     };
 
     window.openLightbox = (src) => {
@@ -623,6 +683,17 @@
     };
     window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
 
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
+        });
+    };
 </script>
+
 </body>
 </html>
