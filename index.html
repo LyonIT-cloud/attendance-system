@@ -303,6 +303,130 @@
         if (eMonth) eMonth.value = yearMonth;
     });
 
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.innerText;
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = zhText;
+                el.innerText = viText;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
+        });
+    };
+
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
+    };
+
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
+    };
+
+    window.setShift = (shift) => {
+        document.getElementById('shiftDayBtn').className = 'btn';
+        document.getElementById('shiftMidBtn').className = 'btn';
+        document.getElementById('hasSelectedShift').value = "true";
+        document.getElementById('startDate').disabled = false;
+        document.getElementById('startTime').disabled = false;
+        document.getElementById('endDate').disabled = false;
+        document.getElementById('endTime').disabled = false;
+        
+        if (shift === 'day') {
+            document.getElementById('shiftDayBtn').classList.add('shift-active');
+            document.getElementById('startTime').value = "08:30";
+            document.getElementById('endTime').value = "17:30";
+        } else {
+            document.getElementById('shiftMidBtn').classList.add('shift-active');
+            document.getElementById('startTime').value = "16:00";
+            document.getElementById('endTime').value = "00:30";
+        }
+        window.autoCalc();
+    };
+
+    window.autoCalc = () => {
+        const sD = document.getElementById('startDate').value;
+        const sT = document.getElementById('startTime').value;
+        const eD = document.getElementById('endDate').value;
+        const eT = document.getElementById('endTime').value;
+        if (!sD || !sT || !eD || !eT) return;
+
+        const start = new Date(`${sD}T${sT}`);
+        const end = new Date(`${eD}T${eT}`);
+        let diffMs = end - start;
+        if (diffMs < 0) {
+            document.getElementById('durationText').innerText = "結束時間不能早於開始時間";
+            return;
+        }
+
+        let totalMinutes = Math.floor(diffMs / (1000 * 60));
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        document.getElementById('durationText').innerText = `總時數：${hours} 小時 ${mins} 分鐘`;
+        document.getElementById('durationText').dataset.minutes = totalMinutes;
+    };
+
+    window.saveToCloud = async () => {
+        const id = document.getElementById('empId').value.trim().toUpperCase();
+        const name = document.getElementById('empName').value;
+        const dept = document.getElementById('dept').value;
+        const leaveType = document.getElementById('leaveType').value;
+        const sDate = document.getElementById('startDate').value;
+        const sTime = document.getElementById('startTime').value;
+        const eDate = document.getElementById('endDate').value;
+        const eTime = document.getElementById('endTime').value;
+        const reason = document.getElementById('reason').value;
+        const totalMinutes = parseInt(document.getElementById('durationText').dataset.minutes || 0);
+        const editDocId = document.getElementById('editDocId').value;
+
+        if (!id || !name || !dept || !sDate || !totalMinutes) return alert("請完整填寫資訊");
+        if (leaveType === "病假" && !document.getElementById('leaveImg').files[0] && !editDocId) {
+            return alert("申請病假必須上傳證明文件！");
+        }
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "處理中...";
+
+        try {
+            let photoUrl = "";
+            const file = document.getElementById('leaveImg').files[0];
+            if (file) {
+                photoUrl = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            const hh = String(Math.floor(totalMinutes / 60)).padStart(3, '0');
+            const mm = String(totalMinutes % 60).padStart(2, '0');
+            const displayDuration = `${hh}:${mm}`;
+
+            const payload = {
+                id, name, dept, leaveType, sDate, sTime, eDate, eTime, reason, 
+                totalMinutes, displayDuration, photo: photoUrl, 
+                status: "審核中", createdAt: serverTimestamp()
+            };
+
+            if (editDocId) {
+                if (!photoUrl) delete payload.photo;
+                await updateDoc(doc(db, "formEntries", editDocId), payload);
+                alert("假單修改成功！");
+            } else {
+                await addDoc(collection(db, "formEntries"), payload);
+                alert("假單已成功送出！");
+            }
+            location.reload();
+        } catch (e) {
+            alert("提交失敗：" + e.message);
+            btn.disabled = false;
+            btn.innerText = "確認送出申請";
+        }
+    };
+
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
         const id = idInput.value.trim().toUpperCase();
@@ -420,7 +544,7 @@
         } catch (e) { alert("批次處理錯誤：" + e.message); } finally { btn.disabled = false; }
     };
 
-    // 新增/修改需求：EXCEL 導出規則實現
+    // 修正後的 EXCEL 導出規則：完全對齊 12 個欄位
     window.exportMonthExcel = async () => {
         const month = document.getElementById('exportMonth').value;
         if(!month) return alert("請選擇月份");
@@ -429,7 +553,7 @@
             const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
             const snap = await getDocs(q);
             
-            // 需求 2: 只匯出批准的選項，且屬於該月份
+            // 只匯出「批准」且屬於該月份的紀錄
             const records = snap.docs.map(d => d.data()).filter(r => {
                 const sDate = r.sDate || r.startDate;
                 return r.status === "批准" && sDate && sDate.startsWith(month);
@@ -437,36 +561,39 @@
 
             if (records.length === 0) return alert("該月份無已批准的紀錄可供導出。");
 
-            // 需求 3: 按照格式呈現
-            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "主管批准日期與時間"];
+            // 嚴格對齊報表要求的 12 個欄位
+            const headers = [
+                "員工代號", "員工姓名", "假別", "出勤日期", 
+                "開始日期", "開始時間", "結束日期", "結束時間", 
+                "請假時數", "事由", "部門", "核准時間"
+            ];
             
             const dataRows = records.map(r => {
-                // 需求 1: F、G、H開頭工號英文要轉小寫
+                // 邏輯 1: F、G、H 開頭工號英文轉小寫
                 let empId = r.id || "";
                 if (/^[FGH]/i.test(empId)) {
                     empId = empId.toLowerCase();
                 }
 
-                // 時數格式轉換 (008:00 格式)
-                const hh = String(Math.floor(r.totalMinutes / 60)).padStart(3, '0');
-                const mm = String(r.totalMinutes % 60).padStart(2, '0');
+                // 邏輯 2: 時數格式補零 (例如 008:00)
+                const totalMinutes = r.totalMinutes || 0;
+                const hh = String(Math.floor(totalMinutes / 60)).padStart(3, '0');
+                const mm = String(totalMinutes % 60).padStart(2, '0');
                 const formattedDuration = `${hh}:${mm}`;
 
                 return [
                     empId,
                     r.name || "",
                     r.leaveType || "",
-                    r.sDate || "", // 出勤日期
-                    r.sDate || "", // 開始日期
-                    r.sTime || "",
-                    r.eDate || "",
-                    r.eTime || "",
+                    r.sDate || r.startDate || "",
+                    r.sDate || r.startDate || "",
+                    r.sTime || r.startTime || "",
+                    r.eDate || r.endDate || "",
+                    r.eTime || r.endTime || "",
                     formattedDuration,
-                    "", // 扣伙食費
-                    "", // 扣交通津貼
                     r.reason || "",
-                    r.dept || "", // 備註 (以部門為備註內容)
-                    r.approveTime || "" // 需求 4: 備註旁邊新增主管批准日期與時間
+                    r.dept || "",
+                    r.approveTime || ""
                 ];
             });
 
@@ -561,124 +688,8 @@
                 return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration}</td><td>${statusStr}</td>
                 <td><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button></td></tr>`;
             }).join('');
-        } catch(e) { tbody.innerHTML = `<tr><td colspan="6">查詢失敗: ${e.message}</td></tr>`; }
+        } catch(e) { tbody.innerHTML = `<tr><td colspan="6">查詢出錯</td></tr>`; }
     };
-
-    // 保留原本的計算與班別邏輯
-    window.setShift = (s) => {
-        document.getElementById('hasSelectedShift').value = "true";
-        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-        document.getElementById('shiftDayBtn').className = (s === 'day' ? 'btn shift-active' : 'btn');
-        document.getElementById('shiftMidBtn').className = (s === 'middle' ? 'btn shift-active' : 'btn');
-        const sd = document.getElementById('startDate').value;
-        if(s === 'day'){ 
-            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
-            if(sd) document.getElementById('endDate').value = sd; 
-        } else { 
-            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
-            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
-        }
-        window.autoCalc();
-    };
-
-    // 其餘內部邏輯 coreCalcMinutes, saveToCloud, compressImage 等... 均保留並維持運作
-    function coreCalcMinutes(d1, t1, d2, t2) {
-        if(!d1 || !t1 || !d2 || !t2) return 0;
-        let startDT = new Date(`${d1}T${t1}`);
-        let endDT = new Date(`${d2}T${t2}`);
-        if (endDT <= startDT) return 0;
-        const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
-        const sWorkTime = isDayShift ? "08:30" : "18:00";
-        const eWorkTime = isDayShift ? "17:30" : "02:30";
-        const breakStartStr = isDayShift ? "12:00" : "00:00";
-        const breakEndStr = isDayShift ? "13:00" : "00:30";
-        let totalMinutes = 0;
-        let iterDate = new Date(d1);
-        let lastDate = new Date(d2);
-        while (iterDate <= lastDate) {
-            let dayOfWeek = iterDate.getDay();
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                let dayStr = iterDate.toISOString().split('T')[0];
-                let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
-                let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
-                if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
-                let actualStart = new Date(Math.max(startDT, shiftStart));
-                let actualEnd = new Date(Math.min(endDT, shiftEnd));
-                if (actualStart < actualEnd) {
-                    let diffMins = (actualEnd - actualStart) / (1000 * 60);
-                    let bS = new Date(`${dayStr}T${breakStartStr}`);
-                    let bE = new Date(`${dayStr}T${breakEndStr}`);
-                    if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
-                    let intersectStart = new Date(Math.max(actualStart, bS));
-                    let intersectEnd = new Date(Math.min(actualEnd, bE));
-                    if (intersectStart < intersectEnd) { diffMins -= (intersectEnd - intersectStart) / (1000 * 60); }
-                    totalMinutes += diffMins;
-                }
-            }
-            iterDate.setDate(iterDate.getDate() + 1);
-        }
-        return Math.max(0, Math.round(totalMinutes));
-    }
-
-    window.autoCalc = () => {
-        const min = coreCalcMinutes(
-            document.getElementById('startDate').value, document.getElementById('startTime').value,
-            document.getElementById('endDate').value, document.getElementById('endTime').value
-        );
-        const h = Math.floor(min / 60), m = min % 60;
-        const display = `${h} 時 ${m} 分`;
-        document.getElementById('durationText').innerText = `🕒 計算結果：${display}`;
-        return { displayStr: display, totalMinutes: min };
-    };
-
-    window.saveToCloud = async () => {
-        if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        const calc = window.autoCalc();
-        const type = document.getElementById('leaveType').value, fileInput = document.getElementById('leaveImg'), file = fileInput.files[0];
-        if (type === "病假" && !file && !document.getElementById('editDocId').value) return alert("病假必須上傳證明！");
-        try {
-            document.getElementById('submitBtn').disabled = true;
-            let photo = file ? await compressImage(file) : "";
-            const payload = {
-                id: document.getElementById('empId').value.toUpperCase(), name: document.getElementById('empName').value,
-                dept: document.getElementById('dept').value, leaveType: type,
-                sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
-                eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
-                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
-                duration: (calc.totalMinutes / 60).toFixed(1), updatedAt: serverTimestamp(), status: "審核中"
-            };
-            if(photo) payload.photo = photo;
-            const docId = document.getElementById('editDocId').value;
-            if(docId) { await updateDoc(doc(db, "formEntries", docId), payload); }
-            else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "formEntries"), payload); }
-            alert("提交成功"); location.reload();
-        } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
-    };
-
-    async function compressImage(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image(); img.src = event.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height, max_size = 800;
-                    if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
-                    else { if (height > max_size) { width *= max_size / height; height = max_size; } }
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.6));
-                };
-            };
-        });
-    }
-
-    window.openLightbox = (src) => {
-        document.getElementById('lightboxImg').src = src;
-        document.getElementById('imageLightbox').style.display = 'flex';
-    };
-    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-
 </script>
 </body>
-</html>
+</html
