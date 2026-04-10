@@ -227,7 +227,7 @@
             </div>
             <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL (僅限批准)</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL (僅限批准項目)</button>
             </div>
         </div>
 
@@ -316,21 +316,33 @@
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
         const id = formatEmpId(idInput.value);
+        
         if (id.length < 3) {
             document.getElementById('empName').value = "";
             return;
         } 
+
         try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
+            const q = query(
+                collection(db, "formEntries"), 
+                where("id", "==", id), 
+                orderBy("createdAt", "desc"), 
+                limit(1)
+            );
+            
             const snap = await getDocs(q);
             if (!snap.empty) {
                 const data = snap.docs[0].data();
                 document.getElementById('empName').value = data.name || "";
-                if (data.dept) document.getElementById('dept').value = data.dept;
+                if (data.dept) {
+                    document.getElementById('dept').value = data.dept;
+                }
             } else {
                 document.getElementById('empName').value = "";
             }
-        } catch (e) { console.error("自動帶入失敗:", e); }
+        } catch (e) {
+            console.error("自動帶入失敗:", e);
+        }
     };
 
     function safeGet(obj, keys, defaultVal = "") {
@@ -352,8 +364,10 @@
         document.getElementById('endDate').value = r.eDate || r.endDate;
         document.getElementById('endTime').value = r.eTime || r.endTime;
         document.getElementById('reason').value = r.reason || "";
+        
         const isDayShift = (r.sTime >= "07:00" && r.sTime <= "17:30");
         window.setShift(isDayShift ? 'day' : 'middle');
+        
         document.getElementById('submitBtn').innerText = "確認修改假單";
         document.getElementById('cancelEditBtn').style.display = "block";
         window.switchPage('dashboard');
@@ -367,7 +381,9 @@
             alert("已成功銷假");
             if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
             if (document.getElementById('page-search').classList.contains('active')) window.applyFilters();
-        } catch (e) { alert("銷假失敗：" + e.message); }
+        } catch (e) {
+            alert("銷假失敗：" + e.message);
+        }
     };
 
     window.checkAdminAccess = () => {
@@ -540,120 +556,123 @@
         const d = document.getElementById('filterDept').value;
         const s = document.getElementById('filterStatus').value;
         const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">加載中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">讀取中...</td></tr>';
         
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        allRecords = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-        
-        filteredRecords = allRecords.filter(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const mMatch = m ? sd.startsWith(m) : true;
-            const dMatch = d ? r.dept === d : true;
-            const sMatch = s ? r.status === s : true;
-            return mMatch && dMatch && sMatch;
-        });
-        
-        currentPage = 1;
-        renderTable();
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            allRecords = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+            
+            filteredRecords = allRecords.filter(r => {
+                const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
+                return (!m || rMonth === m) && (!d || r.dept === d) && (!s || r.status === s);
+            });
+            currentPage = 1;
+            renderTable();
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:red;">載入失敗</td></tr>';
+        }
     };
 
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
+        const start = (currentPage - 1) * rowsPerPage, end = start + rowsPerPage;
         const pageData = filteredRecords.slice(start, end);
         
         if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">無資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無資料</td></tr>';
             return;
         }
-        
+
         tbody.innerHTML = pageData.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-            const st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
-            const statusCls = r.status === "批准" ? "status-approved" : (r.status === "退件" ? "status-rejected" : "status-pending");
-            const recordJson = encodeURIComponent(JSON.stringify(r));
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>${st}~${et}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="${statusCls}">${r.status}</td><td>${r.status === "審核中" ? `<button class="btn-action-s btn-edit" onclick="window.prepareEdit('${recordJson}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>` : '-'}</td></tr>`;
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
+            const statusClass = r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending');
+            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>${st}</td><td>${r.displayDuration}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px;height:35px;" onclick="window.openLightbox('${r.photo}')">`:'-'}</td><td><span class="status-badge ${statusClass}">${r.status}</span></td><td>${r.status==='審核中'?`<button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>`:'-'}</td></tr>`;
         }).join('');
-        
+
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
     window.changePage = (dir) => {
-        const max = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        currentPage += dir;
-        if (currentPage < 1) currentPage = 1;
-        if (currentPage > max) currentPage = max;
-        renderTable();
+        const total = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        if (currentPage + dir >= 1 && currentPage + dir <= total) {
+            currentPage += dir;
+            renderTable();
+        }
     };
 
-    // 修改處：導出功能僅導出已批准項目
+    // [新需求修正]：匯出檔案僅限於已批准項目
     window.exportMonthExcel = async () => {
-        const month = document.getElementById('exportMonth').value;
-        if (!month) return alert("請選擇月份");
-        
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "asc"));
-        const snap = await getDocs(q);
-        // 關鍵過濾：月份吻合 且 狀態為「批准」
-        const data = snap.docs.map(d => d.data()).filter(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            return sd.startsWith(month) && r.status === "批准";
-        });
-        
-        if (data.length === 0) return alert("該月份無「已批准」的紀錄可導出");
-        
-        const excelData = data.map(r => ({
-            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
-            "起始日期": safeGet(r, ['sDate', 'startDate']), "起始時間": safeGet(r, ['sTime', 'startTime']),
-            "結束日期": safeGet(r, ['eDate', 'endDate']), "結束時間": safeGet(r, ['eTime', 'endTime']),
-            "總時數": r.displayDuration, "小時數": r.duration, "事由": r.reason, "核准日期": r.approveTime || ""
-        }));
-        
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "請假紀錄");
-        XLSX.writeFile(wb, `鼎顓請假報表_${month}_(僅批准).xlsx`);
+        const targetMonth = document.getElementById('exportMonth').value;
+        if (!targetMonth) return alert("請選擇月份");
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "asc"));
+            const snap = await getDocs(q);
+            
+            // 修正：增加 status === "批准" 的過濾條件
+            const data = snap.docs.map(d => d.data()).filter(r => {
+                const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
+                return rMonth === targetMonth && r.status === "批准";
+            });
+
+            if (data.length === 0) return alert(targetMonth + " 該月份無任何已批准的紀錄");
+
+            const exportData = data.map(r => ({
+                "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
+                "開始日期": r.sDate||r.startDate, "開始時間": r.sTime||r.startTime,
+                "結束日期": r.eDate||r.endDate, "結束時間": r.eTime||r.endTime,
+                "總時數": r.displayDuration, "小時數": r.duration, "事由": r.reason,
+                "核准日期": r.approveTime || "N/A"
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "批准清單");
+            XLSX.writeFile(wb, `鼎顓電子_核准清單_${targetMonth}.xlsx`);
+        } catch (e) { alert("導出失敗：" + e.message); }
     };
 
     window.searchPersonalRecords = async () => {
         const id = formatEmpId(document.getElementById('queryEmpId').value);
-        if (!id) return alert("請輸入工號");
+        if(!id) return alert("請輸入工號");
+        const tbody = document.getElementById('personalTableBody');
+        document.getElementById('personalResultArea').style.display = "block";
+        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
         const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
-        const area = document.getElementById('personalResultArea'), tbody = document.getElementById('personalTableBody');
-        area.style.display = "block";
-        if (snap.empty) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>'; return; }
-        tbody.innerHTML = snap.docs.map(doc => {
-            const r = doc.data(); const dId = doc.id;
-            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-            const statusCls = r.status === "批准" ? "status-approved" : (r.status === "退件" ? "status-rejected" : "status-pending");
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}~${ed}</td><td>${r.displayDuration || ""}</td><td class="${statusCls}">${r.status}</td><td>${r.status === "審核中" ? `<button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${dId}')">銷假</button>` : '-'}</td></tr>`;
+        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6">查無紀錄</td></tr>'; return; }
+        tbody.innerHTML = snap.docs.map(d => {
+            const r = { docId: d.id, ...d.data() };
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
+            const statusClass = r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending');
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration}</td><td><span class="status-badge ${statusClass}">${r.status}</span></td><td>${r.status==='審核中'?`<button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>`:'-'}</td></tr>`;
         }).join('');
     };
 
     window.switchPage = (pageId) => {
         document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById('page-' + pageId).classList.add('active');
-        document.getElementById('nav-' + (pageId === 'admin' ? 'admin' : pageId)).classList.add('active');
-        if (pageId === 'search') window.applyFilters();
-    };
-
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if (!el.dataset.zh) el.dataset.zh = el.innerText;
-            el.innerText = (lang === 'vi') ? el.dataset.vi : el.dataset.zh;
-        });
+        document.getElementById(`page-${pageId}`).classList.add('active');
+        document.getElementById(`nav-${pageId}`).classList.add('active');
+        if(pageId === 'search') window.applyFilters();
     };
 
     window.openLightbox = (src) => {
         document.getElementById('lightboxImg').src = src;
         document.getElementById('imageLightbox').style.display = 'flex';
     };
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = 'none';
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText;
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
+        });
     };
 </script>
 </body>
