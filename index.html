@@ -227,7 +227,7 @@
             </div>
             <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL (僅限批准項目)</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL</button>
             </div>
         </div>
 
@@ -303,6 +303,7 @@
         if (eMonth) eMonth.value = yearMonth;
     });
 
+    // 格式化 ID：處理 F, H, G 轉小寫，其餘大寫
     function formatEmpId(id) {
         if (!id) return "";
         id = id.trim();
@@ -315,6 +316,7 @@
 
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
+        // 自動帶入時先根據規則處理 ID 格式
         const id = formatEmpId(idInput.value);
         
         if (id.length < 3) {
@@ -517,6 +519,7 @@
             document.getElementById('submitBtn').disabled = true;
             let photo = file ? await compressImage(file) : "";
             const payload = {
+                // 儲存時再次檢查並轉換 ID 格式
                 id: formatEmpId(document.getElementById('empId').value), 
                 name: document.getElementById('empName').value,
                 dept: document.getElementById('dept').value, leaveType: type,
@@ -565,89 +568,135 @@
             
             filteredRecords = allRecords.filter(r => {
                 const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
-                return (!m || rMonth === m) && (!d || r.dept === d) && (!s || r.status === s);
+                const matchMonth = !m || rMonth === m;
+                const matchDept = !d || r.dept === d;
+                const matchStatus = !s || r.status === s;
+                return matchMonth && matchDept && matchStatus;
             });
+            
             currentPage = 1;
-            renderTable();
+            window.renderTable();
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:red;">載入失敗</td></tr>';
         }
     };
 
-    function renderTable() {
+    window.renderTable = () => {
         const tbody = document.getElementById('allTableBody');
-        const start = (currentPage - 1) * rowsPerPage, end = start + rowsPerPage;
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
         const pageData = filteredRecords.slice(start, end);
         
         if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">沒有符合條件的資料</td></tr>';
             return;
         }
 
         tbody.innerHTML = pageData.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-            const statusClass = r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending');
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>${st}</td><td>${r.displayDuration}</td><td>${r.photo?`<img src="${r.photo}" style="width:35px;height:35px;" onclick="window.openLightbox('${r.photo}')">`:'-'}</td><td><span class="status-badge ${statusClass}">${r.status}</span></td><td>${r.status==='審核中'?`<button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>`:'-'}</td></tr>`;
+            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            const recordJson = encodeURIComponent(JSON.stringify(r));
+            return `<tr>
+                <td>${r.dept || ""}</td>
+                <td>${r.id}</td>
+                <td>${r.name || ""}</td>
+                <td>${r.leaveType || ""}</td>
+                <td>${sd}<br>${st}</td>
+                <td>${r.displayDuration || ""}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;border-radius:4px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
+                <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+                <td>
+                    <button class="btn-action-s btn-edit" onclick="window.prepareEdit('${recordJson}')">修改</button>
+                    <button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>
+                </td>
+            </tr>`;
         }).join('');
-
+        
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
-    }
+    };
 
     window.changePage = (dir) => {
-        const total = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        if (currentPage + dir >= 1 && currentPage + dir <= total) {
-            currentPage += dir;
-            renderTable();
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const newPage = currentPage + dir;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            window.renderTable();
         }
     };
 
-    // [新需求修正]：匯出檔案僅限於已批准項目
-    window.exportMonthExcel = async () => {
-        const targetMonth = document.getElementById('exportMonth').value;
-        if (!targetMonth) return alert("請選擇月份");
+    window.searchPersonalRecords = async () => {
+        const idInput = document.getElementById('queryEmpId');
+        // 查詢時也要根據規則處理輸入的 ID
+        const id = formatEmpId(idInput.value);
+        if (!id) return alert("請輸入工號");
+        
+        const tbody = document.getElementById('personalTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
+        document.getElementById('personalResultArea').style.display = "block";
+
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "asc"));
+            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
             const snap = await getDocs(q);
-            
-            // 修正：增加 status === "批准" 的過濾條件
-            const data = snap.docs.map(d => d.data()).filter(r => {
-                const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
-                return rMonth === targetMonth && r.status === "批准";
-            });
-
-            if (data.length === 0) return alert(targetMonth + " 該月份無任何已批准的紀錄");
-
-            const exportData = data.map(r => ({
-                "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
-                "開始日期": r.sDate||r.startDate, "開始時間": r.sTime||r.startTime,
-                "結束日期": r.eDate||r.endDate, "結束時間": r.eTime||r.endTime,
-                "總時數": r.displayDuration, "小時數": r.duration, "事由": r.reason,
-                "核准日期": r.approveTime || "N/A"
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "批准清單");
-            XLSX.writeFile(wb, `鼎顓電子_核准清單_${targetMonth}.xlsx`);
-        } catch (e) { alert("導出失敗：" + e.message); }
+            if (snap.empty) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>';
+                return;
+            }
+            tbody.innerHTML = snap.docs.map(d => {
+                const r = d.data();
+                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+                return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}<br>~${ed} ${et}</td><td>${r.displayDuration || ""}</td><td><span class="${statusClass}">${r.status}</span></td><td><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${d.id}')">銷假</button></td></tr>`;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:red;">查詢失敗: ${e.message}</td></tr>`;
+        }
     };
 
-    window.searchPersonalRecords = async () => {
-        const id = formatEmpId(document.getElementById('queryEmpId').value);
-        if(!id) return alert("請輸入工號");
-        const tbody = document.getElementById('personalTableBody');
-        document.getElementById('personalResultArea').style.display = "block";
-        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        if(snap.empty) { tbody.innerHTML = '<tr><td colspan="6">查無紀錄</td></tr>'; return; }
-        tbody.innerHTML = snap.docs.map(d => {
-            const r = { docId: d.id, ...d.data() };
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-            const statusClass = r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending');
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration}</td><td><span class="status-badge ${statusClass}">${r.status}</span></td><td>${r.status==='審核中'?`<button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>`:'-'}</td></tr>`;
-        }).join('');
+    // 導出功能：對齊 CSV 格式 + F/H/G 轉小寫 + 批准時間
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        if (!m) return alert("請先選擇年份與月份");
+        
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            const rawData = snap.docs.map(d => d.data());
+            
+            // 篩選與轉換
+            const filtered = rawData.filter(r => (r.sDate || r.startDate || "").substring(0, 7) === m);
+            
+            if (filtered.length === 0) return alert("該月份無資料可導出");
+
+            const csvData = filtered.map(r => {
+                // 確保匯出時工號依據規則處理
+                const processedId = formatEmpId(r.id);
+                
+                return {
+                    "員工代號": processedId,
+                    "員工姓名": r.name || "",
+                    "假別": r.leaveType || "",
+                    "出勤日期": r.sDate || r.startDate || "",
+                    "開始日期": r.sDate || r.startDate || "",
+                    "開始時間": r.sTime || r.startTime || "",
+                    "結束日期": r.eDate || r.endDate || "",
+                    "結束時間": r.eTime || r.endTime || "",
+                    "請假時數": r.displayDuration || "",
+                    "扣伙食費": "",
+                    "扣交通津貼": "",
+                    "事由": r.reason || "",
+                    "備註": r.dept || "",
+                    "主管批准時間": r.approveTime || ""
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(csvData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+            XLSX.writeFile(wb, `鼎顓電子出勤報表_${m}.xlsx`);
+        } catch (e) {
+            alert("導出失敗：" + e.message);
+        }
     };
 
     window.switchPage = (pageId) => {
@@ -655,24 +704,24 @@
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById(`page-${pageId}`).classList.add('active');
         document.getElementById(`nav-${pageId}`).classList.add('active');
-        if(pageId === 'search') window.applyFilters();
+        if (pageId === 'search') window.applyFilters();
+    };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.textContent;
+            el.setAttribute('data-zh', zhText);
+            el.textContent = (lang === 'vi') ? viText : el.getAttribute('data-zh');
+        });
     };
 
     window.openLightbox = (src) => {
         document.getElementById('lightboxImg').src = src;
         document.getElementById('imageLightbox').style.display = 'flex';
     };
-    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
-
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if (lang === 'vi') {
-                if (!el.dataset.zh) el.dataset.zh = el.innerText;
-                el.innerText = el.dataset.vi;
-            } else {
-                if (el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
     };
 </script>
 </body>
