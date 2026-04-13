@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤 management 系統</title>
+    <title>鼎顓電子 - 員工出勤管理系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -11,7 +11,6 @@
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; --text-main: #1e293b;
             --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
             --maintenance-display: none; 
-            /* 新增按鈕優化顏色 */
             --approve-hover: #059669;
             --reject-hover: #dc2626;
             --bulk-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -55,26 +54,18 @@
 
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
         .btn-primary { background: var(--primary); color: white; width: 100%; }
-        
         .btn-success { background: var(--accent); color: white; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2); }
-        .btn-success:hover { background: var(--approve-hover); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3); }
-        .btn-danger { background: var(--danger); color: white; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2); }
-        .btn-danger:hover { background: var(--reject-hover); transform: translateY(-1px); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3); }
+        .btn-success:hover { background: var(--approve-hover); transform: translateY(-1px); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--reject-hover); transform: translateY(-1px); }
         
         .btn-bulk { 
-            background: var(--bulk-gradient); 
-            color: white; 
-            padding: 10px 24px; 
-            border-radius: 12px; 
-            font-size: 15px;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-            border: 1px solid rgba(255,255,255,0.2);
+            background: var(--bulk-gradient); color: white; padding: 10px 24px; border-radius: 12px; font-size: 15px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); border: 1px solid rgba(255,255,255,0.2);
         }
-        .btn-bulk:hover { transform: scale(1.02); filter: brightness(1.1); box-shadow: 0 6px 15px rgba(16, 185, 129, 0.5); }
-        .btn-bulk:active { transform: scale(0.98); }
+        .btn-bulk:hover { transform: scale(1.02); filter: brightness(1.1); }
 
         .btn-excel { background: #16a34a; color: white; }
-
         .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
         
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
@@ -90,7 +81,6 @@
         .btn-action-s { background: transparent; border: none; padding: 6px 10px; font-size: 14px; cursor: pointer; font-weight: bold; transition: all 0.1s ease; }
         .btn-action-s:active { transform: scale(0.9); opacity: 0.6; }
         .btn-edit { color: var(--primary); }
-        .btn-cancel-leave { color: #f97316; }
 
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
@@ -294,7 +284,6 @@
         "hr888": "ALL"
     };
 
-    // 初始化自動設定當前月份
     window.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -302,6 +291,7 @@
         const eMonth = document.getElementById('exportMonth');
         if (fMonth) fMonth.value = yearMonth;
         if (eMonth) eMonth.value = yearMonth;
+        window.loadAllRecords();
     });
 
     function safeGet(obj, keys, defaultVal = "") {
@@ -311,7 +301,89 @@
         return defaultVal;
     }
 
-    // --- 自動清理舊資料邏輯 (僅保留本月與上月) ---
+    // --- 核准清單資料處理 ---
+    window.loadAllRecords = async () => {
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+            window.applyFilters();
+        } catch (e) {
+            console.error("載入失敗", e);
+        }
+    };
+
+    window.applyFilters = () => {
+        const m = document.getElementById('filterMonth').value;
+        const d = document.getElementById('filterDept').value;
+        const s = document.getElementById('filterStatus').value;
+
+        filteredRecords = allRecords.filter(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            const matchMonth = m ? sd.startsWith(m) : true;
+            const matchDept = d ? r.dept === d : true;
+            const matchStatus = s ? r.status === s : true;
+            return matchMonth && matchDept && matchStatus;
+        });
+
+        currentPage = 1;
+        window.renderTable();
+    };
+
+    window.renderTable = () => {
+        const tbody = document.getElementById('allTableBody');
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        const paginated = filteredRecords.slice(start, end);
+
+        if (paginated.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">目前無相符資料</td></tr>';
+        } else {
+            tbody.innerHTML = paginated.map(r => {
+                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+                const sd = safeGet(r, ['sDate', 'startDate']);
+                const updateStr = r.updatedAt ? new Date(r.updatedAt.seconds * 1000).toLocaleDateString() : '-';
+                return `<tr>
+                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+                    <td>${sd}</td><td>${r.displayDuration || (r.duration + '時')}</td>
+                    <td>${r.photo ? `<button class="btn-action-s btn-edit" onclick="window.openLightbox('${r.photo}')">查看</button>` : '-'}</td>
+                    <td class="status-badge ${statusClass}">${r.status}</td>
+                    <td>${updateStr}</td>
+                </tr>`;
+            }).join('');
+        }
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+    };
+
+    window.changePage = (dir) => {
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        let n = currentPage + dir;
+        if (n >= 1 && n <= totalPages) { currentPage = n; window.renderTable(); }
+    };
+
+    // --- 燈箱控制 ---
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
+    };
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
+    };
+
+    // --- 頁面切換 ---
+    window.switchPage = (id) => {
+        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
+        const page = document.getElementById('page-'+id);
+        const nav = document.getElementById('nav-'+id);
+        if(page) page.classList.add('active');
+        if(nav) nav.classList.add('active');
+        
+        if(id === 'admin') window.loadAdminData();
+        if(id === 'search') window.loadAllRecords();
+    };
+
+    // --- 原有業務邏輯保留 ---
     async function autoCleanupRecords() {
         try {
             const now = new Date();
@@ -320,28 +392,18 @@
             const q = query(collection(db, "formEntries"), where("sDate", "<", cutoffStr));
             const snap = await getDocs(q);
             if (snap.empty) return;
-            let deleteCount = 0;
-            const deletePromises = snap.docs.map(d => {
-                deleteCount++;
-                return deleteDoc(doc(db, "formEntries", d.id));
-            });
+            const deletePromises = snap.docs.map(d => deleteDoc(doc(db, "formEntries", d.id)));
             await Promise.all(deletePromises);
-            console.log(`系統維護：已自動刪除 ${deleteCount} 筆過期月份紀錄。`);
-        } catch (e) {
-            console.error("自動清理失敗:", e);
-        }
+        } catch (e) { console.error("清理失敗", e); }
     }
 
-    // --- 審核中心相關功能 ---
     window.checkAdminAccess = () => {
         const pw = prompt("請輸入主管管理密碼:");
         if (adminPasswords[pw]) {
             currentAdminDept = adminPasswords[pw];
             window.switchPage('admin');
             autoCleanupRecords();
-        } else if (pw !== null) {
-            alert("密碼錯誤！");
-        }
+        } else if (pw !== null) { alert("密碼錯誤！"); }
     };
 
     window.loadAdminData = async () => {
@@ -365,7 +427,7 @@
         bulkBtn.innerText = `✅ 一鍵批准 ${filtered.length} 筆`;
         tbody.innerHTML = filtered.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding: 6px 15px; min-height: 36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding: 6px 15px; min-height: 36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
         }).join('');
     };
 
@@ -374,67 +436,47 @@
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
-        alert("處理成功"); window.loadAdminData();
+        alert("處理成功"); window.loadAdminData(); window.loadAllRecords();
     };
 
     window.bulkApprove = async () => {
         if (currentPendingDocs.length === 0) return;
         if (!confirm(`確定要一次批准目前畫面中所有 ${currentPendingDocs.length} 筆申請嗎？`)) return;
         const btn = document.getElementById('bulkApproveBtn');
-        btn.disabled = true;
-        btn.innerText = "批次處理中...";
+        btn.disabled = true; btn.innerText = "批次處理中...";
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         try {
-            const updatePromises = currentPendingDocs.map(docData => 
-                updateDoc(doc(db, "formEntries", docData.docId), { 
-                    status: "批准", 
-                    approveTime: timeStr 
-                })
+            const promises = currentPendingDocs.map(docData => 
+                updateDoc(doc(db, "formEntries", docData.docId), { status: "批准", approveTime: timeStr })
             );
-            await Promise.all(updatePromises);
-            alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
+            await Promise.all(promises);
+            alert(`成功批准 ${currentPendingDocs.length} 筆！`);
             window.loadAdminData();
-        } catch (e) {
-            alert("批次處理時發生錯誤：" + e.message);
-        } finally {
-            btn.disabled = false;
-        }
+        } catch (e) { alert("錯誤：" + e.message); } finally { btn.disabled = false; }
     };
 
-    // --- 核心邏輯：精確計算分鐘數 (保留原有邏輯) ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
-        let startDT = new Date(`${d1}T${t1}`);
-        let endDT = new Date(`${d2}T${t2}`);
+        let startDT = new Date(`${d1}T${t1}`); let endDT = new Date(`${d2}T${t2}`);
         if (endDT <= startDT) return 0;
         const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
-        const sWorkTime = isDayShift ? "08:30" : "18:00";
-        const eWorkTime = isDayShift ? "17:30" : "02:30";
-        const breakStartStr = isDayShift ? "12:00" : "00:00";
-        const breakEndStr = isDayShift ? "13:00" : "00:30";
-        let totalMinutes = 0;
-        let iterDate = new Date(d1);
-        let lastDate = new Date(d2);
+        const sWorkTime = isDayShift ? "08:30" : "18:00"; const eWorkTime = isDayShift ? "17:30" : "02:30";
+        const breakStartStr = isDayShift ? "12:00" : "00:00"; const breakEndStr = isDayShift ? "13:00" : "00:30";
+        let totalMinutes = 0; let iterDate = new Date(d1); let lastDate = new Date(d2);
         while (iterDate <= lastDate) {
             let dayOfWeek = iterDate.getDay();
             if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                let y = iterDate.getFullYear();
-                let m = String(iterDate.getMonth() + 1).padStart(2, '0');
-                let d = String(iterDate.getDate()).padStart(2, '0');
+                let y = iterDate.getFullYear(); let m = String(iterDate.getMonth() + 1).padStart(2, '0'); let d = String(iterDate.getDate()).padStart(2, '0');
                 let dayStr = `${y}-${m}-${d}`;
-                let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
-                let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
+                let shiftStart = new Date(`${dayStr}T${sWorkTime}`); let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
                 if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
-                let actualStart = new Date(Math.max(startDT, shiftStart));
-                let actualEnd = new Date(Math.min(endDT, shiftEnd));
+                let actualStart = new Date(Math.max(startDT, shiftStart)); let actualEnd = new Date(Math.min(endDT, shiftEnd));
                 if (actualStart < actualEnd) {
                     let diffMins = (actualEnd - actualStart) / (1000 * 60);
-                    let bS = new Date(`${dayStr}T${breakStartStr}`);
-                    let bE = new Date(`${dayStr}T${breakEndStr}`);
+                    let bS = new Date(`${dayStr}T${breakStartStr}`); let bE = new Date(`${dayStr}T${breakEndStr}`);
                     if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
-                    let intersectStart = new Date(Math.max(actualStart, bS));
-                    let intersectEnd = new Date(Math.min(actualEnd, bE));
+                    let intersectStart = new Date(Math.max(actualStart, bS)); let intersectEnd = new Date(Math.min(actualEnd, bE));
                     if (intersectStart < intersectEnd) { diffMins -= (intersectEnd - intersectStart) / (1000 * 60); }
                     totalMinutes += diffMins;
                 }
@@ -474,7 +516,7 @@
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const calc = window.autoCalc();
-        const type = document.getElementById('leaveType').value, fileInput = document.getElementById('leaveImg'), file = fileInput.files[0];
+        const type = document.getElementById('leaveType').value, file = document.getElementById('leaveImg').files[0];
         if (type === "病假" && !file && !document.getElementById('editDocId').value) return alert("病假必須上傳證明！");
         try {
             document.getElementById('submitBtn').disabled = true;
@@ -513,7 +555,6 @@
         });
     }
 
-    // 修正 NAN:NAN 問題並新增 T 選項處理
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
         const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
@@ -521,16 +562,11 @@
         if (combined.length === 0) return alert("無紀錄可導出");
         const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
         const rows = combined.map(r => {
-            // 防錯邏輯：若 totalMinutes 為空或 NaN，則設為 0
             const tMin = (r.totalMinutes && !isNaN(r.totalMinutes)) ? r.totalMinutes : 0;
             let h = Math.floor(tMin / 60), mins = tMin % 60;
             let exportId = r.id || "";
-            // 邏輯調整：僅 F, G, H 開頭轉小寫，其餘（包含 T）維持大寫
-            if (['F', 'G', 'H'].includes(exportId.charAt(0).toUpperCase())) {
-                exportId = exportId.toLowerCase();
-            } else {
-                exportId = exportId.toUpperCase();
-            }
+            if (['F', 'G', 'H'].includes(exportId.charAt(0).toUpperCase())) exportId = exportId.toLowerCase();
+            else exportId = exportId.toUpperCase();
             return [exportId, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, `${String(h).padStart(3,'0')}:${String(mins).padStart(2,'0')}`, r.reason, r.dept, r.approveTime || ""];
         });
         const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -544,34 +580,21 @@
         const snap = await getDoc(doc(db, "employees", id));
         if(snap.exists()){ document.getElementById('empName').value = snap.data().name; document.getElementById('dept').value = snap.data().dept; }
     };
-
-    window.switchPage = (id) => {
-        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('page-'+id).classList.add('active');
-        document.getElementById('nav-'+id).classList.add('active');
-        if(id === 'admin') window.loadAdminData();
-        if(id === 'search') window.applyFilters();
-    };
-
-    // 其他必要全域函式補齊
-    window.openLightbox = (src) => {
-        const modal = document.getElementById('imageLightbox');
-        const img = document.getElementById('lightboxImg');
-        img.src = src;
-        modal.style.display = 'flex';
-    };
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = 'none';
-    };
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if(lang === 'vi') {
-                if(!el.dataset.zh) el.dataset.zh = el.innerText;
-                el.innerText = el.dataset.vi;
-            } else {
-                if(el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
+    
+    // --- 個人紀錄查詢 ---
+    window.searchPersonalRecords = async () => {
+        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        if(!id) return alert("請輸入工號");
+        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        const tbody = document.getElementById('personalTableBody');
+        document.getElementById('personalResultArea').style.display = 'block';
+        if(snap.empty){ tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
+        tbody.innerHTML = snap.docs.map(docSnap => {
+            const r = docSnap.data();
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}</td><td>${r.displayDuration}</td><td>${r.status}</td><td>-</td></tr>`;
+        }).join('');
     };
 </script>
 </body>
