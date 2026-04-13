@@ -415,7 +415,7 @@
         } 
 
         try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
+            const q = query(collection(db, "employees"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
             const snap = await getDocs(q);
             
             if (!snap.empty) {
