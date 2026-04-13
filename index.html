@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤 management 系統</title>
+    <title>鼎顓電子 - 員工出勤管理系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -134,7 +134,7 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()" style="text-transform: uppercase;">
+                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()">
                     </div>
                     <div>
                         <label data-vi="Tên nhân viên">員工姓名</label>
@@ -166,7 +166,7 @@
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班</button>
                     </div>
-                    <input type="hidden" id="currentShiftType" value="">
+                    <input type="hidden" id="hasSelectedShift" value="false">
                 </div>
 
                 <div class="form-grid">
@@ -303,213 +303,56 @@
         if (eMonth) eMonth.value = yearMonth;
     });
 
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            const viText = el.getAttribute('data-vi');
-            const zhText = el.innerText;
-            if (lang === 'vi') {
-                if (!el.dataset.zh) el.dataset.zh = zhText;
-                el.innerText = viText;
-            } else {
-                if (el.dataset.zh) el.innerText = el.dataset.zh;
-            }
-        });
-    };
-
-    window.openLightbox = (src) => {
-        document.getElementById('lightboxImg').src = src;
-        document.getElementById('imageLightbox').style.display = 'flex';
-    };
-
-    window.closeLightbox = () => {
-        document.getElementById('imageLightbox').style.display = 'none';
-    };
-
-    // [現有功能] 設定班別與自動帶入邏輯
-    window.setShift = (shift) => {
-        document.getElementById('shiftDayBtn').className = 'btn';
-        document.getElementById('shiftMidBtn').className = 'btn';
-        document.getElementById('currentShiftType').value = shift;
-        
-        // 解除輸入限制
-        document.getElementById('startDate').disabled = false;
-        document.getElementById('startTime').disabled = false;
-        document.getElementById('endDate').disabled = false;
-        document.getElementById('endTime').disabled = false;
-
-        const today = new Date().toISOString().split('T')[0];
-        
-        if (shift === 'day') {
-            document.getElementById('shiftDayBtn').classList.add('shift-active');
-            document.getElementById('startDate').value = today;
-            document.getElementById('startTime').value = "08:30";
-            document.getElementById('endDate').value = today;
-            document.getElementById('endTime').value = "17:30";
-        } else {
-            document.getElementById('shiftMidBtn').classList.add('shift-active');
-            document.getElementById('startDate').value = today;
-            document.getElementById('startTime').value = "18:00";
-            // 中班跨日處理
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            document.getElementById('endDate').value = tomorrow.toISOString().split('T')[0];
-            document.getElementById('endTime').value = "02:30";
+    // 格式化 ID：處理 F, H, G 轉小寫，其餘大寫
+    function formatEmpId(id) {
+        if (!id) return "";
+        id = id.trim();
+        const firstChar = id.charAt(0).toUpperCase();
+        if (["F", "H", "G"].includes(firstChar)) {
+            return id.toLowerCase();
         }
-        window.autoCalc();
-    };
+        return id.toUpperCase();
+    }
 
-    // [現有功能] 時數計算邏輯修正 (包含扣除休息時間)
-    window.autoCalc = () => {
-        const sD = document.getElementById('startDate').value;
-        const sT = document.getElementById('startTime').value;
-        const eD = document.getElementById('endDate').value;
-        const eT = document.getElementById('endTime').value;
-        const shift = document.getElementById('currentShiftType').value;
-        
-        if (!sD || !sT || !eD || !eT) return;
-
-        const start = new Date(`${sD}T${sT}`);
-        const end = new Date(`${eD}T${eT}`);
-        
-        let diffMs = end - start;
-        if (diffMs < 0) {
-            document.getElementById('durationText').innerText = "結束時間不能早於開始時間";
-            return;
-        }
-
-        let totalMinutes = Math.floor(diffMs / (1000 * 60));
-
-        // 扣除休息時間邏輯
-        if (shift === 'day') {
-            const restStart = new Date(`${sD}T12:00`);
-            const restEnd = new Date(`${sD}T13:00`);
-            if (start < restEnd && end > restStart) {
-                totalMinutes -= 60;
-            }
-        } else if (shift === 'middle') {
-            const restDate = new Date(start);
-            if (start.getHours() >= 18) {
-                restDate.setDate(restDate.getDate() + 1);
-            }
-            const dateStr = restDate.toISOString().split('T')[0];
-            const restStart = new Date(`${dateStr}T00:00`);
-            const restEnd = new Date(`${dateStr}T00:30`);
-            
-            if (start < restEnd && end > restStart) {
-                totalMinutes -= 30;
-            }
-        }
-
-        const hours = Math.floor(totalMinutes / 60);
-        const mins = totalMinutes % 60;
-        document.getElementById('durationText').innerText = `總時數：${hours} 小時 ${mins} 分鐘 (已自動扣除休息時間)`;
-        document.getElementById('durationText').dataset.minutes = totalMinutes;
-    };
-
-    window.saveToCloud = async () => {
-        const id = document.getElementById('empId').value.trim().toUpperCase();
-        const name = document.getElementById('empName').value;
-        const dept = document.getElementById('dept').value;
-        const leaveType = document.getElementById('leaveType').value;
-        const sDate = document.getElementById('startDate').value;
-        const sTime = document.getElementById('startTime').value;
-        const eDate = document.getElementById('endDate').value;
-        const eTime = document.getElementById('endTime').value;
-        const reason = document.getElementById('reason').value;
-        const totalMinutes = parseInt(document.getElementById('durationText').dataset.minutes || 0);
-        const editDocId = document.getElementById('editDocId').value;
-
-        if (!id || !name || !dept || !sDate || !totalMinutes) return alert("請完整填寫資訊");
-        if (leaveType === "病假" && !document.getElementById('leaveImg').files[0] && !editDocId) {
-            return alert("申請病假必須上傳證明文件！");
-        }
-
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true;
-        btn.innerText = "處理中...";
-
-        try {
-            let photoUrl = "";
-            const file = document.getElementById('leaveImg').files[0];
-            if (file) {
-                photoUrl = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.readAsDataURL(file);
-                });
-            }
-
-            const hh = String(Math.floor(totalMinutes / 60)).padStart(3, '0');
-            const mm = String(totalMinutes % 60).padStart(2, '0');
-            const displayDuration = `${hh}:${mm}`;
-
-            const payload = {
-                id, name, dept, leaveType, sDate, sTime, eDate, eTime, reason, 
-                totalMinutes, displayDuration, photo: photoUrl, 
-                status: "審核中", createdAt: serverTimestamp()
-            };
-
-            if (editDocId) {
-                if (!photoUrl) delete payload.photo;
-                await updateDoc(doc(db, "formEntries", editDocId), payload);
-                alert("假單修改成功！");
-            } else {
-                await addDoc(collection(db, "formEntries"), payload);
-                alert("假單已成功送出！");
-            }
-            location.reload();
-        } catch (e) {
-            alert("提交失敗：" + e.message);
-            btn.disabled = false;
-            btn.innerText = "確認送出申請";
-        }
-    };
-
-    // [新需求修正] 自動帶入姓名：優先從員工主檔 (employees) 查詢，其次才是歷史假單
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
-        const id = idInput.value.trim().toUpperCase();
-        if (id.length < 3) { document.getElementById('empName').value = ""; return; } 
+        // 自動帶入時先根據規則處理 ID 格式
+        const id = formatEmpId(idInput.value);
+        
+        if (id.length < 3) {
+            document.getElementById('empName').value = "";
+            return;
+        } 
 
         try {
-            // 策略 1：優先查詢 employees 集合 (主檔)
-            const empDocRef = doc(db, "employees", id);
-            const empSnap = await getDoc(empDocRef);
-
-            if (empSnap.exists()) {
-                const empData = empSnap.data();
-                document.getElementById('empName').value = empData.name || "";
-                if (empData.dept) document.getElementById('dept').value = empData.dept;
-                console.log("從員工主檔帶入資料");
-            } else {
-                // 策略 2：若主檔無資料，嘗試從 formEntries 歷史紀錄查詢
-                const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
-                const snap = await getDocs(q);
-                if (!snap.empty) {
-                    const data = snap.docs[0].data();
-                    document.getElementById('empName').value = data.name || "";
-                    if (data.dept) document.getElementById('dept').value = data.dept;
-                    console.log("從歷史紀錄帶入資料");
-                } else { 
-                    document.getElementById('empName').value = ""; 
+            const q = query(
+                collection(db, "formEntries"), 
+                where("id", "==", id), 
+                orderBy("createdAt", "desc"), 
+                limit(1)
+            );
+            
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const data = snap.docs[0].data();
+                document.getElementById('empName').value = data.name || "";
+                if (data.dept) {
+                    document.getElementById('dept').value = data.dept;
                 }
+            } else {
+                document.getElementById('empName').value = "";
             }
-        } catch (e) { console.error("自動帶入失敗:", e); }
+        } catch (e) {
+            console.error("自動帶入失敗:", e);
+        }
     };
 
     function safeGet(obj, keys, defaultVal = "") {
-        for (let key of keys) { if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key]; }
+        for (let key of keys) {
+            if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
+        }
         return defaultVal;
     }
-
-    window.switchPage = (pageId) => {
-        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById(`page-${pageId}`).classList.add('active');
-        const nav = document.getElementById(`nav-${pageId}`);
-        if(nav) nav.classList.add('active');
-        if(pageId === 'search') window.applyFilters();
-    };
 
     window.prepareEdit = (recordJson) => {
         const r = JSON.parse(decodeURIComponent(recordJson));
@@ -523,8 +366,10 @@
         document.getElementById('endDate').value = r.eDate || r.endDate;
         document.getElementById('endTime').value = r.eTime || r.endTime;
         document.getElementById('reason').value = r.reason || "";
+        
         const isDayShift = (r.sTime >= "07:00" && r.sTime <= "17:30");
         window.setShift(isDayShift ? 'day' : 'middle');
+        
         document.getElementById('submitBtn').innerText = "確認修改假單";
         document.getElementById('cancelEditBtn').style.display = "block";
         window.switchPage('dashboard');
@@ -538,7 +383,9 @@
             alert("已成功銷假");
             if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
             if (document.getElementById('page-search').classList.contains('active')) window.applyFilters();
-        } catch (e) { alert("銷假失敗：" + e.message); }
+        } catch (e) {
+            alert("銷假失敗：" + e.message);
+        }
     };
 
     window.checkAdminAccess = () => {
@@ -595,113 +442,287 @@
             await Promise.all(updatePromises);
             alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
             window.loadAdminData();
-        } catch (e) { alert("批量處理失敗: " + e.message); }
-        btn.disabled = false;
+        } catch (e) { alert("批次處理錯誤：" + e.message); } finally { btn.disabled = false; }
     };
 
-    window.applyFilters = async () => {
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">載入中...</td></tr>';
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    function coreCalcMinutes(d1, t1, d2, t2) {
+        if(!d1 || !t1 || !d2 || !t2) return 0;
+        let startDT = new Date(`${d1}T${t1}`);
+        let endDT = new Date(`${d2}T${t2}`);
+        if (endDT <= startDT) return 0;
+        const isDayShift = (t1 >= "07:00" && t1 <= "17:30");
+        const sWorkTime = isDayShift ? "08:30" : "18:00";
+        const eWorkTime = isDayShift ? "17:30" : "02:30";
+        const breakStartStr = isDayShift ? "12:00" : "00:00";
+        const breakEndStr = isDayShift ? "13:00" : "00:30";
+        let totalMinutes = 0;
+        let iterDate = new Date(d1);
+        let lastDate = new Date(d2);
+        while (iterDate <= lastDate) {
+            let dayOfWeek = iterDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                let dayStr = iterDate.toISOString().split('T')[0];
+                let shiftStart = new Date(`${dayStr}T${sWorkTime}`);
+                let shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
+                if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
+                let actualStart = new Date(Math.max(startDT, shiftStart));
+                let actualEnd = new Date(Math.min(endDT, shiftEnd));
+                if (actualStart < actualEnd) {
+                    let diffMins = (actualEnd - actualStart) / (1000 * 60);
+                    let bS = new Date(`${dayStr}T${breakStartStr}`);
+                    let bE = new Date(`${dayStr}T${breakEndStr}`);
+                    if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
+                    let intersectStart = new Date(Math.max(actualStart, bS));
+                    let intersectEnd = new Date(Math.min(actualEnd, bE));
+                    if (intersectStart < intersectEnd) { diffMins -= (intersectEnd - intersectStart) / (1000 * 60); }
+                    totalMinutes += diffMins;
+                }
+            }
+            iterDate.setDate(iterDate.getDate() + 1);
+        }
+        return Math.max(0, Math.round(totalMinutes));
+    }
 
+    window.autoCalc = () => {
+        const min = coreCalcMinutes(
+            document.getElementById('startDate').value, document.getElementById('startTime').value,
+            document.getElementById('endDate').value, document.getElementById('endTime').value
+        );
+        const h = Math.floor(min / 60), m = min % 60;
+        const display = `${h} 時 ${m} 分`;
+        document.getElementById('durationText').innerText = `🕒 計算結果：${display}`;
+        return { displayStr: display, totalMinutes: min };
+    };
+
+    window.setShift = (s) => {
+        document.getElementById('hasSelectedShift').value = "true";
+        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
+        document.getElementById('shiftDayBtn').className = (s === 'day' ? 'btn shift-active' : 'btn');
+        document.getElementById('shiftMidBtn').className = (s === 'middle' ? 'btn shift-active' : 'btn');
+        const sd = document.getElementById('startDate').value;
+        if(s === 'day'){ 
+            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
+            if(sd) document.getElementById('endDate').value = sd; 
+        } else { 
+            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
+            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
+        }
+        window.autoCalc();
+    };
+
+    window.saveToCloud = async () => {
+        if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
+        const calc = window.autoCalc();
+        const type = document.getElementById('leaveType').value, fileInput = document.getElementById('leaveImg'), file = fileInput.files[0];
+        if (type === "病假" && !file && !document.getElementById('editDocId').value) return alert("病假必須上傳證明！");
+        try {
+            document.getElementById('submitBtn').disabled = true;
+            let photo = file ? await compressImage(file) : "";
+            const payload = {
+                // 儲存時再次檢查並轉換 ID 格式
+                id: formatEmpId(document.getElementById('empId').value), 
+                name: document.getElementById('empName').value,
+                dept: document.getElementById('dept').value, leaveType: type,
+                sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
+                eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
+                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
+                duration: (calc.totalMinutes / 60).toFixed(1), updatedAt: serverTimestamp(), status: "審核中"
+            };
+            if(photo) payload.photo = photo;
+            const docId = document.getElementById('editDocId').value;
+            if(docId) { await updateDoc(doc(db, "formEntries", docId), payload); }
+            else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "formEntries"), payload); }
+            alert("提交成功"); location.reload();
+        } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
+    };
+
+    async function compressImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image(); img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width, height = img.height, max_size = 800;
+                    if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
+                    else { if (height > max_size) { width *= max_size / height; height = max_size; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                };
+            };
+        });
+    }
+
+    window.applyFilters = async () => {
         const m = document.getElementById('filterMonth').value;
         const d = document.getElementById('filterDept').value;
         const s = document.getElementById('filterStatus').value;
-
-        filteredRecords = allRecords.filter(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const matchM = !m || (sd && sd.startsWith(m));
-            const matchD = !d || r.dept === d;
-            const matchS = !s || r.status === s;
-            return matchM && matchD && matchS;
-        });
-
-        currentPage = 1;
-        renderTable();
+        const tbody = document.getElementById('allTableBody');
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">讀取中...</td></tr>';
+        
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            allRecords = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+            
+            filteredRecords = allRecords.filter(r => {
+                const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
+                const matchMonth = !m || rMonth === m;
+                const matchDept = !d || r.dept === d;
+                const matchStatus = !s || r.status === s;
+                return matchMonth && matchDept && matchStatus;
+            });
+            
+            currentPage = 1;
+            window.renderTable();
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:red;">載入失敗</td></tr>';
+        }
     };
 
-    function renderTable() {
+    window.renderTable = () => {
         const tbody = document.getElementById('allTableBody');
-        if (filteredRecords.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">無相關紀錄</td></tr>';
-            document.getElementById('pageInfo').innerText = "1 / 1";
-            return;
-        }
-
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
-
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
         const pageData = filteredRecords.slice(start, end);
+        
+        if (pageData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">沒有符合條件的資料</td></tr>';
+            return;
+        }
 
         tbody.innerHTML = pageData.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-            const statusClass = r.status === "批准" ? "status-approved" : (r.status === "退件" ? "status-rejected" : "status-pending");
-            const canEdit = r.status === "審核中";
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="status-badge ${statusClass}">${r.status}</td><td>${canEdit ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>` : '-'}</td></tr>`;
+            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            const recordJson = encodeURIComponent(JSON.stringify(r));
+            return `<tr>
+                <td>${r.dept || ""}</td>
+                <td>${r.id}</td>
+                <td>${r.name || ""}</td>
+                <td>${r.leaveType || ""}</td>
+                <td>${sd}<br>${st}</td>
+                <td>${r.displayDuration || ""}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;border-radius:4px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
+                <td><span class="status-badge ${statusClass}">${r.status}</span></td>
+                <td>
+                    <button class="btn-action-s btn-edit" onclick="window.prepareEdit('${recordJson}')">修改</button>
+                    <button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>
+                </td>
+            </tr>`;
         }).join('');
-    }
+        
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+    };
 
     window.changePage = (dir) => {
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         const newPage = currentPage + dir;
         if (newPage >= 1 && newPage <= totalPages) {
             currentPage = newPage;
-            renderTable();
+            window.renderTable();
         }
     };
 
     window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
+        const idInput = document.getElementById('queryEmpId');
+        // 查詢時也要根據規則處理輸入的 ID
+        const id = formatEmpId(idInput.value);
         if (!id) return alert("請輸入工號");
+        
         const tbody = document.getElementById('personalTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
         document.getElementById('personalResultArea').style.display = "block";
 
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        const results = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-
-        if (results.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>';
-            return;
+        try {
+            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無紀錄</td></tr>';
+                return;
+            }
+            tbody.innerHTML = snap.docs.map(d => {
+                const r = d.data();
+                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+                return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}<br>~${ed} ${et}</td><td>${r.displayDuration || ""}</td><td><span class="${statusClass}">${r.status}</span></td><td><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${d.id}')">銷假</button></td></tr>`;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:red;">查詢失敗: ${e.message}</td></tr>`;
         }
-
-        tbody.innerHTML = results.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-            const statusClass = r.status === "批准" ? "status-approved" : (r.status === "退件" ? "status-rejected" : "status-pending");
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration || ""}</td><td class="${statusClass}">${r.status}</td><td>${r.status === "審核中" ? `<button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>` : '-'}</td></tr>`;
-        }).join('');
     };
 
+    // 導出功能：對齊 CSV 格式 + F/H/G 轉小寫 + 批准時間
     window.exportMonthExcel = async () => {
         const m = document.getElementById('exportMonth').value;
-        if (!m) return alert("請選擇月份");
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "asc"));
-        const snap = await getDocs(q);
-        const data = snap.docs.map(d => d.data()).filter(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            return r.status === "批准" && sd && sd.startsWith(m);
-        });
+        if (!m) return alert("請先選擇年份與月份");
+        
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const snap = await getDocs(q);
+            const rawData = snap.docs.map(d => d.data());
+            
+            // 篩選與轉換
+            const filtered = rawData.filter(r => (r.sDate || r.startDate || "").substring(0, 7) === m);
+            
+            if (filtered.length === 0) return alert("該月份無資料可導出");
 
-        if (data.length === 0) return alert("該月份無已核准的紀錄");
+            const csvData = filtered.map(r => {
+                // 確保匯出時工號依據規則處理
+                const processedId = formatEmpId(r.id);
+                
+                return {
+                    "員工代號": processedId,
+                    "員工姓名": r.name || "",
+                    "假別": r.leaveType || "",
+                    "出勤日期": r.sDate || r.startDate || "",
+                    "開始日期": r.sDate || r.startDate || "",
+                    "開始時間": r.sTime || r.startTime || "",
+                    "結束日期": r.eDate || r.endDate || "",
+                    "結束時間": r.eTime || r.endTime || "",
+                    "請假時數": r.displayDuration || "",
+                    "扣伙食費": "",
+                    "扣交通津貼": "",
+                    "事由": r.reason || "",
+                    "備註": r.dept || "",
+                    "主管批准時間": r.approveTime || ""
+                };
+            });
 
-        const excelData = data.map(r => ({
-            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
-            "起始時間": `${safeGet(r, ['sDate', 'startDate'])} ${safeGet(r, ['sTime', 'startTime'])}`,
-            "結束時間": `${safeGet(r, ['eDate', 'endDate'])} ${safeGet(r, ['eTime', 'endTime'])}`,
-            "時數(HH:mm)": r.displayDuration || "", "事由": r.reason || "", "核准時間": r.approveTime || ""
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "請假紀錄");
-        XLSX.writeFile(wb, `鼎顓電子請假紀錄_${m}.xlsx`);
+            const ws = XLSX.utils.json_to_sheet(csvData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+            XLSX.writeFile(wb, `鼎顓電子出勤報表_${m}.xlsx`);
+        } catch (e) {
+            alert("導出失敗：" + e.message);
+        }
     };
 
+    window.switchPage = (pageId) => {
+        document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(`page-${pageId}`).classList.add('active');
+        document.getElementById(`nav-${pageId}`).classList.add('active');
+        if (pageId === 'search') window.applyFilters();
+    };
+
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            const viText = el.getAttribute('data-vi');
+            const zhText = el.textContent;
+            el.setAttribute('data-zh', zhText);
+            el.textContent = (lang === 'vi') ? viText : el.getAttribute('data-zh');
+        });
+    };
+
+    window.openLightbox = (src) => {
+        document.getElementById('lightboxImg').src = src;
+        document.getElementById('imageLightbox').style.display = 'flex';
+    };
+    window.closeLightbox = () => {
+        document.getElementById('imageLightbox').style.display = 'none';
+    };
 </script>
 </body>
 </html>
