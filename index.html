@@ -138,7 +138,7 @@
                     </div>
                     <div>
                         <label data-vi="Tên nhân viên">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入">
+                        <input type="text" id="empName" placeholder="輸入工號或手動輸入姓名">
                     </div>
                 </div>
                 <div class="form-grid">
@@ -325,13 +325,11 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
-    // [新需求] 設定班別與自動帶入邏輯
     window.setShift = (shift) => {
         document.getElementById('shiftDayBtn').className = 'btn';
         document.getElementById('shiftMidBtn').className = 'btn';
         document.getElementById('currentShiftType').value = shift;
         
-        // 解除輸入限制
         document.getElementById('startDate').disabled = false;
         document.getElementById('startTime').disabled = false;
         document.getElementById('endDate').disabled = false;
@@ -349,7 +347,6 @@
             document.getElementById('shiftMidBtn').classList.add('shift-active');
             document.getElementById('startDate').value = today;
             document.getElementById('startTime').value = "18:00";
-            // 中班跨日處理
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             document.getElementById('endDate').value = tomorrow.toISOString().split('T')[0];
@@ -358,7 +355,6 @@
         window.autoCalc();
     };
 
-    // [新需求] 時數計算邏輯修正 (包含扣除休息時間)
     window.autoCalc = () => {
         const sD = document.getElementById('startDate').value;
         const sT = document.getElementById('startTime').value;
@@ -379,20 +375,16 @@
 
         let totalMinutes = Math.floor(diffMs / (1000 * 60));
 
-        // 扣除休息時間邏輯
         if (shift === 'day') {
-            // 早班休息：12:00 ~ 13:00 (60分鐘)
             const restStart = new Date(`${sD}T12:00`);
             const restEnd = new Date(`${sD}T13:00`);
             if (start < restEnd && end > restStart) {
                 totalMinutes -= 60;
             }
         } else if (shift === 'middle') {
-            // 中班休息：半夜 12:00 ~ 12:30 (30分鐘)
-            // 判斷方式：找出開始日期當天的 23:59 之後的時間
             const restDate = new Date(start);
             if (start.getHours() >= 18) {
-                restDate.setDate(restDate.getDate() + 1); // 休息時間在隔天凌晨
+                restDate.setDate(restDate.getDate() + 1);
             }
             const dateStr = restDate.toISOString().split('T')[0];
             const restStart = new Date(`${dateStr}T00:00`);
@@ -411,7 +403,7 @@
 
     window.saveToCloud = async () => {
         const id = document.getElementById('empId').value.trim().toUpperCase();
-        const name = document.getElementById('empName').value;
+        const name = document.getElementById('empName').value.trim(); // [新需求] 確保讀取手動輸入的值
         const dept = document.getElementById('dept').value;
         const leaveType = document.getElementById('leaveType').value;
         const sDate = document.getElementById('startDate').value;
@@ -468,20 +460,35 @@
         }
     };
 
+    // [新需求修正] 重新設計的工號自動帶入邏輯
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
+        const nameInput = document.getElementById('empName');
         const id = idInput.value.trim().toUpperCase();
-        if (id.length < 3) { document.getElementById('empName').value = ""; return; } 
+        
+        // 字數太少不做動作
+        if (id.length < 3) { 
+            nameInput.value = ""; 
+            return; 
+        } 
 
         try {
+            // 從歷史假單找最近的一筆
             const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
             const snap = await getDocs(q);
+            
             if (!snap.empty) {
                 const data = snap.docs[0].data();
-                document.getElementById('empName').value = data.name || "";
+                nameInput.value = data.name || "";
                 if (data.dept) document.getElementById('dept').value = data.dept;
-            } else { document.getElementById('empName').value = ""; }
-        } catch (e) { console.error("自動帶入失敗:", e); }
+            } else { 
+                // [新需求] 如果找不到資料，清空姓名欄位，讓使用者自行填寫
+                // 不再強制設為空的，避免干擾使用者正在輸入的動作
+                console.log("此工號尚無歷史紀錄，請手動輸入資料");
+            }
+        } catch (e) { 
+            console.error("自動帶入失敗:", e); 
+        }
     };
 
     function safeGet(obj, keys, defaultVal = "") {
@@ -584,113 +591,7 @@
             window.loadAdminData();
         } catch (e) { alert("批次處理錯誤：" + e.message); } finally { btn.disabled = false; }
     };
-
-    window.applyFilters = async () => {
-        const month = document.getElementById('filterMonth').value;
-        const dept = document.getElementById('filterDept').value;
-        const status = document.getElementById('filterStatus').value;
-        
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        
-        filteredRecords = allRecords.filter(r => {
-            const rDate = r.sDate || r.startDate || "";
-            const matchMonth = !month || rDate.startsWith(month);
-            const matchDept = !dept || r.dept === dept;
-            const matchStatus = !status || r.status === status;
-            return matchMonth && matchDept && matchStatus;
-        });
-        
-        currentPage = 1;
-        renderTable();
-    };
-
-    function renderTable() {
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        const paged = filteredRecords.slice(start, end);
-        const tbody = document.getElementById('allTableBody');
-        
-        tbody.innerHTML = paged.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
-            const statusCls = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const jsonStr = encodeURIComponent(JSON.stringify(r));
-            
-            return `<tr>
-                <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-                <td>${sd}<br>${st}~${et}</td><td>${r.displayDuration || ""}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:35px;height:35px;border-radius:4px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td class="${statusCls}">${r.status}</td>
-                <td>
-                    ${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${jsonStr}')">改</button>` : ''}
-                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button>
-                </td>
-            </tr>`;
-        }).join('');
-        
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
-    }
-
-    window.changePage = (dir) => {
-        const max = Math.ceil(filteredRecords.length / rowsPerPage);
-        currentPage += dir;
-        if (currentPage < 1) currentPage = 1;
-        if (currentPage > max) currentPage = max;
-        renderTable();
-    };
-
-    window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if (!id) return alert("請輸入工號");
-        const tbody = document.getElementById('personalTableBody');
-        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
-        document.getElementById('personalResultArea').style.display = "block";
-        
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        
-        if (records.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">查無紀錄</td></tr>';
-            return;
-        }
-        
-        tbody.innerHTML = records.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-            const statusCls = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const jsonStr = encodeURIComponent(JSON.stringify(r));
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}~${ed}</td><td>${r.displayDuration || ""}</td><td class="${statusCls}">${r.status}</td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${jsonStr}')">改</button>` : ''} <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button></td></tr>`;
-        }).join('');
-    };
-
-    window.exportMonthExcel = async () => {
-        const month = document.getElementById('exportMonth').value;
-        if(!month) return alert("請選擇月份");
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        const records = snap.docs.map(d => d.data()).filter(r => (r.sDate || r.startDate || "").startsWith(month) && r.status === "批准");
-
-        if (records.length === 0) return alert("該月份無核准紀錄");
-
-        const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
-        const dataRows = records.map(r => {
-            let empId = r.id || "";
-            if (/^[FGH]/i.test(empId)) empId = empId.toLowerCase();
-            return [
-                empId, r.name, r.leaveType, r.sDate || r.startDate, 
-                r.sDate || r.startDate, r.sTime || r.startTime, 
-                r.eDate || r.endDate, r.eTime || r.endTime, 
-                r.displayDuration, r.reason, r.dept, r.approveTime || ""
-            ];
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "LeaveRecords");
-        XLSX.writeFile(wb, `Leave_Export_${month}.xlsx`);
-    };
 </script>
+
 </body>
 </html>
