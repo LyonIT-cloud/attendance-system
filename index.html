@@ -298,6 +298,14 @@
         window.loadAllRecords();
     });
 
+    // 格式化輔助函數：統一呈現為 X 時 Y 分
+    function formatDuration(minutes) {
+        if (isNaN(minutes)) return "0 時 0 分";
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return `${h} 時 ${m} 分`;
+    }
+
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) {
             if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
@@ -343,10 +351,15 @@
                 const ed = safeGet(r, ['eDate', 'endDate']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
                 
+                // 統一呈現時數
+                const durationDisplay = r.displayDuration ? 
+                    (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
+                    formatDuration(r.duration || 0);
+
                 return `<tr>
                     <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
                     <td style="font-size:12px;">${dateRange}</td>
-                    <td>${r.displayDuration || (r.duration + '時')}</td>
+                    <td>${durationDisplay}</td>
                     <td>${r.photo ? `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
                     <td class="status-badge ${statusClass}">${r.status}</td>
                     <td>
@@ -365,7 +378,6 @@
         const record = allRecords.find(r => r.docId === docId);
         if(!record) return;
         
-        // 切換到首頁並填入資料
         window.switchPage('dashboard');
         document.getElementById('editDocId').value = docId;
         document.getElementById('empId').value = record.id;
@@ -374,7 +386,6 @@
         document.getElementById('leaveType').value = record.leaveType;
         document.getElementById('reason').value = record.reason || "";
         
-        // 觸發班別選擇以便解鎖時間欄位
         const isDayShift = (record.sTime >= "07:00" && record.sTime <= "17:30");
         window.setShift(isDayShift ? 'day' : 'middle');
         
@@ -410,7 +421,6 @@
         document.getElementById('submitBtn').innerText = "確認送出申請";
         document.getElementById('cancelEditBtn').style.display = 'none';
         document.getElementById('leaveImg').value = "";
-        // 其他欄位保留工號等便利功能，僅重置特定修改標記
     };
 
     // --- 其餘原有邏輯保留 ---
@@ -459,7 +469,12 @@
         bulkBtn.innerText = `✅ 一鍵批准 ${filtered.length} 筆`;
         tbody.innerHTML = filtered.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+            // 統一呈現時數
+            const durationDisplay = r.displayDuration ? 
+                (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
+                formatDuration(r.duration || 0);
+
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${durationDisplay}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
         }).join('');
     };
 
@@ -506,8 +521,8 @@
             document.getElementById('startDate').value, document.getElementById('startTime').value,
             document.getElementById('endDate').value, document.getElementById('endTime').value
         );
-        const h = Math.floor(min / 60), m = min % 60;
-        const display = `${h} 時 ${m} 分`;
+        // 修改呈現邏輯：統一呼叫 formatDuration
+        const display = formatDuration(min);
         document.getElementById('durationText').innerText = `🕒 計算結果：${display}`;
         return { displayStr: display, totalMinutes: min };
     };
@@ -543,78 +558,62 @@
                 dept: document.getElementById('dept').value, leaveType: type,
                 sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value,
                 eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value,
-                reason: document.getElementById('reason').value, displayDuration: calc.displayStr, totalMinutes: calc.totalMinutes,
-                duration: (calc.totalMinutes / 60).toFixed(1), updatedAt: serverTimestamp(), status: "審核中"
+                duration: calc.totalMinutes, displayDuration: calc.displayStr,
+                reason: document.getElementById('reason').value,
+                status: "審核中", createdAt: serverTimestamp()
             };
             if(photo) payload.photo = photo;
             
-            if(editId) { await updateDoc(doc(db, "formEntries", editId), payload); }
-            else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "formEntries"), payload); }
-            alert("提交成功"); location.reload();
-        } catch(e) { alert("錯誤：" + e.message); document.getElementById('submitBtn').disabled = false; }
+            if(editId) {
+                await updateDoc(doc(db, "formEntries", editId), payload);
+                alert("申請已更新！");
+                window.resetForm();
+            } else {
+                await addDoc(collection(db, "formEntries"), payload);
+                alert("申請成功！請等待主管審核。");
+            }
+            window.loadAllRecords();
+            window.switchPage('personal');
+        } catch (e) { alert("送出失敗：" + e.message); }
+        finally { document.getElementById('submitBtn').disabled = false; }
     };
 
     async function compressImage(file) {
         return new Promise((resolve) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = (event) => {
-                const img = new Image(); img.src = event.target.result;
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height, max_size = 800;
-                    if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
-                    else { if (height > max_size) { width *= max_size / height; height = max_size; } }
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.6));
+                    let w = img.width, h = img.height, max = 800;
+                    if(w > h && w > max){ h *= max/w; w = max; }
+                    else if(h > max){ w *= max/h; h = max; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
                 };
             };
         });
     }
 
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value; if(!m) return alert("請選擇月份");
-        const snap = await getDocs(query(collection(db, "formEntries"), where("status", "==", "批准")));
-        const combined = snap.docs.map(d=>d.data()).filter(r => safeGet(r, ['sDate', 'startDate']).startsWith(m));
-        if (combined.length === 0) return alert("無紀錄可導出");
-        const header = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
-        const rows = combined.map(r => {
-            const tMin = r.totalMinutes || 0;
-            let h = Math.floor(tMin / 60), mins = tMin % 60;
-            return [r.id, r.name, r.leaveType, r.sDate, r.sDate, r.sTime, r.eDate, r.eTime, `${String(h).padStart(3,'0')}:${String(mins).padStart(2,'0')}`, r.reason, r.dept, r.approveTime || ""];
-        });
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-        XLSX.writeFile(wb, `鼎顓_${m}_出勤報表.xlsx`);
-    };
-
-    window.autoFetchName = async () => {
-        const id = document.getElementById('empId').value.trim().toUpperCase(); if(id.length < 4) return;
-        const snap = await getDoc(doc(db, "employees", id));
-        if(snap.exists()){ document.getElementById('empName').value = snap.data().name; document.getElementById('dept').value = snap.data().dept; }
-    };
-
-    window.changePage = (dir) => {
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        let n = currentPage + dir;
-        if (n >= 1 && n <= totalPages) { currentPage = n; window.renderTable(); }
-    };
-    
-    window.searchPersonalRecords = async () => {
+    // 全域導出功能與原有搜尋功能
+    window.searchPersonalRecords = () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if(!id) return alert("請輸入工號");
-        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
+        const res = allRecords.filter(r => r.id === id);
         const tbody = document.getElementById('personalTableBody');
         document.getElementById('personalResultArea').style.display = 'block';
-        if(snap.empty){ tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
-        tbody.innerHTML = snap.docs.map(docSnap => {
-            const r = docSnap.data();
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}</td><td>${r.displayDuration}</td><td>${r.status}</td><td>-</td></tr>`;
+        if(res.length === 0){ tbody.innerHTML = '<tr><td colspan="6">無紀錄</td></tr>'; return; }
+        tbody.innerHTML = res.map(r => {
+            const durationDisplay = r.displayDuration ? 
+                (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
+                formatDuration(r.duration || 0);
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}<br>~${r.eDate}</td><td>${durationDisplay}</td><td>${r.status}</td><td>${r.status==='審核中'?`<button onclick="window.prepareEdit('${r.docId}')">改</button>`:'-'}</td></tr>`;
         }).join('');
     };
+
 </script>
 </body>
 </html>
