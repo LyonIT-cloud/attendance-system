@@ -402,6 +402,7 @@
         document.getElementById('durationText').dataset.minutes = totalMinutes;
     };
 
+    // [修正需求]：從 employees 集合中根據文件 ID 直接獲取員工資訊
     window.autoFetchName = async () => {
         const idInput = document.getElementById('empId');
         const nameInput = document.getElementById('empName');
@@ -415,17 +416,27 @@
         } 
 
         try {
-            const q = query(collection(db, "employees"), where("id", "==", id), orderBy("createdAt", "desc"), limit(1));
-            const snap = await getDocs(q);
+            // 從 employees 集合中直接獲取對應工號的文件資料
+            const docRef = doc(db, "employees", id);
+            const docSnap = await getDoc(docRef);
             
-            if (!snap.empty) {
-                const data = snap.docs[0].data();
+            if (docSnap.exists()) {
+                const data = docSnap.data();
                 nameInput.value = data.name || "";
                 if (data.dept) deptInput.value = data.dept;
             } else { 
-                nameInput.value = "";
-                deptInput.value = "";
-                console.log("此工號尚無歷史紀錄，請輸入正確工號");
+                // 如果找不到文件 ID，則嘗試進行欄位查詢 (備用)
+                const q = query(collection(db, "employees"), where("id", "==", id), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const data = snap.docs[0].data();
+                    nameInput.value = data.name || "";
+                    if (data.dept) deptInput.value = data.dept;
+                } else {
+                    nameInput.value = "";
+                    deptInput.value = "";
+                    console.log("此工號尚無員工紀錄，請輸入正確工號");
+                }
             }
         } catch (e) { 
             console.error("自動帶入失敗:", e); 
@@ -587,10 +598,10 @@
         try {
             const updatePromises = currentPendingDocs.map(docData => updateDoc(doc(db, "formEntries", docData.docId), { status: "批准", approveTime: timeStr }));
             await Promise.all(updatePromises);
-            alert(`成功批准 ${currentPendingDocs.length} 筆申請！`);
+            alert(`已成功批量批准 ${currentPendingDocs.length} 筆申請！`);
             window.loadAdminData();
         } catch (e) {
-            alert("批次核准失敗：" + e.message);
+            alert("批量處理失敗: " + e.message);
         } finally {
             btn.disabled = false;
         }
@@ -599,23 +610,19 @@
     window.applyFilters = async () => {
         const tbody = document.getElementById('allTableBody');
         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">讀取中...</td></tr>';
-        
         const month = document.getElementById('filterMonth').value;
         const dept = document.getElementById('filterDept').value;
         const status = document.getElementById('filterStatus').value;
-
         const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
-        
         allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
         filteredRecords = allRecords.filter(r => {
-            const rMonth = (r.sDate || r.startDate || "").substring(0, 7);
-            const mMatch = !month || rMonth === month;
+            const rSD = safeGet(r, ['sDate', 'startDate']);
+            const mMatch = !month || (rSD && rSD.startsWith(month));
             const dMatch = !dept || r.dept === dept;
             const sMatch = !status || r.status === status;
             return mMatch && dMatch && sMatch;
         });
-
         currentPage = 1;
         renderTable();
     };
@@ -623,103 +630,70 @@
     function renderTable() {
         const tbody = document.getElementById('allTableBody');
         const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        const pageData = filteredRecords.slice(start, end);
-
-        if (pageData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無資料</td></tr>';
-            document.getElementById('pageInfo').innerText = "0 / 0";
+        const paged = filteredRecords.slice(start, start + rowsPerPage);
+        if (paged.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無符合條件之紀錄</td></tr>';
             return;
         }
-
-        tbody.innerHTML = pageData.map(r => {
-            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const dateStr = (r.sDate || r.startDate || "").substring(5);
-            const canEdit = r.status === '審核中';
-            const recordJson = encodeURIComponent(JSON.stringify(r));
-
-            return `<tr>
-                <td>${r.dept}</td><td>${r.id}</td><td><b>${r.name}</b></td><td>${r.leaveType}</td>
-                <td>${dateStr}</td><td>${r.displayDuration || ""}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td class="${statusClass}">${r.status}</td>
-                <td>
-                    ${canEdit ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${recordJson}')">修改</button>` : ''}
-                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>
-                </td>
-            </tr>`;
+        tbody.innerHTML = paged.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            const sClass = r.status === '審核中' ? 'status-pending' : (r.status === '批准' ? 'status-approved' : 'status-rejected');
+            const canEdit = (r.status === '審核中' || r.status === '退件');
+            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}</td><td>${r.displayDuration || ""}</td><td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px;border-radius:4px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td class="status-badge ${sClass}">${r.status}</td><td>${canEdit ? `<button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">修改</button><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button>` : '-'}</td></tr>`;
         }).join('');
-
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+        const totalP = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalP}`;
     }
 
     window.changePage = (dir) => {
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage);
+        const totalP = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         currentPage += dir;
         if (currentPage < 1) currentPage = 1;
-        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage > totalP) currentPage = totalP;
         renderTable();
     };
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if (!id) return alert("請輸入工號");
-        
         const tbody = document.getElementById('personalTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
-        document.getElementById('personalResultArea').style.display = 'block';
-
+        document.getElementById('personalResultArea').style.display = "block";
         const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
-        
-        const docs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        if (docs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無此工號紀錄</td></tr>';
+        const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查無此人工號之紀錄</td></tr>';
             return;
         }
-
-        tbody.innerHTML = docs.map(r => {
-            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const dateRange = `${(r.sDate || r.startDate).substring(5)} ~ ${(r.eDate || r.endDate).substring(5)}`;
-            const canEdit = r.status === '審核中';
-            const recordJson = encodeURIComponent(JSON.stringify(r));
-
-            return `<tr>
-                <td>${r.name}</td><td>${r.leaveType}</td><td>${dateRange}</td><td>${r.displayDuration || ""}</td>
-                <td class="${statusClass}">${r.status}</td>
-                <td>
-                    ${canEdit ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${recordJson}')">修改</button>` : ''}
-                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷假</button>
-                </td>
-            </tr>`;
+        tbody.innerHTML = records.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+            const sClass = r.status === '審核中' ? 'status-pending' : (r.status === '批准' ? 'status-approved' : 'status-rejected');
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}<br>~${ed}</td><td>${r.displayDuration || ""}</td><td class="${sClass}">${r.status}</td><td>${(r.status === '審核中' || r.status === '退件') ? `<button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">編</button><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷</button>` : '-'}</td></tr>`;
         }).join('');
     };
 
     window.exportMonthExcel = async () => {
         const month = document.getElementById('exportMonth').value;
-        if (!month) return alert("請選擇月份");
-        
+        if (!month) return alert("請選擇要匯出的月份");
         const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
         const snap = await getDocs(q);
-        const data = snap.docs.map(d => d.data()).filter(r => (r.sDate || r.startDate || "").substring(0, 7) === month);
-
-        if (data.length === 0) return alert("該月份無數據可導出");
-
+        const data = snap.docs.map(d => d.data()).filter(r => {
+            const rSD = safeGet(r, ['sDate', 'startDate']);
+            return rSD && rSD.startsWith(month) && r.status === "批准";
+        });
+        if (data.length === 0) return alert("該月份查無任何已批准之請假紀錄");
         const excelData = data.map(r => ({
-            "部門": r.dept, "工號": r.id, "姓名": r.name, "假別": r.leaveType,
-            "開始日期": r.sDate || r.startDate, "開始時間": r.sTime || r.startTime,
-            "結束日期": r.eDate || r.endDate, "結束時間": r.eTime || r.endTime,
-            "總時數": r.displayDuration, "原因": r.reason, "狀態": r.status,
-            "核准時間": r.approveTime || ""
+            "部門": r.dept, "工號": r.id, "姓名": r.name, "請假類別": r.leaveType,
+            "起始時間": `${safeGet(r, ['sDate', 'startDate'])} ${safeGet(r, ['sTime', 'startTime'])}`,
+            "結束時間": `${safeGet(r, ['eDate', 'endDate'])} ${safeGet(r, ['eTime', 'endTime'])}`,
+            "時數(HH:mm)": r.displayDuration || "", "事由": r.reason || "", "核准時間": r.approveTime || ""
         }));
-
         const ws = XLSX.utils.json_to_sheet(excelData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance");
-        XLSX.writeFile(wb, `鼎顓假單導出_${month}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "LeaveRecords");
+        XLSX.writeFile(wb, `鼎顓電子請假紀錄_${month}.xlsx`);
     };
 </script>
-
 </body>
 </html>
