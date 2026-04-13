@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -167,7 +166,7 @@
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
                         <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班</button>
                     </div>
-                    <input type="hidden" id="hasSelectedShift" value="false">
+                    <input type="hidden" id="currentShiftType" value="">
                 </div>
 
                 <div class="form-grid">
@@ -326,36 +325,52 @@
         document.getElementById('imageLightbox').style.display = 'none';
     };
 
+    // [新需求] 設定班別與自動帶入邏輯
     window.setShift = (shift) => {
         document.getElementById('shiftDayBtn').className = 'btn';
         document.getElementById('shiftMidBtn').className = 'btn';
-        document.getElementById('hasSelectedShift').value = "true";
+        document.getElementById('currentShiftType').value = shift;
+        
+        // 解除輸入限制
         document.getElementById('startDate').disabled = false;
         document.getElementById('startTime').disabled = false;
         document.getElementById('endDate').disabled = false;
         document.getElementById('endTime').disabled = false;
+
+        const today = new Date().toISOString().split('T')[0];
         
         if (shift === 'day') {
             document.getElementById('shiftDayBtn').classList.add('shift-active');
+            document.getElementById('startDate').value = today;
             document.getElementById('startTime').value = "08:30";
+            document.getElementById('endDate').value = today;
             document.getElementById('endTime').value = "17:30";
         } else {
             document.getElementById('shiftMidBtn').classList.add('shift-active');
-            document.getElementById('startTime').value = "16:00";
-            document.getElementById('endTime').value = "00:30";
+            document.getElementById('startDate').value = today;
+            document.getElementById('startTime').value = "18:00";
+            // 中班跨日處理
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('endDate').value = tomorrow.toISOString().split('T')[0];
+            document.getElementById('endTime').value = "02:30";
         }
         window.autoCalc();
     };
 
+    // [新需求] 時數計算邏輯修正 (包含扣除休息時間)
     window.autoCalc = () => {
         const sD = document.getElementById('startDate').value;
         const sT = document.getElementById('startTime').value;
         const eD = document.getElementById('endDate').value;
         const eT = document.getElementById('endTime').value;
+        const shift = document.getElementById('currentShiftType').value;
+        
         if (!sD || !sT || !eD || !eT) return;
 
         const start = new Date(`${sD}T${sT}`);
         const end = new Date(`${eD}T${eT}`);
+        
         let diffMs = end - start;
         if (diffMs < 0) {
             document.getElementById('durationText').innerText = "結束時間不能早於開始時間";
@@ -363,9 +378,34 @@
         }
 
         let totalMinutes = Math.floor(diffMs / (1000 * 60));
+
+        // 扣除休息時間邏輯
+        if (shift === 'day') {
+            // 早班休息：12:00 ~ 13:00 (60分鐘)
+            const restStart = new Date(`${sD}T12:00`);
+            const restEnd = new Date(`${sD}T13:00`);
+            if (start < restEnd && end > restStart) {
+                totalMinutes -= 60;
+            }
+        } else if (shift === 'middle') {
+            // 中班休息：半夜 12:00 ~ 12:30 (30分鐘)
+            // 判斷方式：找出開始日期當天的 23:59 之後的時間
+            const restDate = new Date(start);
+            if (start.getHours() >= 18) {
+                restDate.setDate(restDate.getDate() + 1); // 休息時間在隔天凌晨
+            }
+            const dateStr = restDate.toISOString().split('T')[0];
+            const restStart = new Date(`${dateStr}T00:00`);
+            const restEnd = new Date(`${dateStr}T00:30`);
+            
+            if (start < restEnd && end > restStart) {
+                totalMinutes -= 30;
+            }
+        }
+
         const hours = Math.floor(totalMinutes / 60);
         const mins = totalMinutes % 60;
-        document.getElementById('durationText').innerText = `總時數：${hours} 小時 ${mins} 分鐘`;
+        document.getElementById('durationText').innerText = `總時數：${hours} 小時 ${mins} 分鐘 (已自動扣除休息時間)`;
         document.getElementById('durationText').dataset.minutes = totalMinutes;
     };
 
@@ -545,152 +585,112 @@
         } catch (e) { alert("批次處理錯誤：" + e.message); } finally { btn.disabled = false; }
     };
 
-    // 修正後的 EXCEL 導出規則：完全對齊 12 個欄位
-    window.exportMonthExcel = async () => {
-        const month = document.getElementById('exportMonth').value;
-        if(!month) return alert("請選擇月份");
-        
-        try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            
-            // 只匯出「批准」且屬於該月份的紀錄
-            const records = snap.docs.map(d => d.data()).filter(r => {
-                const sDate = r.sDate || r.startDate;
-                return r.status === "批准" && sDate && sDate.startsWith(month);
-            });
-
-            if (records.length === 0) return alert("該月份無已批准的紀錄可供導出。");
-
-            // 嚴格對齊報表要求的 12 個欄位
-            const headers = [
-                "員工代號", "員工姓名", "假別", "出勤日期", 
-                "開始日期", "開始時間", "結束日期", "結束時間", 
-                "請假時數", "事由", "部門", "核准時間"
-            ];
-            
-            const dataRows = records.map(r => {
-                // 邏輯 1: F、G、H 開頭工號英文轉小寫
-                let empId = r.id || "";
-                if (/^[FGH]/i.test(empId)) {
-                    empId = empId.toLowerCase();
-                }
-
-                // 邏輯 2: 時數格式補零 (例如 008:00)
-                const totalMinutes = r.totalMinutes || 0;
-                const hh = String(Math.floor(totalMinutes / 60)).padStart(3, '0');
-                const mm = String(totalMinutes % 60).padStart(2, '0');
-                const formattedDuration = `${hh}:${mm}`;
-
-                return [
-                    empId,
-                    r.name || "",
-                    r.leaveType || "",
-                    r.sDate || r.startDate || "",
-                    r.sDate || r.startDate || "",
-                    r.sTime || r.startTime || "",
-                    r.eDate || r.endDate || "",
-                    r.eTime || r.endTime || "",
-                    formattedDuration,
-                    r.reason || "",
-                    r.dept || "",
-                    r.approveTime || ""
-                ];
-            });
-
-            const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "核准清單");
-            XLSX.writeFile(workbook, `鼎顓電子_請假清單_${month}.xlsx`);
-        } catch(e) {
-            alert("導出失敗：" + e.message);
-        }
-    };
-
     window.applyFilters = async () => {
-        const m = document.getElementById('filterMonth').value;
-        const d = document.getElementById('filterDept').value;
-        const s = document.getElementById('filterStatus').value;
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">搜尋中...</td></tr>';
+        const month = document.getElementById('filterMonth').value;
+        const dept = document.getElementById('filterDept').value;
+        const status = document.getElementById('filterStatus').value;
         
-        try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            allRecords = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-            
-            filteredRecords = allRecords.filter(r => {
-                const sDate = r.sDate || r.startDate;
-                const matchMonth = !m || (sDate && sDate.startsWith(m));
-                const matchDept = !d || r.dept === d;
-                const matchStatus = !s || r.status === s;
-                return matchMonth && matchDept && matchStatus;
-            });
-
-            currentPage = 1;
-            renderTable();
-        } catch(e) { tbody.innerHTML = `<tr><td colspan="9">讀取失敗: ${e.message}</td></tr>`; }
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        
+        filteredRecords = allRecords.filter(r => {
+            const rDate = r.sDate || r.startDate || "";
+            const matchMonth = !month || rDate.startsWith(month);
+            const matchDept = !dept || r.dept === dept;
+            const matchStatus = !status || r.status === status;
+            return matchMonth && matchDept && matchStatus;
+        });
+        
+        currentPage = 1;
+        renderTable();
     };
 
     function renderTable() {
-        const tbody = document.getElementById('allTableBody');
         const start = (currentPage - 1) * rowsPerPage;
-        const paged = filteredRecords.slice(start, start + rowsPerPage);
+        const end = start + rowsPerPage;
+        const paged = filteredRecords.slice(start, end);
+        const tbody = document.getElementById('allTableBody');
         
-        if (paged.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查無符合條件之紀錄</td></tr>';
-            document.getElementById('pageInfo').innerText = "1 / 1";
-            return;
-        }
-
         tbody.innerHTML = paged.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']);
-            const st = r.status || "審核中";
-            const sClass = st==='批准'?'status-approved':(st==='退件'?'status-rejected':'status-pending');
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+            const statusCls = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            const jsonStr = encodeURIComponent(JSON.stringify(r));
+            
             return `<tr>
                 <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-                <td>${sd}</td><td>${r.displayDuration || (r.duration+' 小時')}</td>
-                <td>${r.photo ? `<img src="${r.photo}" style="width:30px;height:30px" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
-                <td><span class="status-badge ${sClass}">${st}</span></td>
+                <td>${sd}<br>${st}~${et}</td><td>${r.displayDuration || ""}</td>
+                <td>${r.photo ? `<img src="${r.photo}" style="width:35px;height:35px;border-radius:4px;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td>
+                <td class="${statusCls}">${r.status}</td>
                 <td>
-                    <button class="btn-action-s btn-edit" onclick="window.prepareEdit('${encodeURIComponent(JSON.stringify(r))}')">編</button>
-                    <button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷</button>
+                    ${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${jsonStr}')">改</button>` : ''}
+                    <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button>
                 </td>
             </tr>`;
         }).join('');
         
-        const totalP = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalP}`;
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     }
 
     window.changePage = (dir) => {
-        const max = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const max = Math.ceil(filteredRecords.length / rowsPerPage);
         currentPage += dir;
-        if(currentPage < 1) currentPage = 1;
-        if(currentPage > max) currentPage = max;
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > max) currentPage = max;
         renderTable();
     };
 
     window.searchPersonalRecords = async () => {
         const id = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if(!id) return alert("請輸入工號");
+        if (!id) return alert("請輸入工號");
         const tbody = document.getElementById('personalTableBody');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6">查詢中...</td></tr>';
         document.getElementById('personalResultArea').style.display = "block";
         
-        try {
-            const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            const data = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-            if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">無此工號紀錄</td></tr>'; return; }
-            tbody.innerHTML = data.map(r => {
-                const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']);
-                const statusStr = r.status || "審核中";
-                return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd} ${st}</td><td>${r.displayDuration}</td><td>${statusStr}</td>
-                <td><button class="btn-action-s btn-cancel-leave" onclick="window.cancelLeave('${r.docId}')">銷假</button></td></tr>`;
-            }).join('');
-        } catch(e) { tbody.innerHTML = `<tr><td colspan="6">查詢出錯</td></tr>`; }
+        const q = query(collection(db, "formEntries"), where("id", "==", id), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">查無紀錄</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = records.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+            const statusCls = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            const jsonStr = encodeURIComponent(JSON.stringify(r));
+            return `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${sd}~${ed}</td><td>${r.displayDuration || ""}</td><td class="${statusCls}">${r.status}</td><td>${r.status === '審核中' ? `<button class="btn-action-s btn-edit" onclick="prepareEdit('${jsonStr}')">改</button>` : ''} <button class="btn-action-s btn-cancel-leave" onclick="cancelLeave('${r.docId}')">銷</button></td></tr>`;
+        }).join('');
+    };
+
+    window.exportMonthExcel = async () => {
+        const month = document.getElementById('exportMonth').value;
+        if(!month) return alert("請選擇月份");
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+        const records = snap.docs.map(d => d.data()).filter(r => (r.sDate || r.startDate || "").startsWith(month) && r.status === "批准");
+
+        if (records.length === 0) return alert("該月份無核准紀錄");
+
+        const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "事由", "部門", "核准時間"];
+        const dataRows = records.map(r => {
+            let empId = r.id || "";
+            if (/^[FGH]/i.test(empId)) empId = empId.toLowerCase();
+            return [
+                empId, r.name, r.leaveType, r.sDate || r.startDate, 
+                r.sDate || r.startDate, r.sTime || r.startTime, 
+                r.eDate || r.endDate, r.eTime || r.endTime, 
+                r.displayDuration, r.reason, r.dept, r.approveTime || ""
+            ];
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "LeaveRecords");
+        XLSX.writeFile(wb, `Leave_Export_${month}.xlsx`);
     };
 </script>
 </body>
-</html
+</html>
