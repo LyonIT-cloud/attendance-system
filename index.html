@@ -268,7 +268,7 @@
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
                         <table style="min-width: 600px;">
-                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>狀態</th><th>動作</th></tr></thead>
+                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>狀態</th><th>選項變更</th></tr></thead>
                             <tbody id="personalTableBody"></tbody>
                         </table>
                     </div>
@@ -491,6 +491,12 @@
                 const m = dMin % 60;
                 const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
 
+                // [新需求]：備註主管審核日期與時間在檔案內
+                let remark = r.dept || "";
+                if (r.approveTime) {
+                    remark += ` (核准時間: ${r.approveTime})`;
+                }
+
                 // 組裝單列資料
                 exportData.push([
                     empId,
@@ -505,7 +511,7 @@
                     "", // 扣伙食費留空
                     "", // 扣交通津貼留空
                     r.reason || "", // 事由
-                    r.dept || "" // 備註 (帶入部門)
+                    remark // 備註 (帶入部門與核准時間)
                 ]);
             });
 
@@ -565,6 +571,11 @@
             
             allRecords = allRecords.filter(r => r.docId !== docId);
             window.applyFilters();
+            
+            // 若在個人查詢頁面刪除，同步更新該頁面
+            if (document.getElementById('page-personal').classList.contains('active') && document.getElementById('queryEmpId').value) {
+                window.searchPersonalRecords();
+            }
         } catch (e) { alert("刪除失敗：" + e.message); }
     };
 
@@ -692,13 +703,32 @@
 
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
 
+                // [新需求]：個人紀錄查詢，只要審核中項目，可以自行修改請假日期與時數，按鍵動作改成選項變更，下方可以修改/銷假
+                let actionHtml = '';
+                if (r.status === '審核中') {
+                    // 如果還在審核中，提供修改和銷假按鈕
+                    actionHtml = `
+                        <div style="display: flex; gap: 5px;">
+                            <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}')">修改</button>
+                            <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
+                        </div>
+                    `;
+                    // 若此筆資料尚未被載入至 allRecords (只有個人查詢時撈出)，則推入 allRecords 確保 prepareEdit 找得到
+                    if (!allRecords.find(item => item.docId === r.docId)) {
+                        allRecords.push(r);
+                    }
+                } else {
+                    // 已核准或退件的，僅保留銷假按鈕(原功能)
+                    actionHtml = `<button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>`;
+                }
+
                 return `<tr>
                     <td style="font-weight:600;">${r.name}</td>
                     <td>${r.leaveType}</td>
                     <td style="font-size:12px;">${dateRange}</td>
                     <td style="font-weight:bold; color:var(--primary);">${durationDisplay}</td>
                     <td class="status-badge ${statusClass}">${r.status}</td>
-                    <td><button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button></td>
+                    <td>${actionHtml}</td>
                 </tr>`;
             }).join('');
 
@@ -808,7 +838,16 @@
                 }
                 window.resetForm();
                 if (isApprovalListAuth) window.loadAllRecords();
-                if (docId) window.switchPage('search'); 
+                
+                // [路由調整]：若是修改模式儲存後，確保回到原頁面 (清單或個人查詢)
+                if (docId) {
+                    if (!isApprovalListAuth) {
+                        window.switchPage('personal');
+                        if (document.getElementById('queryEmpId').value) window.searchPersonalRecords();
+                    } else {
+                        window.switchPage('search');
+                    }
+                }
             } catch (e) {
                 alert("存檔失敗：" + e.message);
             } finally {
