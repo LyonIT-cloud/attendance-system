@@ -329,30 +329,40 @@
         return defaultVal;
     }
 
-    // [新需求]：從 Firebase 撈取員工姓名 (含 7 碼字數防護)
+    // [新需求修正]：換頁功能實作
+    window.changePage = (step) => {
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const newPage = currentPage + step;
+        if (newPage >= 1 && newPage <= totalPages) {
+            currentPage = newPage;
+            window.renderTable();
+        }
+    };
+
+    // [新需求修正]：從 Firebase 撈取員工姓名，並同步帶入部門
     window.autoFetchName = async () => {
         const empId = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
+        const deptInput = document.getElementById('dept');
 
-        // 防護機制：假設工號長度都是 7 碼 (例如 D220119)
-        // 只有打滿 7 碼才去資料庫查，避免 oninput 每打一個字就消耗一次 Firebase 讀取數！
         if (empId.length !== 7) {
             nameInput.value = "";
+            deptInput.value = "";
             return;
         }
 
         try {
             nameInput.value = "查詢中...";
-            
-            // 查詢 employees 集合中的特定工號
             const docRef = doc(db, "employees", empId);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                // 假設您的員工資料表中，姓名的欄位名稱為 'name'
-                nameInput.value = docSnap.data().name || "";
+                const data = docSnap.data();
+                nameInput.value = data.name || "";
+                if(data.dept) deptInput.value = data.dept; // 同步帶入部門
             } else {
                 nameInput.value = "查無此人";
+                deptInput.value = "";
             }
         } catch (error) {
             console.error("獲取姓名失敗", error);
@@ -361,7 +371,6 @@
     };
 
     window.loadAllRecords = async () => {
-        // 核准清單專屬密碼保護，設定為 "top"
         if (!isApprovalListAuth) {
             const pw = prompt("請輸入核准清單查看密碼:");
             if (pw !== "top") {
@@ -410,10 +419,16 @@
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
                 const sd = safeGet(r, ['sDate', 'startDate']);
                 const ed = safeGet(r, ['eDate', 'endDate']);
+                const st = safeGet(r, ['sTime', 'startTime']);
+                const et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
-                const durationDisplay = r.displayDuration ? 
-                    (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
-                    formatDuration(r.duration || 0);
+                
+                // [新需求修正]：防止時數出現 0 時 0 分，若無現存文字則即時計算
+                let durationDisplay = r.displayDuration;
+                if (!durationDisplay || !String(durationDisplay).includes('時')) {
+                    const calcMin = coreCalcMinutes(sd, st, ed, et);
+                    durationDisplay = formatDuration(r.duration ? parseInt(r.duration) : calcMin);
+                }
 
                 return `<tr>
                     <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
@@ -529,10 +544,14 @@
         bulkBtn.style.display = "inline-flex";
         bulkBtn.innerText = `✅ 一鍵批准 ${filtered.length} 筆`;
         tbody.innerHTML = filtered.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            const durationDisplay = r.displayDuration ? 
-                (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
-                formatDuration(r.duration || 0);
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+            
+            // [新需求修正]：防止時數出現 0 時 0 分
+            let durationDisplay = r.displayDuration;
+            if (!durationDisplay || !String(durationDisplay).includes('時')) {
+                const calcMin = coreCalcMinutes(sd, st, ed, et);
+                durationDisplay = formatDuration(r.duration ? parseInt(r.duration) : calcMin);
+            }
 
             return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${durationDisplay}</td><td>${r.photo ? `<img src="${r.photo}" style="width:40px;height:40px;cursor:pointer;" onclick="window.openLightbox('${r.photo}')">` : '-'}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
         }).join('');
@@ -603,9 +622,73 @@
         window.autoCalc();
     };
 
+    // [新需求修正]：補齊並修復存檔邏輯 (支援修改 updateDoc 與新增 addDoc)
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        // ... (原有的上傳儲存邏輯，若您有自己的實作請留意補上)
+        
+        const empId = document.getElementById('empId').value.trim();
+        if (!empId) return alert("請輸入工號！");
+
+        const docId = document.getElementById('editDocId').value;
+        const calcResult = window.autoCalc();
+        
+        const entryData = {
+            id: empId.toUpperCase(),
+            name: document.getElementById('empName').value,
+            dept: document.getElementById('dept').value,
+            leaveType: document.getElementById('leaveType').value,
+            sDate: document.getElementById('startDate').value,
+            sTime: document.getElementById('startTime').value,
+            eDate: document.getElementById('endDate').value,
+            eTime: document.getElementById('endTime').value,
+            reason: document.getElementById('reason').value,
+            duration: calcResult.totalMinutes,
+            displayDuration: calcResult.displayStr,
+            updatedAt: serverTimestamp()
+        };
+
+        if (!docId) {
+            entryData.status = "審核中";
+            entryData.createdAt = serverTimestamp();
+        }
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerText = "處理中...";
+
+        const executeSave = async (data) => {
+            try {
+                if (docId) {
+                    await updateDoc(doc(db, "formEntries", docId), data);
+                    alert("假別紀錄更新成功！");
+                } else {
+                    await addDoc(collection(db, "formEntries"), data);
+                    alert("申請送出成功！");
+                }
+                window.resetForm();
+                if (isApprovalListAuth) window.loadAllRecords();
+                if (docId) window.switchPage('search'); // 若是修改模式，存檔後切換回清單
+            } catch (e) {
+                alert("存檔失敗：" + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "確認送出申請";
+            }
+        };
+
+        // 處理圖片轉 Base64 後存檔
+        const fileInput = document.getElementById('leaveImg');
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                entryData.photo = e.target.result;
+                await executeSave(entryData);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            await executeSave(entryData);
+        }
     };
 </script>
 </body>
