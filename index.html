@@ -329,6 +329,37 @@
         return defaultVal;
     }
 
+    // [新需求]：從 Firebase 撈取員工姓名 (含 7 碼字數防護)
+    window.autoFetchName = async () => {
+        const empId = document.getElementById('empId').value.trim().toUpperCase();
+        const nameInput = document.getElementById('empName');
+
+        // 防護機制：假設工號長度都是 7 碼 (例如 D220119)
+        // 只有打滿 7 碼才去資料庫查，避免 oninput 每打一個字就消耗一次 Firebase 讀取數！
+        if (empId.length !== 7) {
+            nameInput.value = "";
+            return;
+        }
+
+        try {
+            nameInput.value = "查詢中...";
+            
+            // 查詢 employees 集合中的特定工號
+            const docRef = doc(db, "employees", empId);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                // 假設您的員工資料表中，姓名的欄位名稱為 'name'
+                nameInput.value = docSnap.data().name || "";
+            } else {
+                nameInput.value = "查無此人";
+            }
+        } catch (error) {
+            console.error("獲取姓名失敗", error);
+            nameInput.value = "系統錯誤";
+        }
+    };
+
     window.loadAllRecords = async () => {
         // 核准清單專屬密碼保護，設定為 "top"
         if (!isApprovalListAuth) {
