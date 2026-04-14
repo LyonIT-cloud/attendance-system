@@ -338,13 +338,11 @@
         }
     };
 
-    // [問題修正]：打工號帶入姓名與部門 (放寬長度限制，保留部門輸入)
     window.autoFetchName = async () => {
         const empId = document.getElementById('empId').value.trim().toUpperCase();
         const nameInput = document.getElementById('empName');
         const deptInput = document.getElementById('dept');
 
-        // 放寬防護限制，避免特定長度工號無法觸發查詢
         if (empId.length < 4) {
             nameInput.value = "";
             return;
@@ -359,11 +357,10 @@
                 const data = docSnap.data();
                 nameInput.value = data.name || "";
                 if(data.dept) {
-                    deptInput.value = data.dept; // 同步帶入部門
+                    deptInput.value = data.dept; 
                 }
             } else {
                 nameInput.value = "查無此人";
-                // 不強制清空 deptInput，允許使用者自行手選部門
             }
         } catch (error) {
             console.error("獲取姓名失敗", error);
@@ -424,7 +421,6 @@
                 const et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
                 
-                // [問題修正]：強化時數顯示邏輯，解決 0 時 0 分與舊資料顯示異常問題
                 let durationDisplay = r.displayDuration || r.duration;
                 if (durationDisplay && String(durationDisplay).includes('時')) {
                     durationDisplay = String(durationDisplay);
@@ -449,6 +445,85 @@
         }
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+    };
+
+    // [新需求]：匯出 EXCEL 功能
+    window.exportMonthExcel = async () => {
+        if (!isApprovalListAuth) {
+            alert("請先輸入密碼載入清單資料後再執行匯出！");
+            return;
+        }
+
+        const exportMonth = document.getElementById('exportMonth').value;
+        if (!exportMonth) return alert("請選擇要匯出的月份！");
+
+        try {
+            // 從 Firebase 撈出狀態為「批准」的資料
+            const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
+            const snap = await getDocs(q);
+
+            let exportData = [];
+            // 設定標題列，對應您上傳的 CSV 範本欄位
+            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
+            exportData.push(headers);
+
+            snap.docs.forEach(docSnap => {
+                const r = docSnap.data();
+                const sDate = safeGet(r, ['sDate', 'startDate']);
+                if (!sDate || !sDate.startsWith(exportMonth)) return; // 篩選月份
+
+                // 工號邏輯：若是 F、G、H 開頭轉小寫，其餘皆轉大寫
+                let empId = String(r.id || "").trim();
+                if (/^[fFgGhH]/.test(empId)) {
+                    empId = empId.toLowerCase();
+                } else {
+                    empId = empId.toUpperCase();
+                }
+
+                const eDate = safeGet(r, ['eDate', 'endDate']);
+                const sTime = safeGet(r, ['sTime', 'startTime']);
+                const eTime = safeGet(r, ['eTime', 'endTime']);
+
+                // 計算時數：確保符合 008:00 格式
+                let dMin = parseInt(r.duration);
+                if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
+                const h = Math.floor(dMin / 60);
+                const m = dMin % 60;
+                const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
+
+                // 組裝單列資料
+                exportData.push([
+                    empId,
+                    r.name || "",
+                    r.leaveType || "",
+                    sDate, // 出勤日期
+                    sDate, // 開始日期
+                    sTime, // 開始時間
+                    eDate, // 結束日期
+                    eTime, // 結束時間
+                    formattedDuration, // 請假時數 (例: 008:00)
+                    "", // 扣伙食費留空
+                    "", // 扣交通津貼留空
+                    r.reason || "", // 事由
+                    r.dept || "" // 備註 (帶入部門)
+                ]);
+            });
+
+            if (exportData.length <= 1) {
+                alert(`該月份 (${exportMonth}) 沒有任何已批准的請假紀錄！`);
+                return;
+            }
+
+            // 使用 SheetJS 產生檔案並下載
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "請假紀錄");
+            XLSX.writeFile(wb, `請假紀錄_${exportMonth}.xlsx`);
+
+        } catch (e) {
+            console.error("匯出失敗", e);
+            alert("匯出失敗：" + e.message);
+        }
     };
 
     window.prepareEdit = async (docId) => {
@@ -550,7 +625,6 @@
         tbody.innerHTML = filtered.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
             
-            // [問題修正]：強化時數顯示邏輯
             let durationDisplay = r.displayDuration || r.duration;
             if (durationDisplay && String(durationDisplay).includes('時')) {
                 durationDisplay = String(durationDisplay);
@@ -573,7 +647,6 @@
         if (isApprovalListAuth) window.loadAllRecords(); 
     };
 
-    // [問題修正]：移除個人查詢的當月限制，改為列出該工號所有紀錄
     window.searchPersonalRecords = async () => {
         const empId = document.getElementById('queryEmpId').value.trim().toUpperCase();
         if (!empId) return alert("請輸入工號！");
@@ -590,7 +663,6 @@
 
             const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
 
-            // 依日期排序 (最新 -> 最舊)
             records.sort((a, b) => {
                 const dateA = safeGet(a, ['sDate', 'startDate']) || "";
                 const dateB = safeGet(b, ['sDate', 'startDate']) || "";
@@ -609,7 +681,6 @@
                 const et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`;
                 
-                // [問題修正]：強化時數顯示邏輯
                 let durationDisplay = r.displayDuration || r.duration;
                 if (durationDisplay && String(durationDisplay).includes('時')) {
                     durationDisplay = String(durationDisplay);
