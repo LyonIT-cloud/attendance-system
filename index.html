@@ -102,7 +102,7 @@
             <div style="text-align: left; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
                 <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
                     目前系統流量過載，正在進行緊急維護。<br>
-                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">隔日 15:00</span><br>
+                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
                     造成不便，敬請見諒。
                 </p>
             </div>
@@ -279,7 +279,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    /* 【優化】加入 limit 模組 */
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -298,6 +299,9 @@
     const rowsPerPage = 10;
     let currentAdminDept = "";
     let currentPendingDocs = []; 
+    /* 【優化】新增狀態標記避免重複讀取 */
+    let isAdminLoaded = false;
+    let isSearchLoaded = false;
 
     const adminPasswords = {
         "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
@@ -306,6 +310,14 @@
     };
 
     window.addEventListener('DOMContentLoaded', () => {
+        /* 【優化】檢查維修遮罩，若顯示則完全阻斷 Firebase 讀取 */
+        const maintenanceOverlay = document.getElementById('maintenance-overlay');
+        const isMaintenance = window.getComputedStyle(maintenanceOverlay).display !== 'none';
+        if (isMaintenance) {
+            console.log("系統維護中，暫停讀取資料庫");
+            return;
+        }
+
         const now = new Date();
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
@@ -329,14 +341,16 @@
 
     window.loadAllRecords = async () => {
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            /* 【優化】限制最多只讀取最新 500 筆，避免全表掃描 */
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(500));
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+            isSearchLoaded = true;
             window.applyFilters();
         } catch (e) { 
             console.error("載入失敗", e);
             // 當偵測到配額耗盡時顯示維護層
-            if (e.message.includes("quota") || e.code === "resource-exhausted") {
+            if (e.message && (e.message.includes("quota") || e.code === "resource-exhausted")) {
                 document.getElementById('maintenance-overlay').style.display = 'flex';
             }
         }
@@ -451,8 +465,10 @@
         const nav = document.getElementById('nav-'+id);
         if(page) page.classList.add('active');
         if(nav) nav.classList.add('active');
-        if(id === 'admin') window.loadAdminData();
-        if(id === 'search') window.loadAllRecords();
+        
+        /* 【優化】加入狀態判斷，避免重複加載資料庫 */
+        if(id === 'admin' && !isAdminLoaded) window.loadAdminData();
+        if(id === 'search' && !isSearchLoaded) window.loadAllRecords();
     };
 
     window.checkAdminAccess = () => {
@@ -463,26 +479,18 @@
         } else if (pw !== null) { alert("密碼錯誤！"); }
     };
 
-    window.loadAdminData = async () => {
+    /* 【優化】將原有的渲染邏輯抽離成函式，以便在地更新後可以直接重繪不需打資料庫 */
+    window.renderAdminTable = () => {
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
-        const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
-            if (currentAdminDept === "ALL") return r.status === "審核中";
-            return r.dept === currentAdminDept && r.status === "審核中";
-        });
-        currentPendingDocs = filtered; 
-        document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
-        if (filtered.length === 0) {
+        if (currentPendingDocs.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
             bulkBtn.style.display = "none";
             return;
         }
         bulkBtn.style.display = "inline-flex";
-        bulkBtn.innerText = `✅ 一鍵批准 ${filtered.length} 筆`;
-        tbody.innerHTML = filtered.map(r => {
+        bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
+        tbody.innerHTML = currentPendingDocs.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
             const durationDisplay = r.displayDuration ? 
                 (r.displayDuration.includes('時') ? r.displayDuration : formatDuration(parseInt(r.duration))) : 
@@ -492,12 +500,44 @@
         }).join('');
     };
 
+    window.loadAdminData = async () => {
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+        
+        /* 【優化】在 Firebase 端直接過濾狀態「審核中」，避免撈出所有單據 */
+        let q;
+        if (currentAdminDept === "ALL") {
+            q = query(collection(db, "formEntries"), where("status", "==", "審核中"), orderBy("createdAt", "desc"));
+        } else {
+            q = query(collection(db, "formEntries"), where("status", "==", "審核中"), where("dept", "==", currentAdminDept), orderBy("createdAt", "desc"));
+        }
+        
+        const snap = await getDocs(q);
+        currentPendingDocs = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        isAdminLoaded = true;
+        
+        document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        window.renderAdminTable();
+    };
+
     window.updateStatus = async (docId, newStatus) => {
         if (!confirm(`確定要${newStatus}此假單？`)) return;
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
-        alert("處理成功"); window.loadAdminData(); window.loadAllRecords();
+        alert("處理成功"); 
+        
+        /* 【優化】處理成功後，不再重新呼叫 loadAdminData()，而是直接在地修改變數與畫面 */
+        currentPendingDocs = currentPendingDocs.filter(doc => doc.docId !== docId);
+        
+        const recordIndex = allRecords.findIndex(r => r.docId === docId);
+        if (recordIndex !== -1) {
+            allRecords[recordIndex].status = newStatus;
+        }
+
+        window.renderAdminTable(); // 重新渲染主管畫面
+        window.applyFilters(); // 重新過濾並渲染搜尋畫面
     };
 
     function coreCalcMinutes(d1, t1, d2, t2) {
@@ -546,20 +586,4 @@
         document.getElementById('shiftDayBtn').classList.toggle('shift-active', s === 'day');
         document.getElementById('shiftMidBtn').classList.toggle('shift-active', s === 'middle');
         const sd = document.getElementById('startDate').value;
-        if(s === 'day'){ 
-            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
-            if(sd) document.getElementById('endDate').value = sd; 
-        } else { 
-            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
-            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
-        }
-        window.autoCalc();
-    };
-
-    window.saveToCloud = async () => {
-        if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        // ... (省略後續儲存邏輯，請保留您原本的程式碼)
-    };
-</script>
-</body>
-</html>
+        if(s === 'day'){
