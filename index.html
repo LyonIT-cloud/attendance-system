@@ -17,7 +17,7 @@
 
         /* 系統維護公告樣式 */
         #maintenance-overlay {
-            display: none; /* 預設隱藏，僅在需要時顯示 */
+            display: flex; /* 要解除維護時，將此改為 none */
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(241, 245, 249, 0.95); z-index: 999999; 
             flex-direction: column; align-items: center; justify-content: center; 
@@ -102,7 +102,7 @@
             <div style="text-align: left; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
                 <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
                     目前系統流量過載，正在進行緊急維護。<br>
-                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
+                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">隔日 15:00</span><br>
                     造成不便，敬請見諒。
                 </p>
             </div>
@@ -222,10 +222,6 @@
                     <option value="批准">批准</option>
                     <option value="退件">退件</option>
                 </select>
-                <div style="display: flex; gap: 5px; flex: 1; min-width: 200px;">
-                    <input type="text" id="preciseSearchId" placeholder="工號查詢 (如 D220119)" style="flex:1; height: 48px;">
-                    <button class="btn btn-primary" onclick="preciseSearch()" style="width: auto; height: 48px;">精準查詢</button>
-                </div>
             </div>
             <div class="table-wrapper">
                 <table>
@@ -314,43 +310,8 @@
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
-        // [需求1] 刪除自動加載：註銷或刪除 window.loadAllRecords();
-        // window.loadAllRecords(); 
+        window.loadAllRecords();
     });
-
-    // [需求2] 新增精準查詢函式
-    window.preciseSearch = async () => {
-        const inputId = document.getElementById('preciseSearchId').value.trim().toUpperCase();
-        if (!inputId) {
-            alert("請輸入工號進行查詢");
-            return;
-        }
-        
-        const tbody = document.getElementById('allTableBody');
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查詢中...</td></tr>';
-        
-        try {
-            const q = query(collection(db, "formEntries"), where("id", "==", inputId), orderBy("createdAt", "desc"));
-            const snap = await getDocs(q);
-            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-            
-            // 查詢後重置一般過濾器避免干擾顯示結果
-            document.getElementById('filterMonth').value = "";
-            document.getElementById('filterDept').value = "";
-            document.getElementById('filterStatus').value = "";
-            
-            filteredRecords = [...allRecords];
-            currentPage = 1;
-            window.renderTable();
-            
-            if (allRecords.length === 0) {
-                alert("查無此工號的紀錄");
-            }
-        } catch (e) {
-            console.error("查詢失敗", e);
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:red;">查詢發生錯誤</td></tr>';
-        }
-    };
 
     function formatDuration(minutes) {
         if (isNaN(minutes)) return "0 時 0 分";
@@ -374,6 +335,7 @@
             window.applyFilters();
         } catch (e) { 
             console.error("載入失敗", e);
+            // 當偵測到配額耗盡時顯示維護層
             if (e.message.includes("quota") || e.code === "resource-exhausted") {
                 document.getElementById('maintenance-overlay').style.display = 'flex';
             }
@@ -464,7 +426,7 @@
         try {
             await deleteDoc(doc(db, "formEntries", docId));
             alert("已成功銷假");
-            if(allRecords.length > 0) window.loadAllRecords();
+            window.loadAllRecords();
         } catch (e) { alert("刪除失敗：" + e.message); }
     };
 
@@ -490,8 +452,7 @@
         if(page) page.classList.add('active');
         if(nav) nav.classList.add('active');
         if(id === 'admin') window.loadAdminData();
-        // 只有在明確切換到 search 且原本沒資料時才考慮載入，或維持不自動載入
-        // if(id === 'search') window.loadAllRecords(); 
+        if(id === 'search') window.loadAllRecords();
     };
 
     window.checkAdminAccess = () => {
@@ -536,7 +497,7 @@
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
-        alert("處理成功"); window.loadAdminData();
+        alert("處理成功"); window.loadAdminData(); window.loadAllRecords();
     };
 
     function coreCalcMinutes(d1, t1, d2, t2) {
@@ -584,6 +545,20 @@
         document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
         document.getElementById('shiftDayBtn').classList.toggle('shift-active', s === 'day');
         document.getElementById('shiftMidBtn').classList.toggle('shift-active', s === 'middle');
+        const sd = document.getElementById('startDate').value;
+        if(s === 'day'){ 
+            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
+            if(sd) document.getElementById('endDate').value = sd; 
+        } else { 
+            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
+            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
+        }
+        window.autoCalc();
+    };
+
+    window.saveToCloud = async () => {
+        if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
+        // ... (省略後續儲存邏輯，請保留您原本的程式碼)
     };
 </script>
 </body>
