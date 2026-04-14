@@ -17,7 +17,7 @@
 
         /* 系統維護公告樣式 */
         #maintenance-overlay {
-            display: flex; /* 要解除維護時，將此改為 none */
+            display: none; /* 要解除維護時，將此改為 none */
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(241, 245, 249, 0.95); z-index: 999999; 
             flex-direction: column; align-items: center; justify-content: center; 
@@ -102,7 +102,7 @@
             <div style="text-align: left; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
                 <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
                     目前系統流量過載，正在進行緊急維護。<br>
-                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">隔日 15:00</span><br>
+                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
                     造成不便，敬請見諒。
                 </p>
             </div>
@@ -279,7 +279,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -298,6 +298,9 @@
     const rowsPerPage = 10;
     let currentAdminDept = "";
     let currentPendingDocs = []; 
+    
+    // 核准清單密碼狀態
+    let isApprovalListAuth = false; 
 
     const adminPasswords = {
         "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
@@ -310,7 +313,6 @@
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
-        window.loadAllRecords();
     });
 
     function formatDuration(minutes) {
@@ -328,14 +330,23 @@
     }
 
     window.loadAllRecords = async () => {
+        // 核准清單專屬密碼保護，設定為 "top"
+        if (!isApprovalListAuth) {
+            const pw = prompt("請輸入核准清單查看密碼:");
+            if (pw !== "top") {
+                alert("密碼錯誤，無法載入資料！");
+                return;
+            }
+            isApprovalListAuth = true;
+        }
+
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             window.applyFilters();
         } catch (e) { 
             console.error("載入失敗", e);
-            // 當偵測到配額耗盡時顯示維護層
             if (e.message.includes("quota") || e.code === "resource-exhausted") {
                 document.getElementById('maintenance-overlay').style.display = 'flex';
             }
@@ -426,7 +437,9 @@
         try {
             await deleteDoc(doc(db, "formEntries", docId));
             alert("已成功銷假");
-            window.loadAllRecords();
+            
+            allRecords = allRecords.filter(r => r.docId !== docId);
+            window.applyFilters();
         } catch (e) { alert("刪除失敗：" + e.message); }
     };
 
@@ -467,7 +480,8 @@
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
-        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"));
+        
+        const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
         const snap = await getDocs(q);
         const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
             if (currentAdminDept === "ALL") return r.status === "審核中";
@@ -475,6 +489,7 @@
         });
         currentPendingDocs = filtered; 
         document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        
         if (filtered.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
             bulkBtn.style.display = "none";
@@ -497,7 +512,8 @@
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
-        alert("處理成功"); window.loadAdminData(); window.loadAllRecords();
+        alert("處理成功"); window.loadAdminData(); 
+        if (isApprovalListAuth) window.loadAllRecords(); 
     };
 
     function coreCalcMinutes(d1, t1, d2, t2) {
@@ -558,7 +574,7 @@
 
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        // ... (省略後續儲存邏輯，請保留您原本的程式碼)
+        // ... (原有的上傳儲存邏輯，若您有自己的實作請留意補上)
     };
 </script>
 </body>
