@@ -401,17 +401,32 @@
         window.autoCalc();
     };
 
+    // --- 修正後的自動帶入邏輯 ---
     window.autoFetchName = async () => {
-        const id = document.getElementById('empId').value.toUpperCase();
-        if (id.length < 3) return;
-        const q = query(collection(db, "employeeCheck"), where("id", "==", id));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-            const data = snap.docs[0].data();
-            document.getElementById('empName').value = data.name;
-            document.getElementById('dept').value = data.dept;
+        const idInput = document.getElementById('empId');
+        const nameInput = document.getElementById('empName');
+        const deptInput = document.getElementById('dept');
+        const id = idInput.value.toUpperCase().trim();
+        
+        if (id.length < 3) {
+            nameInput.value = "";
+            return;
+        }
+        try {
+            const q = query(collection(db, "employeeCheck"), where("id", "==", id));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const data = snap.docs[0].data();
+                nameInput.value = data.name || "";
+                if (data.dept) deptInput.value = data.dept;
+            } else {
+                nameInput.value = "";
+            }
+        } catch (e) {
+            console.error("自動帶入出錯:", e);
         }
     };
+    // -------------------------
 
     window.saveToCloud = async () => {
         const btn = document.getElementById('submitBtn');
@@ -540,7 +555,6 @@
         const d2 = document.getElementById('endDate').value, t2 = document.getElementById('endTime').value;
         if(!d1 || !t1 || !d2 || !t2) return { displayStr: "未填寫完整", totalMinutes: 0 };
         
-        // 核心邏輯保留（略過細節以節省空間，功能與你原本的一致）
         let startDT = new Date(`${d1}T${t1}`), endDT = new Date(`${d2}T${t2}`);
         let diff = (endDT - startDT) / (1000 * 60);
         let display = formatDuration(diff);
