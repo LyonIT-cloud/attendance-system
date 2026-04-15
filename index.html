@@ -316,12 +316,11 @@
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
     });
 
-    // [新需求補強]：修改語言翻譯點選沒反映問題
     window.changeLanguage = (lang) => {
         const elements = document.querySelectorAll('[data-vi]');
         elements.forEach(el => {
             if (lang === 'vi') {
-                if (!el.dataset.zh) el.dataset.zh = el.innerText; // 備份中文
+                if (!el.dataset.zh) el.dataset.zh = el.innerText; 
                 el.innerText = el.dataset.vi;
             } else {
                 if (el.dataset.zh) el.innerText = el.dataset.zh;
@@ -461,7 +460,7 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // [新需求]：匯出 EXCEL 功能 (修正欄位分離)
+    // [增補功能]：修正 Excel 匯出邏輯
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) {
             alert("請先輸入密碼載入清單資料後再執行匯出！");
@@ -476,8 +475,8 @@
             const snap = await getDocs(q);
 
             let exportData = [];
-            // [新需求]：在旁邊多寫一個選項叫批准時間
-            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "批准時間"];
+            // 新欄位規劃：備註(部門) 與 批准時間 徹底分開
+            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註(部門)", "批准時間"];
             exportData.push(headers);
 
             snap.docs.forEach(docSnap => {
@@ -485,6 +484,7 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
+                // 工號大小寫處理
                 let empId = String(r.id || "").trim();
                 if (/^[fFgGhH]/.test(empId)) {
                     empId = empId.toLowerCase();
@@ -496,15 +496,13 @@
                 const sTime = safeGet(r, ['sTime', 'startTime']);
                 const eTime = safeGet(r, ['eTime', 'endTime']);
 
+                // [時數補零邏輯修正]
                 let dMin = parseInt(r.duration);
                 if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
                 const h = Math.floor(dMin / 60);
                 const m = dMin % 60;
+                // 修正為 HHH:mm 格式，例如 008:30
                 const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
-
-                // 分開備註與批准時間
-                let remark = r.dept || "";
-                let approveTimeStr = r.approveTime || ""; // 新欄位內容
 
                 exportData.push([
                     empId,
@@ -516,11 +514,11 @@
                     eDate,
                     eTime,
                     formattedDuration,
-                    "",
-                    "",
+                    "", // 扣伙食費
+                    "", // 扣交通津貼
                     r.reason || "",
-                    remark,        // 原本的備註只留部門或原本內容
-                    approveTimeStr // 批准時間列入此欄
+                    r.dept || "", // 備註欄僅填寫部門
+                    r.approveTime || "" // 批准時間獨立一欄
                 ]);
             });
 
@@ -663,6 +661,21 @@
         await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
         alert("處理成功"); window.loadAdminData(); 
         if (isApprovalListAuth) window.loadAllRecords(); 
+    };
+
+    window.bulkApprove = async () => {
+        if (!currentPendingDocs.length) return;
+        if (!confirm(`確定要一鍵批准這 ${currentPendingDocs.length} 筆申請嗎？`)) return;
+        
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+        for (const r of currentPendingDocs) {
+            await updateDoc(doc(db, "formEntries", r.docId), { status: "批准", approveTime: timeStr });
+        }
+        alert("批次處理完成！");
+        window.loadAdminData();
+        if (isApprovalListAuth) window.loadAllRecords();
     };
 
     window.searchPersonalRecords = async () => {
