@@ -460,7 +460,7 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // [修正] Excel 匯出邏輯：符合範本格式 008:00
+    // [修正] Excel 匯出邏輯：符合範本格式 008:00 並強制作為文字寫入
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) {
             alert("請先輸入密碼載入清單資料後再執行匯出！");
@@ -496,13 +496,12 @@
                 const sTime = safeGet(r, ['sTime', 'startTime']);
                 const eTime = safeGet(r, ['eTime', 'endTime']);
 
-                // 時數格式化：HHH:mm (符合範本 008:00)
-                let dMin = parseInt(r.duration);
-                if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
+                // 強制「重新計算分鐘數」，避免資料庫舊紀錄存成 "8" 而被誤算為 8 分鐘
+                const dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
                 const h = Math.floor(dMin / 60);
                 const m = dMin % 60;
                 
-                // 強制補零：小時補滿三位，分鐘補滿兩位
+                // 強制補零：小時補滿三位，分鐘補滿兩位 (例如：008:00)
                 const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
 
                 exportData.push([
@@ -514,7 +513,7 @@
                     sTime,
                     eDate,
                     eTime,
-                    formattedDuration, // 008:00 格式
+                    { t: 's', v: formattedDuration }, // 關鍵修正：強制宣告為純文字(String)，避免 Excel 吞掉前面的 00
                     "", 
                     "", 
                     r.reason || "",
