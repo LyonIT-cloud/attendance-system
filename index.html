@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤管理系統</title>
+    <title>鼎顓電子 - 員工出勤 management 系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -315,6 +315,19 @@
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
     });
 
+    // [新需求補強]：修改語言翻譯點選沒反映問題
+    window.changeLanguage = (lang) => {
+        const elements = document.querySelectorAll('[data-vi]');
+        elements.forEach(el => {
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText; // 備份中文
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
+        });
+    };
+
     function formatDuration(minutes) {
         if (isNaN(minutes)) return "0 時 0 分";
         const h = Math.floor(minutes / 60);
@@ -447,7 +460,7 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // [新需求]：匯出 EXCEL 功能
+    // [新需求]：匯出 EXCEL 功能 (修正欄位分離)
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) {
             alert("請先輸入密碼載入清單資料後再執行匯出！");
@@ -458,21 +471,19 @@
         if (!exportMonth) return alert("請選擇要匯出的月份！");
 
         try {
-            // 從 Firebase 撈出狀態為「批准」的資料
             const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
             const snap = await getDocs(q);
 
             let exportData = [];
-            // 設定標題列，對應您上傳的 CSV 範本欄位
-            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註"];
+            // [新需求]：在旁邊多寫一個選項叫批准時間
+            const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註", "批准時間"];
             exportData.push(headers);
 
             snap.docs.forEach(docSnap => {
                 const r = docSnap.data();
                 const sDate = safeGet(r, ['sDate', 'startDate']);
-                if (!sDate || !sDate.startsWith(exportMonth)) return; // 篩選月份
+                if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                // 工號邏輯：若是 F、G、H 開頭轉小寫，其餘皆轉大寫
                 let empId = String(r.id || "").trim();
                 if (/^[fFgGhH]/.test(empId)) {
                     empId = empId.toLowerCase();
@@ -484,34 +495,31 @@
                 const sTime = safeGet(r, ['sTime', 'startTime']);
                 const eTime = safeGet(r, ['eTime', 'endTime']);
 
-                // 計算時數：確保符合 008:00 格式
                 let dMin = parseInt(r.duration);
                 if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
                 const h = Math.floor(dMin / 60);
                 const m = dMin % 60;
                 const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
 
-                // [新需求]：備註主管審核日期與時間在檔案內
+                // 分開備註與批准時間
                 let remark = r.dept || "";
-                if (r.approveTime) {
-                    remark += ` (核准時間: ${r.approveTime})`;
-                }
+                let approveTimeStr = r.approveTime || ""; // 新欄位內容
 
-                // 組裝單列資料
                 exportData.push([
                     empId,
                     r.name || "",
                     r.leaveType || "",
-                    sDate, // 出勤日期
-                    sDate, // 開始日期
-                    sTime, // 開始時間
-                    eDate, // 結束日期
-                    eTime, // 結束時間
-                    formattedDuration, // 請假時數 (例: 008:00)
-                    "", // 扣伙食費留空
-                    "", // 扣交通津貼留空
-                    r.reason || "", // 事由
-                    remark // 備註 (帶入部門與核准時間)
+                    sDate,
+                    sDate,
+                    sTime,
+                    eDate,
+                    eTime,
+                    formattedDuration,
+                    "",
+                    "",
+                    r.reason || "",
+                    remark,        // 原本的備註只留部門或原本內容
+                    approveTimeStr // 批准時間列入此欄
                 ]);
             });
 
@@ -520,7 +528,6 @@
                 return;
             }
 
-            // 使用 SheetJS 產生檔案並下載
             const ws = XLSX.utils.aoa_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "請假紀錄");
@@ -572,7 +579,6 @@
             allRecords = allRecords.filter(r => r.docId !== docId);
             window.applyFilters();
             
-            // 若在個人查詢頁面刪除，同步更新該頁面
             if (document.getElementById('page-personal').classList.contains('active') && document.getElementById('queryEmpId').value) {
                 window.searchPersonalRecords();
             }
@@ -671,7 +677,6 @@
         try {
             const q = query(collection(db, "formEntries"), where("id", "==", empId));
             const snap = await getDocs(q);
-
             const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
 
             records.sort((a, b) => {
@@ -703,22 +708,18 @@
 
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
 
-                // [新需求]：個人紀錄查詢，只要審核中項目，可以自行修改請假日期與時數，按鍵動作改成選項變更，下方可以修改/銷假
                 let actionHtml = '';
                 if (r.status === '審核中') {
-                    // 如果還在審核中，提供修改和銷假按鈕
                     actionHtml = `
                         <div style="display: flex; gap: 5px;">
                             <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}')">修改</button>
                             <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
                         </div>
                     `;
-                    // 若此筆資料尚未被載入至 allRecords (只有個人查詢時撈出)，則推入 allRecords 確保 prepareEdit 找得到
                     if (!allRecords.find(item => item.docId === r.docId)) {
                         allRecords.push(r);
                     }
                 } else {
-                    // 已核准或退件的，僅保留銷假按鈕(原功能)
                     actionHtml = `<button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>`;
                 }
 
@@ -796,7 +797,6 @@
 
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        
         const empId = document.getElementById('empId').value.trim();
         if (!empId) return alert("請輸入工號！");
 
@@ -838,8 +838,6 @@
                 }
                 window.resetForm();
                 if (isApprovalListAuth) window.loadAllRecords();
-                
-                // [路由調整]：若是修改模式儲存後，確保回到原頁面 (清單或個人查詢)
                 if (docId) {
                     if (!isApprovalListAuth) {
                         window.switchPage('personal');
