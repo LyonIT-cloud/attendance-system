@@ -870,19 +870,28 @@
         const fileInput = document.getElementById('leaveImg');
         if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
+            
+            // 基礎防呆：若選擇的檔案大於 15MB 則阻擋，避免手機直接崩潰
+            if (file.size > 15 * 1024 * 1024) {
+                alert("圖片檔案過大 (超過15MB)，請使用較低畫質拍攝或先裁切圖片。");
+                btn.disabled = false;
+                btn.innerText = "確認送出申請";
+                return;
+            }
+
             const reader = new FileReader();
             
-            // 加入圖片壓縮邏輯
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = async () => {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 800; // 限制最大寬度
-                    const MAX_HEIGHT = 800; // 限制最大高度
+                    
+                    // 將尺寸下修到 600px
+                    const MAX_WIDTH = 600; 
+                    const MAX_HEIGHT = 600; 
                     let width = img.width;
                     let height = img.height;
 
-                    // 計算等比例縮小的尺寸
                     if (width > height) {
                         if (width > MAX_WIDTH) {
                             height *= MAX_WIDTH / width;
@@ -898,14 +907,44 @@
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
+                    
+                    // 強制填補白色背景，避免 PNG 轉 JPEG 時透明處變黑色底
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 將圖片畫上畫布
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 將壓縮後的圖片轉回 base64 (JPEG 格式，品質 0.6)
-                    entryData.photo = canvas.toDataURL('image/jpeg', 0.6);
+                    // 轉換為 JPEG 格式，預設壓縮品質 0.5
+                    let compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+                    
+                    // 估算轉換後的 Base64 大小 (KB)
+                    let estimatedKB = Math.round((compressedDataUrl.length * 3 / 4) / 1024);
+                    
+                    // 如果還是大於 900KB (逼近 Firestore 的 1MB 極限)，就啟動極限壓縮
+                    if (estimatedKB > 900) {
+                        compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
+                    }
+
+                    entryData.photo = compressedDataUrl;
                     await executeSave(entryData);
                 };
+                
+                img.onerror = () => {
+                    alert("圖片讀取失敗，可能是檔案格式不支援，請換一張圖片。");
+                    btn.disabled = false;
+                    btn.innerText = "確認送出申請";
+                };
+                
                 img.src = e.target.result;
             };
+            
+            reader.onerror = () => {
+                alert("本機讀取檔案失敗。");
+                btn.disabled = false;
+                btn.innerText = "確認送出申請";
+            };
+            
             reader.readAsDataURL(file);
         } else {
             await executeSave(entryData);
