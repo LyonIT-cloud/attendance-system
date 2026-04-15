@@ -134,7 +134,7 @@
         
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         
-        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" data-vi="🕒 Hệ thống điểm danh" style="color: #a78bfa;">🕒 HR 薪資自動化系統</div>
+        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" data-vi="🕒 Hệ thống điểm danh" style="color: #a78bfa;">🕒 員工出勤系統</div>
         <div class="nav-item" onclick="window.open('../報修與需求單/index.html', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
     </div>
 
@@ -464,7 +464,6 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // [修正] Excel 匯出邏輯：符合範本格式 008:00 並強制作為文字寫入
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) {
             alert("請先輸入密碼載入清單資料後再執行匯出！");
@@ -479,7 +478,6 @@
             const snap = await getDocs(q);
 
             let exportData = [];
-            // 設定標題列
             const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註(部門)", "批准時間"];
             exportData.push(headers);
 
@@ -488,7 +486,6 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                // 工號處理
                 let empId = String(r.id || "").trim();
                 if (/^[fFgGhH]/.test(empId)) {
                     empId = empId.toLowerCase();
@@ -500,12 +497,10 @@
                 const sTime = safeGet(r, ['sTime', 'startTime']);
                 const eTime = safeGet(r, ['eTime', 'endTime']);
 
-                // 強制「重新計算分鐘數」，避免資料庫舊紀錄存成 "8" 而被誤算為 8 分鐘
                 const dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
                 const h = Math.floor(dMin / 60);
                 const m = dMin % 60;
                 
-                // 強制補零：小時補滿三位，分鐘補滿兩位 (例如：008:00)
                 const formattedDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
 
                 exportData.push([
@@ -517,7 +512,7 @@
                     sTime,
                     eDate,
                     eTime,
-                    { t: 's', v: formattedDuration }, // 關鍵修正：強制宣告為純文字(String)，避免 Excel 吞掉前面的 00
+                    { t: 's', v: formattedDuration }, 
                     "", 
                     "", 
                     r.reason || "",
@@ -843,7 +838,7 @@
 
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
-        btn.innerText = "處理中...";
+        btn.innerText = "處理中 (包含圖片壓縮)...";
 
         const executeSave = async (data) => {
             try {
@@ -876,9 +871,40 @@
         if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
             const reader = new FileReader();
-            reader.onload = async (e) => {
-                entryData.photo = e.target.result;
-                await executeSave(entryData);
+            
+            // 加入圖片壓縮邏輯
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = async () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; // 限制最大寬度
+                    const MAX_HEIGHT = 800; // 限制最大高度
+                    let width = img.width;
+                    let height = img.height;
+
+                    // 計算等比例縮小的尺寸
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 將壓縮後的圖片轉回 base64 (JPEG 格式，品質 0.6)
+                    entryData.photo = canvas.toDataURL('image/jpeg', 0.6);
+                    await executeSave(entryData);
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         } else {
