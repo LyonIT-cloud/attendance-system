@@ -17,7 +17,7 @@
 
         /* 系統維護公告樣式 */
         #maintenance-overlay {
-            display: none; /* 要解除維護時，將此改為 none */
+            display: none; 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(241, 245, 249, 0.95); z-index: 999999; 
             flex-direction: column; align-items: center; justify-content: center; 
@@ -460,7 +460,7 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // [增補功能]：修正 Excel 匯出邏輯 (時數補零與欄位分離)
+    // [修正] Excel 匯出邏輯：修正呈現格式為正確的時數
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) {
             alert("請先輸入密碼載入清單資料後再執行匯出！");
@@ -475,7 +475,6 @@
             const snap = await getDocs(q);
 
             let exportData = [];
-            // 設定標題列：將備註與批准時間徹底分離
             const headers = ["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註(部門)", "批准時間"];
             exportData.push(headers);
 
@@ -484,7 +483,6 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                // 工號大小寫處理
                 let empId = String(r.id || "").trim();
                 if (/^[fFgGhH]/.test(empId)) {
                     empId = empId.toLowerCase();
@@ -496,14 +494,12 @@
                 const sTime = safeGet(r, ['sTime', 'startTime']);
                 const eTime = safeGet(r, ['eTime', 'endTime']);
 
-                // --- 強制時數格式修正：重新計算並嚴格補零 ---
+                // 強制將時數計算並重新格式化為 H:mm 格式 (例如 8:00)
                 let dMin = parseInt(r.duration);
                 if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sDate, sTime, eDate, eTime);
                 const h = Math.floor(dMin / 60);
                 const m = dMin % 60;
-                
-                // 修正格式為 HHH:mm，補足三位小時與兩位分鐘 (例如 008:30, 000:08)
-                const finalDuration = String(h).padStart(3, '0') + ':' + String(m).padStart(2, '0');
+                const formattedDuration = `${h}:${String(m).padStart(2, '0')}`;
 
                 exportData.push([
                     empId,
@@ -514,12 +510,12 @@
                     sTime,
                     eDate,
                     eTime,
-                    finalDuration, // 填入修正後的格式
-                    "", 
-                    "", 
+                    formattedDuration, // 此處現在會顯示為 8:00 這種格式
+                    "",
+                    "",
                     r.reason || "",
-                    r.dept || "", // 備註(部門)
-                    r.approveTime || "" // 批准時間 (獨立欄位)
+                    r.dept || "",
+                    r.approveTime || ""
                 ]);
             });
 
