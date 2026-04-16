@@ -167,7 +167,7 @@
                         <select id="leaveType">
                             <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
                             <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option>
-                            <option>生理假</option><option>工傷假</option>
+                            <option>生理假</option><option>工傷假</option><option>家庭照顧假</option>
                         </select>
                     </div>
                 </div>
@@ -201,7 +201,7 @@
                 
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
-                    <label data-vi="Tải ảnh bằng證">證明文件上傳 <span style="color:red; font-size:12px;">(病假必傳)</span></label>
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳)</span></label>
                     <input type="file" id="leaveImg" accept="image/*">
                     <div id="editPhotoPreview" style="margin-top:10px; display:none;">
                         <p style="font-size:12px; color:#64748b;">現有證明：</p>
@@ -313,6 +313,20 @@
         "hr888": "ALL"
     };
 
+    const leaveTypeTranslations = {
+        '事假': 'Nghỉ việc riêng',
+        '病假': 'Nghỉ ốm',
+        '特休': 'Nghỉ phép năm',
+        '公假': 'Nghỉ công tác',
+        '產假': 'Nghỉ thai sản',
+        '陪產假': 'Nghỉ chế độ thai sản (nam)',
+        '補休': 'Nghỉ bù',
+        '婚假': 'Nghỉ kết hôn',
+        '生理假': 'Nghỉ kinh nguyệt',
+        '工傷假': 'Nghỉ tai nạn lao động',
+        '家庭照顧假': 'Nghỉ chăm sóc gia đình'
+    };
+
     window.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -330,6 +344,19 @@
                 if (el.dataset.zh) el.innerText = el.dataset.zh;
             }
         });
+
+        // 處理下拉選單假別翻譯
+        const leaveSelect = document.getElementById('leaveType');
+        if (leaveSelect) {
+            Array.from(leaveSelect.options).forEach(opt => {
+                if (lang === 'vi') {
+                    if (!opt.dataset.zh) opt.dataset.zh = opt.text;
+                    opt.text = leaveTypeTranslations[opt.dataset.zh] || opt.dataset.zh;
+                } else {
+                    if (opt.dataset.zh) opt.text = opt.dataset.zh;
+                }
+            });
+        }
     };
 
     function formatDuration(minutes) {
@@ -813,14 +840,22 @@
         const empId = document.getElementById('empId').value.trim();
         if (!empId) return alert("請輸入工號！");
 
+        const leaveType = document.getElementById('leaveType').value;
+        const fileInput = document.getElementById('leaveImg');
         const docId = document.getElementById('editDocId').value;
+
+        // 家庭照顧假強制上傳證明邏輯
+        if (leaveType === "家庭照顧假" && fileInput.files.length === 0 && !docId) {
+            return alert("申請「家庭照顧假」必須上傳就醫證明與親屬證明圖片！");
+        }
+
         const calcResult = window.autoCalc();
         
         const entryData = {
             id: empId.toUpperCase(),
             name: document.getElementById('empName').value,
             dept: document.getElementById('dept').value,
-            leaveType: document.getElementById('leaveType').value,
+            leaveType: leaveType,
             sDate: document.getElementById('startDate').value,
             sTime: document.getElementById('startTime').value,
             eDate: document.getElementById('endDate').value,
@@ -867,11 +902,9 @@
             }
         };
 
-        const fileInput = document.getElementById('leaveImg');
         if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
             
-            // 基礎防呆：若選擇的檔案大於 15MB 則阻擋，避免手機直接崩潰
             if (file.size > 15 * 1024 * 1024) {
                 alert("圖片檔案過大 (超過15MB)，請使用較低畫質拍攝或先裁切圖片。");
                 btn.disabled = false;
@@ -885,8 +918,6 @@
                 const img = new Image();
                 img.onload = async () => {
                     const canvas = document.createElement('canvas');
-                    
-                    // 將尺寸下修到 600px
                     const MAX_WIDTH = 600; 
                     const MAX_HEIGHT = 600; 
                     let width = img.width;
@@ -907,21 +938,13 @@
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
-                    
-                    // 強制填補白色背景，避免 PNG 轉 JPEG 時透明處變黑色底
                     ctx.fillStyle = "#FFFFFF";
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // 將圖片畫上畫布
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 轉換為 JPEG 格式，預設壓縮品質 0.5
                     let compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-                    
-                    // 估算轉換後的 Base64 大小 (KB)
                     let estimatedKB = Math.round((compressedDataUrl.length * 3 / 4) / 1024);
                     
-                    // 如果還是大於 900KB (逼近 Firestore 的 1MB 極限)，就啟動極限壓縮
                     if (estimatedKB > 900) {
                         compressedDataUrl = canvas.toDataURL('image/jpeg', 0.2);
                     }
@@ -931,20 +954,12 @@
                 };
                 
                 img.onerror = () => {
-                    alert("圖片讀取失敗，可能是檔案格式不支援，請換一張圖片。");
+                    alert("圖片讀取失敗，請換一張圖片。");
                     btn.disabled = false;
                     btn.innerText = "確認送出申請";
                 };
-                
                 img.src = e.target.result;
             };
-            
-            reader.onerror = () => {
-                alert("本機讀取檔案失敗。");
-                btn.disabled = false;
-                btn.innerText = "確認送出申請";
-            };
-            
             reader.readAsDataURL(file);
         } else {
             await executeSave(entryData);
