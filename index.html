@@ -72,7 +72,7 @@
         .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
         
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; min-width: 850px; }
+        <table> { width: 100%; border-collapse: collapse; min-width: 850px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
@@ -146,10 +146,10 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()" style="text-transform: uppercase;">
+                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()">
                     </div>
                     <div>
-                        <label data-vi="Tên nhân viên">員工姓名</label>
+                        <label data-vi="員工姓名">員工姓名</label>
                         <input type="text" id="empName" readonly placeholder="輸入工號自動帶入">
                     </div>
                 </div>
@@ -388,19 +388,27 @@
     };
 
     window.autoFetchName = async () => {
-        const empId = document.getElementById('empId').value.trim().toUpperCase();
+        const rawEmpId = document.getElementById('empId').value.trim();
         const nameInput = document.getElementById('empName');
         const deptInput = document.getElementById('dept');
 
-        if (empId.length < 4) {
+        if (rawEmpId.length < 4) {
             nameInput.value = "";
             return;
         }
 
         try {
             nameInput.value = "查詢中...";
-            const docRef = doc(db, "employees", empId);
-            const docSnap = await getDoc(docRef);
+            
+            // 嘗試原本輸入的版本
+            let docRef = doc(db, "employees", rawEmpId);
+            let docSnap = await getDoc(docRef);
+
+            // 如果找不到，嘗試轉大寫的版本
+            if (!docSnap.exists()) {
+                docRef = doc(db, "employees", rawEmpId.toUpperCase());
+                docSnap = await getDoc(docRef);
+            }
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
@@ -528,11 +536,7 @@
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
                 let empId = String(r.id || "").trim();
-                if (/^[fFgGhH]/.test(empId)) {
-                    empId = empId.toLowerCase();
-                } else {
-                    empId = empId.toUpperCase();
-                }
+                // 邏輯修正：不需要針對特定字母轉小寫，維持資料庫原始儲存狀態即可
 
                 const eDate = safeGet(r, ['eDate', 'endDate']);
                 const sTime = safeGet(r, ['sTime', 'startTime']);
@@ -729,8 +733,8 @@
     };
 
     window.searchPersonalRecords = async () => {
-        const empId = document.getElementById('queryEmpId').value.trim().toUpperCase();
-        if (!empId) return alert("請輸入工號！");
+        const rawQueryId = document.getElementById('queryEmpId').value.trim();
+        if (!rawQueryId) return alert("請輸入工號！");
 
         const tbody = document.getElementById('personalTableBody');
         const resultArea = document.getElementById('personalResultArea');
@@ -739,9 +743,18 @@
         resultArea.style.display = 'block';
 
         try {
-            const q = query(collection(db, "formEntries"), where("id", "==", empId));
-            const snap = await getDocs(q);
-            const records = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+            // 同時查詢原始輸入與大寫版本
+            const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId));
+            const q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
+            
+            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            
+            // 合併結果並去重 (透過 docId)
+            const resultMap = new Map();
+            [...snap1.docs, ...snap2.docs].forEach(d => {
+                resultMap.set(d.id, { docId: d.id, ...d.data() });
+            });
+            const records = Array.from(resultMap.values());
 
             records.sort((a, b) => {
                 const dateA = safeGet(a, ['sDate', 'startDate']) || "";
@@ -750,7 +763,7 @@
             });
 
             if (records.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#64748b; padding:20px;">工號 ${empId} 查無請假紀錄</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#64748b; padding:20px;">工號 ${rawQueryId} 查無請假紀錄</td></tr>`;
                 return;
             }
 
@@ -879,7 +892,7 @@
         const calcResult = window.autoCalc();
         
         const entryData = {
-            id: empId.toUpperCase(),
+            id: empId, // 不再強制轉大寫，保留原始輸入
             name: document.getElementById('empName').value,
             dept: document.getElementById('dept').value,
             leaveType: leaveTypeZh, // 強制存為中文
