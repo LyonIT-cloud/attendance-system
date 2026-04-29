@@ -428,7 +428,8 @@
         }
 
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(50));
+            // 修改處：將 limit(50) 改為 limit(100)
+            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             window.applyFilters();
@@ -632,7 +633,7 @@
         const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         
-        // 此處已修改為 limit(100)
+        // 修改處：將 limit(50) 改為 limit(100)
         const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
         const snap = await getDocs(q);
         const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
