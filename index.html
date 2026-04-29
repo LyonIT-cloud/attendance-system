@@ -72,7 +72,7 @@
         .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
         
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: white; margin-top: 15px; }
-        <table> { width: 100%; border-collapse: collapse; min-width: 850px; }
+        table { width: 100%; border-collapse: collapse; min-width: 850px; }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
@@ -535,8 +535,17 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                let empId = String(r.id || "").trim();
-                // 邏輯修正：不需要針對特定字母轉小寫，維持資料庫原始儲存狀態即可
+                // --- 修改後的工號處理邏輯：F, X, H, G 轉小寫 ---
+                let rawEmpId = String(r.id || "").trim();
+                let empId = rawEmpId;
+
+                if (rawEmpId.length > 0) {
+                    const firstChar = rawEmpId.charAt(0).toUpperCase(); 
+                    if (['F', 'X', 'H', 'G'].includes(firstChar)) {
+                        empId = firstChar.toLowerCase() + rawEmpId.slice(1);
+                    }
+                }
+                // ------------------------------------------
 
                 const eDate = safeGet(r, ['eDate', 'endDate']);
                 const sTime = safeGet(r, ['sTime', 'startTime']);
