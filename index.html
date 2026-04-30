@@ -332,6 +332,7 @@
     }
 
     let allRecords = []; 
+    let personalRecords = []; // 新增：存儲個人查詢的暫存
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
@@ -362,12 +363,9 @@
     });
 
     window.changeLanguage = (lang) => {
-        // 修改：排除 Admin 頁面內容不進行翻譯
         const elements = document.querySelectorAll('[data-vi]');
         elements.forEach(el => {
-            // 如果是在 admin 頁面內部的元素（除了標題），跳過翻譯
             if (el.closest('#page-admin') && el.id !== 'adminTitle') return;
-
             if (lang === 'vi') {
                 if (!el.dataset.zh) el.dataset.zh = el.innerText; 
                 el.innerText = el.dataset.vi;
@@ -375,8 +373,6 @@
                 if (el.dataset.zh) el.innerText = el.dataset.zh;
             }
         });
-
-        // 假別選單翻譯 (僅針對申請頁面)
         const leaveSelect = document.getElementById('leaveType');
         if (leaveSelect) {
             Array.from(leaveSelect.options).forEach(opt => {
@@ -508,7 +504,7 @@
                     <td>${getPhotoHtml(r)}</td>
                     <td class="status-badge ${statusClass}">${r.status}</td>
                     <td>
-                        <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}')">修改</button>
+                        <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'all')">修改</button>
                         <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
                     </td>
                 </tr>`;
@@ -543,14 +539,17 @@
         } catch (e) { alert("匯出失敗：" + e.message); }
     };
 
-    window.prepareEdit = async (docId) => {
-        const record = allRecords.find(r => r.docId === docId);
+    // 修正：統一處理修改功能，新增來源判定
+    window.prepareEdit = async (docId, source = 'all') => {
+        const record = (source === 'personal') 
+            ? personalRecords.find(r => r.docId === docId)
+            : allRecords.find(r => r.docId === docId);
+            
         if(!record) return;
         window.switchPage('dashboard');
         
-        // 修正：進入修改模式時鎖定欄位
+        // 鎖定欄位
         document.getElementById('empId').disabled = true;
-        document.getElementById('empName').readOnly = true; // 原本就是 readonly
         document.getElementById('dept').disabled = true;
 
         document.getElementById('editDocId').value = docId;
@@ -559,7 +558,10 @@
         document.getElementById('dept').value = record.dept;
         document.getElementById('leaveType').value = record.leaveType;
         document.getElementById('reason').value = record.reason || "";
+        
+        // 自動判定班別
         window.setShift((record.sTime >= "07:00" && record.sTime <= "17:30") ? 'day' : 'middle');
+        
         document.getElementById('startDate').value = safeGet(record, ['sDate', 'startDate']);
         document.getElementById('startTime').value = safeGet(record, ['sTime', 'startTime']);
         document.getElementById('endDate').value = safeGet(record, ['eDate', 'endDate']);
@@ -580,8 +582,9 @@
             await deleteDoc(doc(db, "formEntries", docId));
             alert("已成功銷假");
             allRecords = allRecords.filter(r => r.docId !== docId);
+            personalRecords = personalRecords.filter(r => r.docId !== docId);
             window.applyFilters();
-            if (document.getElementById('page-personal').classList.contains('active') && document.getElementById('queryEmpId').value) window.searchPersonalRecords();
+            if (document.getElementById('page-personal').classList.contains('active')) window.renderPersonalTable();
         } catch (e) { alert("刪除失敗：" + e.message); }
     };
 
@@ -620,9 +623,7 @@
 
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
-        const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
-        
         try {
             const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
             const snap = await getDocs(q);
@@ -649,21 +650,12 @@
             document.getElementById('adminPageInfo').innerText = "1 / 1";
             return;
         }
-
         bulkBtn.style.display = "inline-flex";
         bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
-        
         tbody.innerHTML = paginated.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
-            let durationDisplay = r.displayDuration || r.duration;
-            if (!(durationDisplay && String(durationDisplay).includes('時'))) {
-                let dMin = parseInt(r.duration);
-                if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sd, st, ed, et);
-                durationDisplay = formatDuration(dMin);
-            }
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${durationDisplay}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || formatDuration(r.duration)}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
         }).join('');
-
         const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
         document.getElementById('adminPageInfo').innerText = `${adminCurrentPage} / ${totalPages}`;
     };
@@ -697,14 +689,33 @@
             const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
             const resultMap = new Map();
             [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
-            const records = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
-            if (records.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">工號 ${rawQueryId} 查無紀錄</td></tr>`; return; }
-            tbody.innerHTML = records.map(r => {
-                const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
-                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-                return `<tr><td style="font-weight:600;">${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td><td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td><td class="status-badge ${statusClass}">${r.status}</td><td><button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button></td></tr>`;
-            }).join('');
+            personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
+            window.renderPersonalTable();
         } catch (e) { tbody.innerHTML = `<tr><td colspan="6">查詢失敗：${e.message}</td></tr>`; }
+    };
+
+    // 新增：個人查詢專用渲染函數，加入修改按鈕
+    window.renderPersonalTable = () => {
+        const tbody = document.getElementById('personalTableBody');
+        if (personalRecords.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; 
+            return; 
+        }
+        tbody.innerHTML = personalRecords.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
+            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            return `<tr>
+                <td style="font-weight:600;">${r.name}</td>
+                <td>${r.leaveType}</td>
+                <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
+                <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
+                <td class="status-badge ${statusClass}">${r.status}</td>
+                <td>
+                    <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'personal')">修改</button>
+                    <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
+                </td>
+            </tr>`;
+        }).join('');
     };
 
     function coreCalcMinutes(d1, t1, d2, t2) {
@@ -763,19 +774,12 @@
         const empId = document.getElementById('empId').value.trim();
         const leaveType = document.getElementById('leaveType').value;
         const photoFiles = document.getElementById('leaveImg').files;
-        
         if (!empId) return alert("請輸入工號！");
-
-        // 修正：檢查病假/家庭照顧假是否上傳照片
         if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0) {
-            // 如果是修改模式，且原本已有照片則放行
             const isEdit = !!document.getElementById('editDocId').value;
             const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
-            if (!(isEdit && hasExistingPhoto)) {
-                return alert("申請「病假」或「家庭照顧假」必須上傳證明文件照片！");
-            }
+            if (!(isEdit && hasExistingPhoto)) return alert("申請「病假」或「家庭照顧假」必須上傳證明文件照片！");
         }
-
         const calcResult = window.autoCalc();
         const entryData = { 
             id: empId, 
@@ -791,19 +795,15 @@
             displayDuration: calcResult.displayStr, 
             updatedAt: serverTimestamp() 
         };
-        
         const isEdit = !!document.getElementById('editDocId').value;
         if (!isEdit) { entryData.status = "審核中"; entryData.createdAt = serverTimestamp(); }
-        
         const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = "處理中...";
         try {
             if (isEdit) await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
-            else {
-                await addDoc(collection(db, "formEntries"), entryData);
-                sendEmailNotification(entryData);
-            }
+            else { await addDoc(collection(db, "formEntries"), entryData); sendEmailNotification(entryData); }
             alert("操作成功！"); window.resetForm();
             if (isApprovalListAuth) window.loadAllRecords();
+            if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
         } catch (e) { alert("失敗：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
     };
 </script>
