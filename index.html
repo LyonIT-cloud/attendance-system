@@ -352,7 +352,7 @@
     const leaveTypeTranslations = {
         '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác',
         '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù', '婚假': 'Nghỉ kết hôn',
-        '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao động', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
+        '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
     };
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -471,7 +471,6 @@
         currentPage = 1; window.renderTable();
     };
 
-    // 統一處理圖片顯示 HTML
     function getPhotoHtml(r) {
         let html = '';
         if (r.photo) html += `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">`;
@@ -777,42 +776,77 @@
         window.autoCalc();
     };
 
+    // 新增圖片轉換函式
+    const fileToDataURL = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsDataURL(file);
+        });
+    };
+
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const empId = document.getElementById('empId').value.trim();
         const leaveType = document.getElementById('leaveType').value;
         const photoFiles = document.getElementById('leaveImg').files;
+        
         if (!empId) return alert("請輸入工號！");
-        if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0) {
-            const isEdit = !!document.getElementById('editDocId').value;
-            const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
-            if (!(isEdit && hasExistingPhoto)) return alert("申請「病假」或「家庭照顧假」必須上傳證明文件照片！");
-        }
-        const calcResult = window.autoCalc();
-        const entryData = { 
-            id: empId, 
-            name: document.getElementById('empName').value, 
-            dept: document.getElementById('dept').value, 
-            leaveType: leaveType, 
-            sDate: document.getElementById('startDate').value, 
-            sTime: document.getElementById('startTime').value, 
-            eDate: document.getElementById('endDate').value, 
-            eTime: document.getElementById('endTime').value, 
-            reason: document.getElementById('reason').value, 
-            duration: calcResult.totalMinutes, 
-            displayDuration: calcResult.displayStr, 
-            updatedAt: serverTimestamp() 
-        };
+        
         const isEdit = !!document.getElementById('editDocId').value;
-        if (!isEdit) { entryData.status = "審核中"; entryData.createdAt = serverTimestamp(); }
-        const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = "處理中...";
+        const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
+
+        if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0 && !hasExistingPhoto) {
+             return alert("申請「病假」或「家庭照顧假」必須上傳證明文件照片！");
+        }
+
+        const btn = document.getElementById('submitBtn'); 
+        btn.disabled = true; btn.innerText = "處理中...";
+
         try {
-            if (isEdit) await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
-            else { await addDoc(collection(db, "formEntries"), entryData); sendEmailNotification(entryData); }
-            alert("操作成功！"); window.resetForm();
+            const calcResult = window.autoCalc();
+            const entryData = { 
+                id: empId, 
+                name: document.getElementById('empName').value, 
+                dept: document.getElementById('dept').value, 
+                leaveType: leaveType, 
+                sDate: document.getElementById('startDate').value, 
+                sTime: document.getElementById('startTime').value, 
+                eDate: document.getElementById('endDate').value, 
+                eTime: document.getElementById('endTime').value, 
+                reason: document.getElementById('reason').value, 
+                duration: calcResult.totalMinutes, 
+                displayDuration: calcResult.displayStr, 
+                updatedAt: serverTimestamp() 
+            };
+
+            // 修正點：將上傳的檔案轉換為 DataURL 儲存
+            if (photoFiles.length > 0) {
+                if (photoFiles[0]) entryData.photo = await fileToDataURL(photoFiles[0]);
+                if (photoFiles[1]) entryData.photo2 = await fileToDataURL(photoFiles[1]);
+                if (photoFiles[2]) entryData.photo3 = await fileToDataURL(photoFiles[2]);
+            }
+
+            if (isEdit) {
+                await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
+            } else {
+                entryData.status = "審核中";
+                entryData.createdAt = serverTimestamp();
+                await addDoc(collection(db, "formEntries"), entryData);
+                sendEmailNotification(entryData);
+            }
+
+            alert("操作成功！"); 
+            window.resetForm();
             if (isApprovalListAuth) window.loadAllRecords();
             if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
-        } catch (e) { alert("失敗：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
+            if (document.getElementById('page-admin').classList.contains('active')) window.loadAdminData();
+        } catch (e) { 
+            alert("失敗：" + e.message); 
+        } finally { 
+            btn.disabled = false; btn.innerText = "確認送出申請"; 
+        }
     };
 </script>
 </body>
