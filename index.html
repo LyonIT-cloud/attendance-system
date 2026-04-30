@@ -87,7 +87,7 @@
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
-        .table-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0; margin-right: 2px; }
+        .table-thumb { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0; margin: 2px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
@@ -204,7 +204,7 @@
                     <input type="file" id="leaveImg" accept="image/*" multiple>
                     <div id="editPhotoPreview" style="margin-top:10px; display:none;">
                         <p style="font-size:12px; color:#64748b;">現有證明：</p>
-                        <div id="currentPhotosContainer"></div>
+                        <div id="currentPhotosContainer" style="display: flex; gap: 5px;"></div>
                     </div>
                 </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
@@ -277,7 +277,7 @@
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
                         <table style="min-width: 600px;">
-                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>狀態</th><th>選項變更</th></tr></thead>
+                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>選項變更</th></tr></thead>
                             <tbody id="personalTableBody"></tbody>
                         </table>
                     </div>
@@ -332,7 +332,7 @@
     }
 
     let allRecords = []; 
-    let personalRecords = []; // 新增：存儲個人查詢的暫存
+    let personalRecords = []; 
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
@@ -471,12 +471,13 @@
         currentPage = 1; window.renderTable();
     };
 
+    // 統一處理圖片顯示 HTML
     function getPhotoHtml(r) {
         let html = '';
         if (r.photo) html += `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">`;
         if (r.photo2) html += `<img src="${r.photo2}" class="table-thumb" onclick="window.openLightbox('${r.photo2}')">`;
         if (r.photo3) html += `<img src="${r.photo3}" class="table-thumb" onclick="window.openLightbox('${r.photo3}')">`;
-        return html || '-';
+        return html || '<span style="color:#cbd5e1">-</span>';
     }
 
     window.renderTable = () => {
@@ -539,7 +540,6 @@
         } catch (e) { alert("匯出失敗：" + e.message); }
     };
 
-    // 修正：統一處理修改功能，新增來源判定
     window.prepareEdit = async (docId, source = 'all') => {
         const record = (source === 'personal') 
             ? personalRecords.find(r => r.docId === docId)
@@ -548,7 +548,6 @@
         if(!record) return;
         window.switchPage('dashboard');
         
-        // 鎖定欄位
         document.getElementById('empId').disabled = true;
         document.getElementById('dept').disabled = true;
 
@@ -559,7 +558,6 @@
         document.getElementById('leaveType').value = record.leaveType;
         document.getElementById('reason').value = record.reason || "";
         
-        // 自動判定班別
         window.setShift((record.sTime >= "07:00" && record.sTime <= "17:30") ? 'day' : 'middle');
         
         document.getElementById('startDate').value = safeGet(record, ['sDate', 'startDate']);
@@ -654,7 +652,17 @@
         bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
         tbody.innerHTML = paginated.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
-            return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${r.displayDuration || formatDuration(r.duration)}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
+            return `<tr>
+                <td>${r.dept}</td>
+                <td><b>${r.name}</b><br>${r.leaveType}</td>
+                <td>${sd} ${st}<br>~${ed}</td>
+                <td>${r.displayDuration || formatDuration(r.duration)}</td>
+                <td>${getPhotoHtml(r)}</td>
+                <td>
+                    <button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> 
+                    <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button>
+                </td>
+            </tr>`;
         }).join('');
         const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
         document.getElementById('adminPageInfo').innerText = `${adminCurrentPage} / ${totalPages}`;
@@ -682,7 +690,7 @@
         const rawQueryId = document.getElementById('queryEmpId').value.trim();
         if (!rawQueryId) return alert("請輸入工號！");
         const tbody = document.getElementById('personalTableBody'), resultArea = document.getElementById('personalResultArea');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">查詢中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">查詢中...</td></tr>';
         resultArea.style.display = 'block';
         try {
             const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId)), q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
@@ -691,14 +699,13 @@
             [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
             personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
             window.renderPersonalTable();
-        } catch (e) { tbody.innerHTML = `<tr><td colspan="6">查詢失敗：${e.message}</td></tr>`; }
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="7">查詢失敗：${e.message}</td></tr>`; }
     };
 
-    // 新增：個人查詢專用渲染函數，加入修改按鈕
     window.renderPersonalTable = () => {
         const tbody = document.getElementById('personalTableBody');
         if (personalRecords.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; 
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; 
             return; 
         }
         tbody.innerHTML = personalRecords.map(r => {
@@ -709,6 +716,7 @@
                 <td>${r.leaveType}</td>
                 <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
                 <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
+                <td>${getPhotoHtml(r)}</td>
                 <td class="status-badge ${statusClass}">${r.status}</td>
                 <td>
                     <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'personal')">修改</button>
