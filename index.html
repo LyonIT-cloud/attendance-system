@@ -306,11 +306,10 @@
     let currentPage = 1;
     const rowsPerPage = 10;
     
-    // 主管審核中心專用變數
+    // 主管審核中心分頁與資料
     let adminCurrentPage = 1;
     let currentAdminDept = "";
     let currentPendingDocs = []; 
-    
     let isApprovalListAuth = false; 
 
     const adminPasswords = {
@@ -320,16 +319,9 @@
     };
 
     const leaveTypeTranslations = {
-        '事假': 'Nghỉ việc riêng',
-        '病假': 'Nghỉ ốm',
-        '特休': 'Nghỉ phép năm',
-        '公假': 'Nghỉ công tác',
-        '產假': 'Nghỉ thai sản',
-        '陪產假': 'Nghỉ chế độ thai sản (nam)',
-        '補休': 'Nghỉ bù',
-        '婚假': 'Nghỉ kết hôn',
-        '生理假': 'Nghỉ kinh nguyệt',
-        '工傷假': 'Nghỉ tai nạn lao động',
+        '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác',
+        '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù',
+        '婚假': 'Nghỉ kết hôn', '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao động',
         '家庭照顧假': 'Nghỉ chăm sóc gia đình'
     };
 
@@ -382,6 +374,7 @@
         return defaultVal;
     }
 
+    // 換頁功能 (核准清單)
     window.changePage = (step) => {
         const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
         const newPage = currentPage + step;
@@ -391,7 +384,7 @@
         }
     };
 
-    // 新增主管頁面換頁邏輯
+    // 換頁功能 (主管審核)
     window.changeAdminPage = (step) => {
         const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
         const newPage = adminCurrentPage + step;
@@ -462,6 +455,7 @@
         return html || '-';
     }
 
+    // 渲染表格 (核准清單)
     window.renderTable = () => {
         const tbody = document.getElementById('allTableBody');
         const start = (currentPage - 1) * rowsPerPage;
@@ -471,8 +465,7 @@
         } else {
             tbody.innerHTML = paginated.map(r => {
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-                const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-                const st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
+                const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
                 let durationDisplay = r.displayDuration || r.duration;
                 if (!(durationDisplay && String(durationDisplay).includes('時'))) {
@@ -480,21 +473,10 @@
                     if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sd, st, ed, et);
                     durationDisplay = formatDuration(dMin);
                 }
-                return `<tr>
-                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-                    <td style="font-size:12px;">${dateRange}</td>
-                    <td>${durationDisplay}</td>
-                    <td>${getPhotoHtml(r)}</td>
-                    <td class="status-badge ${statusClass}">${r.status}</td>
-                    <td>
-                        <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}')">修改</button>
-                        <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
-                    </td>
-                </tr>`;
+                return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td><td style="font-size:12px;">${dateRange}</td><td>${durationDisplay}</td><td>${getPhotoHtml(r)}</td><td class="status-badge ${statusClass}">${r.status}</td><td><button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}')">修改</button><button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button></td></tr>`;
             }).join('');
         }
-        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length / rowsPerPage) || 1}`;
     };
 
     window.exportMonthExcel = async () => {
@@ -587,29 +569,32 @@
         } else if (pw !== null) alert("密碼錯誤！");
     };
 
-    // 修改處：主管審核資料載入邏輯 (包含 100 筆上限與分頁渲染)
+    // 修改處：主管審核資料載入 (精確抓取「審核中」的所有單子)
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         
         try {
-            // 修改處：一次讀取 100 筆最新資料
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
+            let q;
+            // 修正點：直接在資料庫過濾狀態，不再依賴 limit(100) 的大池子篩選
+            if (currentAdminDept === "ALL") {
+                q = query(collection(db, "formEntries"), where("status", "==", "審核中"), orderBy("createdAt", "desc"));
+            } else {
+                q = query(collection(db, "formEntries"), where("status", "==", "審核中"), where("dept", "==", currentAdminDept), orderBy("createdAt", "desc"));
+            }
+
             const snap = await getDocs(q);
-            const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
-                if (currentAdminDept === "ALL") return r.status === "審核中";
-                return r.dept === currentAdminDept && r.status === "審核中";
-            });
-            currentPendingDocs = filtered; 
-            adminCurrentPage = 1; // 重置為第一頁
-            document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+            const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             
-            window.renderAdminTable(); // 呼叫渲染函數
-        } catch (e) { tbody.innerHTML = `<tr><td colspan="6">錯誤: ${e.message}</td></tr>`; }
+            currentPendingDocs = filtered; 
+            adminCurrentPage = 1; 
+            document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+            window.renderAdminTable(); 
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red;">載入失敗：${e.message}</td></tr>`; }
     };
 
-    // 新增：主管審核表格分頁渲染函數
+    // 渲染表格 (主管審核 - 分頁)
     window.renderAdminTable = () => {
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
@@ -637,8 +622,7 @@
             return `<tr><td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td><td>${sd} ${st}<br>~${ed}</td><td>${durationDisplay}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button></td></tr>`;
         }).join('');
 
-        const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
-        document.getElementById('adminPageInfo').innerText = `${adminCurrentPage} / ${totalPages}`;
+        document.getElementById('adminPageInfo').innerText = `${adminCurrentPage} / ${Math.ceil(currentPendingDocs.length / rowsPerPage) || 1}`;
     };
 
     window.updateStatus = async (docId, newStatus) => {
