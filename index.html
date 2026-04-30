@@ -301,12 +301,45 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // --- 新增：部門主管信箱對照表 ---
+    const managerEmails = {
+        "管理部": "it@tw.topdgi.com,lon.lin@tw.topdgi.com",
+        "製造部": "mark.lu@tw.topdgi.com",
+        "工程部": "tommy.yao@tw.topdgi.com",
+        "SMT": "nick.ho@tw.topdgi.com",
+        "DIP": "mark.lu@tw.topdgi.com,jackson.chan@tw.topdgi.com",
+        "資材部": "mia.hou@tw.topdgi.com",
+        "業務部": "wayne.lee@tw.topdgi.com",
+        "品保部": "it@tw.topdgi.com"
+    };
+
+    // --- 新增：發送信件通知功能 ---
+    function sendEmailNotification(data) {
+        const recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
+        const subject = encodeURIComponent(`【請假通知】${data.dept}-${data.name} (${data.leaveType})`);
+        
+        const body = encodeURIComponent(
+            `🔔 新請假申請通知\n` +
+            `--------------------------\n` +
+            `【部門】：${data.dept}\n` +
+            `【姓名】：${data.name}\n` +
+            `【工號】：${data.id}\n` +
+            `【假別】：${data.leaveType}\n` +
+            `【日期】：${data.sDate === data.eDate ? data.sDate : data.sDate + ' ~ ' + data.eDate}\n` +
+            `【時數】：${data.displayDuration}\n` +
+            `【事由】：${data.reason || "無"}\n` +
+            `--------------------------\n` +
+            `請登入系統核准。`
+        );
+
+        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
+    }
+
     let allRecords = []; 
     let filteredRecords = []; 
     let currentPage = 1;
     const rowsPerPage = 10;
     
-    // 主管審核中心專用變數
     let adminCurrentPage = 1;
     let currentAdminDept = "";
     let currentPendingDocs = []; 
@@ -332,10 +365,6 @@
         '工傷假': 'Nghỉ tai nạn lao động',
         '家庭照顧假': 'Nghỉ chăm sóc gia đình'
     };
-
-    const reverseLeaveTranslations = Object.fromEntries(
-        Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh])
-    );
 
     window.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
@@ -391,7 +420,6 @@
         }
     };
 
-    // 新增主管頁面換頁邏輯
     window.changeAdminPage = (step) => {
         const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
         const newPage = adminCurrentPage + step;
@@ -587,14 +615,12 @@
         } else if (pw !== null) alert("密碼錯誤！");
     };
 
-    // 修改處：主管審核資料載入邏輯 (包含 100 筆上限與分頁渲染)
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         
         try {
-            // 修改處：一次讀取 100 筆最新資料
             const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
             const snap = await getDocs(q);
             const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
@@ -602,14 +628,12 @@
                 return r.dept === currentAdminDept && r.status === "審核中";
             });
             currentPendingDocs = filtered; 
-            adminCurrentPage = 1; // 重置為第一頁
+            adminCurrentPage = 1;
             document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
-            
-            window.renderAdminTable(); // 呼叫渲染函數
+            window.renderAdminTable();
         } catch (e) { tbody.innerHTML = `<tr><td colspan="6">錯誤: ${e.message}</td></tr>`; }
     };
 
-    // 新增：主管審核表格分頁渲染函數
     window.renderAdminTable = () => {
         const tbody = document.getElementById('adminTableBody');
         const bulkBtn = document.getElementById('bulkApproveBtn');
@@ -737,11 +761,18 @@
         if (!empId) return alert("請輸入工號！");
         const calcResult = window.autoCalc();
         const entryData = { id: empId, name: document.getElementById('empName').value, dept: document.getElementById('dept').value, leaveType: document.getElementById('leaveType').value, sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value, eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value, reason: document.getElementById('reason').value, duration: calcResult.totalMinutes, displayDuration: calcResult.displayStr, updatedAt: serverTimestamp() };
-        if (!document.getElementById('editDocId').value) { entryData.status = "審核中"; entryData.createdAt = serverTimestamp(); }
+        
+        const isEdit = !!document.getElementById('editDocId').value;
+        if (!isEdit) { entryData.status = "審核中"; entryData.createdAt = serverTimestamp(); }
+        
         const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = "處理中...";
         try {
-            if (document.getElementById('editDocId').value) await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
-            else await addDoc(collection(db, "formEntries"), entryData);
+            if (isEdit) await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
+            else {
+                await addDoc(collection(db, "formEntries"), entryData);
+                // 成功後發送 Email 通知
+                sendEmailNotification(entryData);
+            }
             alert("操作成功！"); window.resetForm();
             if (isApprovalListAuth) window.loadAllRecords();
         } catch (e) { alert("失敗：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
