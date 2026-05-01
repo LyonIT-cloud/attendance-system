@@ -145,7 +145,8 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例如: D220119" oninput="autoFetchName()">
+                        <!-- 修正：加入 oninput 確保即時轉大寫 -->
+                        <input type="text" id="empId" placeholder="例如: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
                     </div>
                     <div>
                         <label data-vi="員工姓名">員工姓名</label>
@@ -200,7 +201,7 @@
                 
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
                 <div style="margin-top:15px;">
-                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳，最多3張)</span></label>
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳，自動壓縮，最多3張)</span></label>
                     <input type="file" id="leaveImg" accept="image/*" multiple>
                     <div id="editPhotoPreview" style="margin-top:10px; display:none;">
                         <p style="font-size:12px; color:#64748b;">現有證明：</p>
@@ -271,7 +272,8 @@
             <div class="card">
                 <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1">
+                    <!-- 修正：查詢框也加入自動轉大寫 -->
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1" oninput="this.value = this.value.toUpperCase();">
                     <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
                 </div>
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
@@ -373,17 +375,6 @@
                 if (el.dataset.zh) el.innerText = el.dataset.zh;
             }
         });
-        const leaveSelect = document.getElementById('leaveType');
-        if (leaveSelect) {
-            Array.from(leaveSelect.options).forEach(opt => {
-                if (lang === 'vi') {
-                    if (!opt.dataset.zh) opt.dataset.zh = opt.text;
-                    opt.text = leaveTypeTranslations[opt.dataset.zh] || opt.dataset.zh;
-                } else {
-                    if (opt.dataset.zh) opt.text = opt.dataset.zh;
-                }
-            });
-        }
     };
 
     function formatDuration(minutes) {
@@ -491,16 +482,10 @@
                 const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
                 const st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
-                let durationDisplay = r.displayDuration || r.duration;
-                if (!(durationDisplay && String(durationDisplay).includes('時'))) {
-                    let dMin = parseInt(r.duration);
-                    if (isNaN(dMin) || dMin <= 0) dMin = coreCalcMinutes(sd, st, ed, et);
-                    durationDisplay = formatDuration(dMin);
-                }
                 return `<tr>
                     <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
                     <td style="font-size:12px;">${dateRange}</td>
-                    <td>${durationDisplay}</td>
+                    <td>${r.displayDuration || formatDuration(r.duration)}</td>
                     <td>${getPhotoHtml(r)}</td>
                     <td class="status-badge ${statusClass}">${r.status}</td>
                     <td>
@@ -514,6 +499,9 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
+    // ---------------------------------------------------------
+    // 修正點 1：匯出時指定字母轉小寫
+    // ---------------------------------------------------------
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) { alert("請先輸入密碼載入清單資料後再執行匯出！"); return; }
         const exportMonth = document.getElementById('exportMonth').value;
@@ -526,9 +514,14 @@
                 const r = docSnap.data();
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
+
+                // 邏輯修正：將規定的字母轉小寫
                 let empId = String(r.id || "").trim();
                 const firstChar = empId.charAt(0).toUpperCase(); 
-                if (['F', 'X', 'H', 'G'].includes(firstChar)) empId = firstChar.toLowerCase() + empId.slice(1);
+                if (['F', 'X', 'H', 'G'].includes(firstChar)) {
+                    empId = firstChar.toLowerCase() + empId.slice(1);
+                }
+
                 const dMin = coreCalcMinutes(sDate, safeGet(r, ['sTime', 'startTime']), safeGet(r, ['eDate', 'endDate']), safeGet(r, ['eTime', 'endTime']));
                 const formattedDuration = String(Math.floor(dMin / 60)).padStart(3, '0') + ':' + String(dMin % 60).padStart(2, '0');
                 exportData.push([empId, r.name || "", r.leaveType || "", sDate, sDate, safeGet(r, ['sTime', 'startTime']), safeGet(r, ['eDate', 'endDate']), safeGet(r, ['eTime', 'endTime']), { t: 's', v: formattedDuration }, "", "", r.reason || "", r.dept || "", r.approveTime || ""]);
@@ -543,27 +536,21 @@
         const record = (source === 'personal') 
             ? personalRecords.find(r => r.docId === docId)
             : allRecords.find(r => r.docId === docId);
-            
         if(!record) return;
         window.switchPage('dashboard');
-        
         document.getElementById('empId').disabled = true;
         document.getElementById('dept').disabled = true;
-
         document.getElementById('editDocId').value = docId;
         document.getElementById('empId').value = record.id;
         document.getElementById('empName').value = record.name;
         document.getElementById('dept').value = record.dept;
         document.getElementById('leaveType').value = record.leaveType;
         document.getElementById('reason').value = record.reason || "";
-        
         window.setShift((record.sTime >= "07:00" && record.sTime <= "17:30") ? 'day' : 'middle');
-        
         document.getElementById('startDate').value = safeGet(record, ['sDate', 'startDate']);
         document.getElementById('startTime').value = safeGet(record, ['sTime', 'startTime']);
         document.getElementById('endDate').value = safeGet(record, ['eDate', 'endDate']);
         document.getElementById('endTime').value = safeGet(record, ['eTime', 'endTime']);
-        
         if(record.photo || record.photo2 || record.photo3) {
             document.getElementById('editPhotoPreview').style.display = 'block';
             document.getElementById('currentPhotosContainer').innerHTML = getPhotoHtml(record);
@@ -640,7 +627,6 @@
         const bulkBtn = document.getElementById('bulkApproveBtn');
         const start = (adminCurrentPage - 1) * rowsPerPage;
         const paginated = currentPendingDocs.slice(start, start + rowsPerPage);
-        
         if (currentPendingDocs.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
             bulkBtn.style.display = "none";
@@ -776,13 +762,38 @@
         window.autoCalc();
     };
 
-    // 新增圖片轉換函式
-    const fileToDataURL = (file) => {
+    // ---------------------------------------------------------
+    // 修正點 2：前端圖片壓縮邏輯 (解決手機拍照檔案過大問題)
+    // ---------------------------------------------------------
+    const compressImage = (file) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = (e) => reject(e);
             reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxWidth = 1024; // 設定壓縮後的上限寬度
+                    
+                    if (width > maxWidth) {
+                        height = (maxWidth / width) * height;
+                        width = maxWidth;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 以 JPEG 0.7 品質壓縮，大幅減少 Base64 字串長度
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.onerror = reject;
+            };
+            reader.onerror = reject;
         });
     };
 
@@ -802,7 +813,7 @@
         }
 
         const btn = document.getElementById('submitBtn'); 
-        btn.disabled = true; btn.innerText = "處理中...";
+        btn.disabled = true; btn.innerText = "正在壓縮圖片並處理中...";
 
         try {
             const calcResult = window.autoCalc();
@@ -821,11 +832,11 @@
                 updatedAt: serverTimestamp() 
             };
 
-            // 修正點：將上傳的檔案轉換為 DataURL 儲存
+            // 修正點：調用壓縮函式處理照片
             if (photoFiles.length > 0) {
-                if (photoFiles[0]) entryData.photo = await fileToDataURL(photoFiles[0]);
-                if (photoFiles[1]) entryData.photo2 = await fileToDataURL(photoFiles[1]);
-                if (photoFiles[2]) entryData.photo3 = await fileToDataURL(photoFiles[2]);
+                if (photoFiles[0]) entryData.photo = await compressImage(photoFiles[0]);
+                if (photoFiles[1]) entryData.photo2 = await compressImage(photoFiles[1]);
+                if (photoFiles[2]) entryData.photo3 = await compressImage(photoFiles[2]);
             }
 
             if (isEdit) {
