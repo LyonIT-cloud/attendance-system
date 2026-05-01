@@ -145,7 +145,6 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <!-- 修正：加入 oninput 確保即時轉大寫 -->
                         <input type="text" id="empId" placeholder="例如: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
                     </div>
                     <div>
@@ -272,7 +271,6 @@
             <div class="card">
                 <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <!-- 修正：查詢框也加入自動轉大寫 -->
                     <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1" oninput="this.value = this.value.toUpperCase();">
                     <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
                 </div>
@@ -375,6 +373,17 @@
                 if (el.dataset.zh) el.innerText = el.dataset.zh;
             }
         });
+        const leaveSelect = document.getElementById('leaveType');
+        if (leaveSelect) {
+            Array.from(leaveSelect.options).forEach(opt => {
+                if (lang === 'vi') {
+                    if (!opt.dataset.zh) opt.dataset.zh = opt.text;
+                    opt.text = leaveTypeTranslations[opt.dataset.zh] || opt.dataset.zh;
+                } else {
+                    if (opt.dataset.zh) opt.text = opt.dataset.zh;
+                }
+            });
+        }
     };
 
     function formatDuration(minutes) {
@@ -416,10 +425,11 @@
         if (rawEmpId.length < 4) { nameInput.value = ""; return; }
         try {
             nameInput.value = "查詢中...";
-            let docRef = doc(db, "employees", rawEmpId);
+            // 修改點：優先查詢輸入的大寫，失敗則查詢小寫
+            let docRef = doc(db, "employees", rawEmpId.toUpperCase());
             let docSnap = await getDoc(docRef);
             if (!docSnap.exists()) {
-                docRef = doc(db, "employees", rawEmpId.toUpperCase());
+                docRef = doc(db, "employees", rawEmpId.toLowerCase());
                 docSnap = await getDoc(docRef);
             }
             if (docSnap.exists()) {
@@ -499,9 +509,7 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // ---------------------------------------------------------
-    // 修正點 1：匯出時指定字母轉小寫
-    // ---------------------------------------------------------
+    // 修正點：匯出字母轉換
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) { alert("請先輸入密碼載入清單資料後再執行匯出！"); return; }
         const exportMonth = document.getElementById('exportMonth').value;
@@ -515,7 +523,7 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                // 邏輯修正：將規定的字母轉小寫
+                // 修改點：匯出特定字母轉小寫
                 let empId = String(r.id || "").trim();
                 const firstChar = empId.charAt(0).toUpperCase(); 
                 if (['F', 'X', 'H', 'G'].includes(firstChar)) {
@@ -762,9 +770,7 @@
         window.autoCalc();
     };
 
-    // ---------------------------------------------------------
-    // 修正點 2：前端圖片壓縮邏輯 (解決手機拍照檔案過大問題)
-    // ---------------------------------------------------------
+    // 修正點：圖片壓縮功能
     const compressImage = (file) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -776,19 +782,15 @@
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const maxWidth = 1024; // 設定壓縮後的上限寬度
-                    
+                    const maxWidth = 1024;
                     if (width > maxWidth) {
                         height = (maxWidth / width) * height;
                         width = maxWidth;
                     }
-
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // 以 JPEG 0.7 品質壓縮，大幅減少 Base64 字串長度
                     resolve(canvas.toDataURL('image/jpeg', 0.7));
                 };
                 img.onerror = reject;
@@ -832,7 +834,7 @@
                 updatedAt: serverTimestamp() 
             };
 
-            // 修正點：調用壓縮函式處理照片
+            // 修正點：照片壓縮後存入 Base64
             if (photoFiles.length > 0) {
                 if (photoFiles[0]) entryData.photo = await compressImage(photoFiles[0]);
                 if (photoFiles[1]) entryData.photo2 = await compressImage(photoFiles[1]);
