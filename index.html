@@ -869,6 +869,8 @@
             }
 
             if (isEdit) {
+                // 修正：修改退件單並送出時，強制將狀態改回「審核中」
+                entryData.status = "審核中";
                 await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
             } else {
                 entryData.status = "審核中";
