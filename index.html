@@ -33,6 +33,9 @@
             .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
             .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
+            .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+            .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+            .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
             .main-content { padding: 15px !important; }
             .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
         }
@@ -425,7 +428,6 @@
         if (rawEmpId.length < 4) { nameInput.value = ""; return; }
         try {
             nameInput.value = "查詢中...";
-            // 修改點：優先查詢輸入的大寫，失敗則查詢小寫
             let docRef = doc(db, "employees", rawEmpId.toUpperCase());
             let docSnap = await getDoc(docRef);
             if (!docSnap.exists()) {
@@ -440,14 +442,21 @@
         } catch (error) { nameInput.value = "系統錯誤"; }
     };
 
+    // 修正點：核准清單讀取邏輯
     window.loadAllRecords = async () => {
         if (!isApprovalListAuth) {
             const pw = prompt("請輸入核准清單查看密碼:");
             if (pw !== "top") { alert("密碼錯誤，無法載入資料！"); return; }
             isApprovalListAuth = true;
         }
+        const m = document.getElementById('filterMonth').value;
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
+            // 修正點：移除原本僅限於 createdAt 的排序，並確保名額不被已批准的新資料擠占
+            const q = query(
+                collection(db, "formEntries"), 
+                orderBy("updatedAt", "desc"), 
+                limit(100)
+            );
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             window.applyFilters();
@@ -509,7 +518,6 @@
         document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // 修正點：匯出字母轉換
     window.exportMonthExcel = async () => {
         if (!isApprovalListAuth) { alert("請先輸入密碼載入清單資料後再執行匯出！"); return; }
         const exportMonth = document.getElementById('exportMonth').value;
@@ -523,7 +531,6 @@
                 const sDate = safeGet(r, ['sDate', 'startDate']);
                 if (!sDate || !sDate.startsWith(exportMonth)) return;
 
-                // 修改點：匯出特定字母轉小寫
                 let empId = String(r.id || "").trim();
                 const firstChar = empId.charAt(0).toUpperCase(); 
                 if (['F', 'X', 'H', 'G'].includes(firstChar)) {
@@ -613,15 +620,22 @@
         } else if (pw !== null) alert("密碼錯誤！");
     };
 
+    // 修正點：主管審核中心讀取邏輯
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         try {
-            const q = query(collection(db, "formEntries"), orderBy("createdAt", "desc"), limit(100));
+            // 修正點：直接篩選狀態為「審核中」，名額專供待處理案件，並依更新時間排序
+            const q = query(
+                collection(db, "formEntries"), 
+                where("status", "==", "審核中"),
+                orderBy("updatedAt", "desc"),
+                limit(100)
+            );
             const snap = await getDocs(q);
             const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
-                if (currentAdminDept === "ALL") return r.status === "審核中";
-                return r.dept === currentAdminDept && r.status === "審核中";
+                if (currentAdminDept === "ALL") return true;
+                return r.dept === currentAdminDept;
             });
             currentPendingDocs = filtered; 
             adminCurrentPage = 1;
@@ -665,7 +679,11 @@
         if (!confirm(`確定要${newStatus}此假單？`)) return;
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr });
+        await updateDoc(doc(db, "formEntries", docId), { 
+            status: newStatus, 
+            approveTime: timeStr,
+            updatedAt: serverTimestamp() // 更新狀態也觸發更新時間
+        });
         alert("處理成功"); window.loadAdminData(); 
         if (isApprovalListAuth) window.loadAllRecords(); 
     };
@@ -674,7 +692,13 @@
         if (!currentPendingDocs.length || !confirm(`確定要一鍵批准這 ${currentPendingDocs.length} 筆申請嗎？`)) return;
         const now = new Date();
         const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-        for (const r of currentPendingDocs) await updateDoc(doc(db, "formEntries", r.docId), { status: "批准", approveTime: timeStr });
+        for (const r of currentPendingDocs) {
+            await updateDoc(doc(db, "formEntries", r.docId), { 
+                status: "批准", 
+                approveTime: timeStr,
+                updatedAt: serverTimestamp()
+            });
+        }
         alert("批次處理完成！"); window.loadAdminData();
         if (isApprovalListAuth) window.loadAllRecords();
     };
@@ -770,7 +794,6 @@
         window.autoCalc();
     };
 
-    // 修正點：圖片壓縮功能
     const compressImage = (file) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -834,7 +857,6 @@
                 updatedAt: serverTimestamp() 
             };
 
-            // 修正點：照片壓縮後存入 Base64
             if (photoFiles.length > 0) {
                 if (photoFiles[0]) entryData.photo = await compressImage(photoFiles[0]);
                 if (photoFiles[1]) entryData.photo2 = await compressImage(photoFiles[1]);
