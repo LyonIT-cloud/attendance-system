@@ -442,16 +442,13 @@
         } catch (error) { nameInput.value = "系統錯誤"; }
     };
 
-    // 修正點：核准清單讀取邏輯
     window.loadAllRecords = async () => {
         if (!isApprovalListAuth) {
             const pw = prompt("請輸入核准清單查看密碼:");
             if (pw !== "top") { alert("密碼錯誤，無法載入資料！"); return; }
             isApprovalListAuth = true;
         }
-        const m = document.getElementById('filterMonth').value;
         try {
-            // 修正點：移除原本僅限於 createdAt 的排序，並確保名額不被已批准的新資料擠占
             const q = query(
                 collection(db, "formEntries"), 
                 orderBy("updatedAt", "desc"), 
@@ -620,23 +617,31 @@
         } else if (pw !== null) alert("密碼錯誤！");
     };
 
-    // 修正點：主管審核中心讀取邏輯
+    // 修正：主管審核中心讀取邏輯 (採用前端排序以避免複合索引報錯)
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         try {
-            // 修正點：直接篩選狀態為「審核中」，名額專供待處理案件，並依更新時間排序
+            // 只篩選狀態，不進行資料庫排序
             const q = query(
                 collection(db, "formEntries"), 
                 where("status", "==", "審核中"),
-                orderBy("updatedAt", "desc"),
                 limit(100)
             );
             const snap = await getDocs(q);
-            const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => {
+            
+            // 在前端進行排序與部門過濾
+            const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+            .filter(r => {
                 if (currentAdminDept === "ALL") return true;
                 return r.dept === currentAdminDept;
+            })
+            .sort((a, b) => {
+                const timeA = a.updatedAt?.toMillis() || 0;
+                const timeB = b.updatedAt?.toMillis() || 0;
+                return timeB - timeA; // 由新到舊排序
             });
+
             currentPendingDocs = filtered; 
             adminCurrentPage = 1;
             document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
@@ -682,7 +687,7 @@
         await updateDoc(doc(db, "formEntries", docId), { 
             status: newStatus, 
             approveTime: timeStr,
-            updatedAt: serverTimestamp() // 更新狀態也觸發更新時間
+            updatedAt: serverTimestamp() 
         });
         alert("處理成功"); window.loadAdminData(); 
         if (isApprovalListAuth) window.loadAllRecords(); 
