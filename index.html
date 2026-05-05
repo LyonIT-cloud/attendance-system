@@ -167,9 +167,9 @@
                     <div>
                         <label data-vi="Loại phép">請假類別</label>
                         <select id="leaveType">
-                            <option>事假</option><option>病假</option><option>特休</option><option>公假</option>
-                            <option>產假</option><option>陪產假</option><option>補休</option><option>婚假</option>
-                            <option>生理假</option><option>工傷假</option><option>家庭照顧假</option>
+                            <option value="事假">事假</option><option value="病假">病假</option><option value="特休">特休</option><option value="公假">公假</option>
+                            <option value="產假">產假</option><option value="陪產假">陪產假</option><option value="補休">補休</option><option value="婚假">婚假</option>
+                            <option value="生理假">生理假</option><option value="工傷假">工傷假</option><option value="家庭照顧假">家庭照顧假</option>
                         </select>
                     </div>
                 </div>
@@ -358,6 +358,11 @@
         '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
     };
 
+    // 新增：反向對照表，用於將越文轉回中文儲存
+    const reverseLeaveTranslations = Object.fromEntries(
+        Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh])
+    );
+
     window.addEventListener('DOMContentLoaded', () => {
         const now = new Date();
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -379,11 +384,11 @@
         const leaveSelect = document.getElementById('leaveType');
         if (leaveSelect) {
             Array.from(leaveSelect.options).forEach(opt => {
+                const zhValue = opt.value; // 保持 value 不變
                 if (lang === 'vi') {
-                    if (!opt.dataset.zh) opt.dataset.zh = opt.text;
-                    opt.text = leaveTypeTranslations[opt.dataset.zh] || opt.dataset.zh;
+                    opt.text = leaveTypeTranslations[zhValue] || zhValue;
                 } else {
-                    if (opt.dataset.zh) opt.text = opt.dataset.zh;
+                    opt.text = zhValue;
                 }
             });
         }
@@ -496,7 +501,6 @@
             tbody.innerHTML = paginated.map(r => {
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
                 const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-                const st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
                 return `<tr>
                     <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
@@ -556,7 +560,11 @@
         document.getElementById('empId').value = record.id;
         document.getElementById('empName').value = record.name;
         document.getElementById('dept').value = record.dept;
-        document.getElementById('leaveType').value = record.leaveType;
+        
+        // 修正：如果資料庫是越文（舊資料），修改時轉回中文
+        const leaveVal = reverseLeaveTranslations[record.leaveType] || record.leaveType;
+        document.getElementById('leaveType').value = leaveVal;
+        
         document.getElementById('reason').value = record.reason || "";
         window.setShift((record.sTime >= "07:00" && record.sTime <= "17:30") ? 'day' : 'middle');
         document.getElementById('startDate').value = safeGet(record, ['sDate', 'startDate']);
@@ -617,12 +625,10 @@
         } else if (pw !== null) alert("密碼錯誤！");
     };
 
-    // 修正：主管審核中心讀取邏輯 (採用前端排序以避免複合索引報錯)
     window.loadAdminData = async () => {
         const tbody = document.getElementById('adminTableBody');
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
         try {
-            // 只篩選狀態，不進行資料庫排序
             const q = query(
                 collection(db, "formEntries"), 
                 where("status", "==", "審核中"),
@@ -630,7 +636,6 @@
             );
             const snap = await getDocs(q);
             
-            // 在前端進行排序與部門過濾
             const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
             .filter(r => {
                 if (currentAdminDept === "ALL") return true;
@@ -639,7 +644,7 @@
             .sort((a, b) => {
                 const timeA = a.updatedAt?.toMillis() || 0;
                 const timeB = b.updatedAt?.toMillis() || 0;
-                return timeB - timeA; // 由新到舊排序
+                return timeB - timeA; 
             });
 
             currentPendingDocs = filtered; 
@@ -663,7 +668,7 @@
         bulkBtn.style.display = "inline-flex";
         bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
         tbody.innerHTML = paginated.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']), et = safeGet(r, ['eTime', 'endTime']);
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
             return `<tr>
                 <td>${r.dept}</td>
                 <td><b>${r.name}</b><br>${r.leaveType}</td>
@@ -830,7 +835,11 @@
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const empId = document.getElementById('empId').value.trim();
-        const leaveType = document.getElementById('leaveType').value;
+        const rawLeaveType = document.getElementById('leaveType').value;
+        
+        // 修正：無論前端如何翻譯，儲存前將越文轉回中文。
+        const leaveType = reverseLeaveTranslations[rawLeaveType] || rawLeaveType;
+        
         const photoFiles = document.getElementById('leaveImg').files;
         
         if (!empId) return alert("請輸入工號！");
@@ -851,7 +860,7 @@
                 id: empId, 
                 name: document.getElementById('empName').value, 
                 dept: document.getElementById('dept').value, 
-                leaveType: leaveType, 
+                leaveType: leaveType, // 儲存繁體中文
                 sDate: document.getElementById('startDate').value, 
                 sTime: document.getElementById('startTime').value, 
                 eDate: document.getElementById('endDate').value, 
@@ -869,7 +878,6 @@
             }
 
             if (isEdit) {
-                // 修正：修改退件單並送出時，強制將狀態改回「審核中」
                 entryData.status = "審核中";
                 await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
             } else {
