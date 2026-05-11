@@ -315,8 +315,17 @@
         "品保部": "it@tw.topdgi.com"
     };
 
+    // 新增：總經理專用名單與信箱
+    const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
+    const gmEmail = "wayne.lee@tw.topdgi.com";
+
     function sendEmailNotification(data) {
-        const recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
+        // 新增邏輯：如果是特定工號，發送至總經理信箱
+        let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
+        if (gmTargetIds.includes(data.id.toUpperCase())) {
+            recipients = gmEmail;
+        }
+
         const subject = encodeURIComponent(`【請假通知】${data.dept}-${data.name} (${data.leaveType})`);
         const body = encodeURIComponent(
             `🔔 新請假申請通知\n` +
@@ -349,7 +358,7 @@
     const adminPasswords = {
         "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
         "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP",
-        "hr888": "ALL", "GM888": "總經理"
+        "hr888": "ALL", "GM888": "總經理" // 新增：GM888
     };
 
     const leaveTypeTranslations = {
@@ -358,7 +367,6 @@
         '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
     };
 
-    // 新增：反向對照表，用於將越文轉回中文儲存
     const reverseLeaveTranslations = Object.fromEntries(
         Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh])
     );
@@ -384,7 +392,7 @@
         const leaveSelect = document.getElementById('leaveType');
         if (leaveSelect) {
             Array.from(leaveSelect.options).forEach(opt => {
-                const zhValue = opt.value; // 保持 value 不變
+                const zhValue = opt.value; 
                 if (lang === 'vi') {
                     opt.text = leaveTypeTranslations[zhValue] || zhValue;
                 } else {
@@ -561,7 +569,6 @@
         document.getElementById('empName').value = record.name;
         document.getElementById('dept').value = record.dept;
         
-        // 修正：如果資料庫是越文（舊資料），修改時轉回中文
         const leaveVal = reverseLeaveTranslations[record.leaveType] || record.leaveType;
         document.getElementById('leaveType').value = leaveVal;
         
@@ -638,6 +645,10 @@
             
             const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
             .filter(r => {
+                // 新增：總經理權限只顯示名單內的人員
+                if (currentAdminDept === "總經理") {
+                    return gmTargetIds.includes(r.id.toUpperCase());
+                }
                 if (currentAdminDept === "ALL") return true;
                 return r.dept === currentAdminDept;
             })
@@ -836,14 +847,10 @@
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const empId = document.getElementById('empId').value.trim();
         const rawLeaveType = document.getElementById('leaveType').value;
-        
-        // 修正：無論前端如何翻譯，儲存前將越文轉回中文。
         const leaveType = reverseLeaveTranslations[rawLeaveType] || rawLeaveType;
-        
         const photoFiles = document.getElementById('leaveImg').files;
         
         if (!empId) return alert("請輸入工號！");
-        
         const isEdit = !!document.getElementById('editDocId').value;
         const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
@@ -860,7 +867,7 @@
                 id: empId, 
                 name: document.getElementById('empName').value, 
                 dept: document.getElementById('dept').value, 
-                leaveType: leaveType, // 儲存繁體中文
+                leaveType: leaveType, 
                 sDate: document.getElementById('startDate').value, 
                 sTime: document.getElementById('startTime').value, 
                 eDate: document.getElementById('endDate').value, 
