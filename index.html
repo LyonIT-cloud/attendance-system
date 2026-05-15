@@ -3,33 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>鼎顓電子 - 員工出勤管理系統</title>
+    <title>鼎顓電子 - 員工出勤 management 系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
-            /* 側邊欄改為圖中的深藍紫色調 */
             --sidebar-bg: #1a1c2e; 
             --sidebar-active: #3b82f6;
-            --main-bg: #fdf6f0; /* 暖米色背景，搭配插畫 */
+            --main-bg: #fdf6f0; 
             --primary: #3b82f6;
-            --accent: #10b981; 
-            --danger: #ef4444; 
-            --warning: #f59e0b; 
+            --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; 
             --text-main: #2c3e50;
             --card-radius: 20px;
-            --input-bg: rgba(255, 255, 255, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.3);
         }
 
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
             background: var(--main-bg); 
-            /* 模擬參考圖中的插畫背景 */
-            background-image: linear-gradient(rgba(253, 246, 240, 0.8), rgba(253, 246, 240, 0.8)), 
-                              url('https://img.freepik.com/free-vector/hand-drawn-business-planning-concept_52683-76248.jpg');
-            background-size: cover;
-            background-attachment: fixed;
+            background-image: linear-gradient(rgba(253, 246, 240, 0.85), rgba(253, 246, 240, 0.85)), 
+                              url('https://www.transparenttextures.com/patterns/cubes.png');
             color: var(--text-main); 
             display: flex; 
             min-height: 100vh; 
@@ -37,138 +29,93 @@
 
         /* 側邊欄優化 */
         .sidebar { 
-            width: 260px; 
-            background: var(--sidebar-bg); 
-            color: white; 
-            padding: 30px 15px; 
-            display: flex; 
-            flex-direction: column; 
-            flex-shrink: 0;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            width: 260px; background: var(--sidebar-bg); color: white; 
+            padding: 30px 15px; display: flex; flex-direction: column; flex-shrink: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1); z-index: 100;
         }
         .sidebar h1 { 
-            font-size: 22px; 
-            margin-bottom: 40px; 
-            text-align: center;
-            font-weight: 800;
-            letter-spacing: 2px;
-            background: linear-gradient(to right, #60a5fa, #a78bfa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 22px; margin-bottom: 40px; text-align: center; font-weight: 800; letter-spacing: 2px;
+            background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         
         .nav-item { 
-            padding: 16px 20px; 
-            margin-bottom: 8px; 
-            border-radius: 12px; 
-            cursor: pointer; 
-            transition: all 0.3s; 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-            color: #94a3b8; 
-            font-weight: 500; 
+            padding: 16px 20px; margin-bottom: 8px; border-radius: 12px; cursor: pointer; 
+            transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; 
         }
         .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
-        .nav-item.active { 
-            background: var(--sidebar-active); 
-            color: white; 
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); 
-        }
+        .nav-item.active { background: var(--sidebar-active); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
         .nav-admin { border: 1px dashed #475569; margin-top: 15px; color: #fbbf24; }
 
-        /* 主內容區優化 */
-        .main-content { flex: 1; padding: 40px; box-sizing: border-box; }
-        .page-content { display: none; max-width: 900px; margin: 0 auto; }
+        .main-content { flex: 1; padding: 40px; box-sizing: border-box; overflow-x: hidden; }
+        .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         
-        h2 { font-weight: 800; margin-bottom: 25px; color: #1e293b; font-size: 24px; }
-
-        /* 卡片設計 - 圓角與玻璃質感 */
         .card { 
-            background: rgba(255, 255, 255, 0.7); 
-            backdrop-filter: blur(10px);
-            padding: 30px; 
-            border-radius: var(--card-radius); 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); 
-            margin-bottom: 25px; 
-            border: 1px solid white; 
+            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
+            padding: 30px; border-radius: var(--card-radius); 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid white; 
         }
 
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #475569; }
+        label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #64748b; }
         
         input, select { 
-            width: 100%; 
-            padding: 12px 16px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: 14px; 
-            font-size: 15px; 
-            background: white;
-            transition: border 0.3s;
+            width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 14px; 
+            font-size: 15px; background: white; box-sizing: border-box;
         }
-        input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        input:disabled, select:disabled { background-color: #f8fafc; cursor: not-allowed; }
 
-        /* 按鈕設計 */
         .btn { padding: 12px 24px; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-primary { background: var(--primary); color: white; width: 100%; font-size: 16px; height: 52px; }
-        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn-primary { background: var(--primary); color: white; width: 100%; height: 50px; }
+        .btn-success { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-bulk { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
 
-        /* 計算結果顯示條 */
         #durationText { 
-            background: #dbeafe; 
-            color: #1e40af; 
-            padding: 15px; 
-            border-radius: 14px; 
-            text-align: center; 
-            font-weight: 800; 
-            margin: 20px 0;
-            border: 1px solid #bfdbfe;
+            background: #eff6ff; color: var(--primary); padding: 15px; border-radius: 14px; 
+            text-align: center; font-weight: 800; margin: 20px 0; border: 1px dashed var(--primary);
         }
 
-        /* 班別選擇器 */
         .shift-container { display: flex; gap: 15px; margin-top: 10px; }
         .btn-shift { flex: 1; background: white; border: 2px solid #e2e8f0; color: #64748b; }
-        .shift-active { border-color: var(--primary); background: #eff6ff; color: var(--primary); box-shadow: 0 4px 10px rgba(59, 130, 246, 0.15); }
+        .shift-active { border-color: var(--primary); background: #eff6ff !important; color: var(--primary) !important; }
 
-        /* 響應式 */
+        .table-wrapper { background: white; border-radius: 16px; overflow-x: auto; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; min-width: 850px; }
+        th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+        
+        .status-badge { font-weight: 700; }
+        .status-pending { color: var(--warning); }
+        .status-approved { color: var(--accent); }
+        .status-rejected { color: var(--danger); }
+
+        .table-thumb { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #eee; }
+        .lang-switcher { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
+        .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+
+        #maintenance-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(241, 245, 249, 0.98); z-index: 999999;
+            flex-direction: column; align-items: center; justify-content: center; text-align: center;
+        }
+
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .sidebar { width: 100%; padding: 15px; }
             .main-content { padding: 20px; }
             .form-grid { grid-template-columns: 1fr; }
         }
-
-        /* 維護畫面與 Lightbox 保持原邏輯但微調視覺 */
-        #maintenance-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.98); z-index: 999999;
-            flex-direction: column; align-items: center; justify-content: center;
-        }
-
-        .lang-switcher { position: fixed; top: 20px; right: 20px; z-index: 1000; }
-        .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 8px 15px; border-radius: 10px; cursor: pointer; font-weight: 600; margin-left: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-
-        /* 表格優化 */
-        .table-wrapper { background: white; border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow); border: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f8fafc; padding: 16px; text-align: left; color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
-        td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-        .status-badge { font-weight: 800; }
-        .status-pending { color: var(--warning); }
-        .status-approved { color: var(--accent); }
-        .status-rejected { color: var(--danger); }
-
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
     <div id="maintenance-overlay">
-        <div style="text-align: center; padding: 40px; background: white; border-radius: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
-            <div style="font-size: 60px;">🛠️</div>
-            <h1 style="color: #1e293b;">系統維護中</h1>
-            <p>流量較大，正在優化系統，請於 15:00 後重試。</p>
+        <div style="background: white; padding: 40px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 400px;">
+            <div style="font-size: 64px;">🛠️</div>
+            <h1 style="color: #1e293b;">系統維護公告</h1>
+            <p>流量過載維護中，預計 <span style="color:red; font-weight:800;">15:00</span> 恢復。</p>
         </div>
     </div>
 
@@ -178,7 +125,7 @@
     </div>
 
     <div id="imageLightbox" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); align-items:center; justify-content:center;" onclick="this.style.display='none'">
-        <img id="lightboxImg" style="max-width:90%; max-height:90%; border-radius:10px;" src="">
+        <img id="lightboxImg" style="max-width:95%; max-height:95%; border-radius:8px; border:3px solid white;" src="">
     </div>
 
     <div class="sidebar">
@@ -188,11 +135,10 @@
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách">📅 核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="flex-grow: 1;"></div>
-        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" style="color: #a78bfa; font-size: 13px;">🕒 員工出勤系統</div>
+        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" style="color: #a78bfa;">🕒 員工出勤系統</div>
     </div>
 
     <div class="main-content">
-        
         <div id="page-dashboard" class="page-content active">
             <h2 data-vi="📝 Đơn xin nghỉ phép">📝 請假申請</h2>
             <div class="card">
@@ -200,14 +146,13 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
+                        <input type="text" id="empId" placeholder="例如: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
                     </div>
                     <div>
                         <label data-vi="員工姓名">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入">
+                        <input type="text" id="empName" readonly placeholder="自動帶入">
                     </div>
                 </div>
-
                 <div class="form-grid">
                     <div>
                         <label data-vi="Bộ phận">所屬部門</label>
@@ -226,8 +171,8 @@
                         </select>
                     </div>
                 </div>
-                
-                <div style="margin-bottom: 25px;">
+
+                <div style="margin-bottom: 20px;">
                     <label data-vi="Chọn ca làm việc">選擇班別</label>
                     <div class="shift-container">
                         <button class="btn btn-shift" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
@@ -252,24 +197,18 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="durationText">請點選班別後填寫時間</div>
                 
-                <div style="margin-bottom: 20px;">
-                    <label data-vi="Lý do">請假事由</label>
-                    <input type="text" id="reason" placeholder="請詳細說明原因">
-                </div>
-
-                <div style="margin-bottom: 25px;">
-                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span style="color:red; font-size:12px;">(病假/家庭照顧假必傳)</span></label>
-                    <input type="file" id="leaveImg" accept="image/*" multiple style="border:none; padding: 10px 0;">
+                <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
+                <div style="margin-top:20px;">
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳，最多3張)</span></label>
+                    <input type="file" id="leaveImg" accept="image/*" multiple>
                     <div id="editPhotoPreview" style="margin-top:10px; display:none;">
-                        <div id="currentPhotosContainer" style="display: flex; gap: 8px;"></div>
+                        <div id="currentPhotosContainer" style="display: flex; gap: 5px;"></div>
                     </div>
                 </div>
-
-                <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" data-vi="Gửi đơn">確認送出申請</button>
-                <button id="cancelEditBtn" class="btn" style="width:100%; margin-top:10px; background:#e2e8f0; display:none;" onclick="resetForm()">取消修改</button>
+                <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
+                <button id="cancelEditBtn" class="btn" style="margin-top:10px; width:100%; background:#e2e8f0; display:none;" onclick="resetForm()">取消修改</button>
             </div>
         </div>
 
@@ -279,7 +218,7 @@
                 <input type="month" id="filterMonth" onchange="applyFilters()" style="width: auto;">
                 <select id="filterDept" onchange="applyFilters()" style="width: auto;">
                     <option value="">全部部門</option>
-                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
+                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
                 <select id="filterStatus" onchange="applyFilters()" style="width: auto;">
                     <option value="">全部狀態</option>
@@ -289,39 +228,39 @@
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>時間</th><th>時數</th><th>證明</th><th>進度</th><th>操作</th></tr>
+                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>時間</th><th>時數</th><th>證明</th><th>狀態</th><th>操作</th></tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
             </div>
-            <div style="display:flex; justify-content: center; gap: 15px; margin-top: 15px;">
-                <button class="btn-lang" onclick="changePage(-1)">◀ 上一頁</button>
+            <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+                <button class="btn btn-lang" onclick="changePage(-1)">上一頁</button>
                 <span id="pageInfo" style="line-height:35px; font-weight:700;">1 / 1</span>
-                <button class="btn-lang" onclick="changePage(1)">下一頁 ▶</button>
+                <button class="btn btn-lang" onclick="changePage(1)">下一頁</button>
             </div>
             <div class="card" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-primary" onclick="exportMonthExcel()" style="width:auto; background:#16a34a;">📥 導出 EXCEL</button>
+                <button class="btn btn-success" onclick="exportMonthExcel()">📥 導出 EXCEL</button>
             </div>
         </div>
 
         <div id="page-admin" class="page-content">
-            <h2 id="adminTitle">🛡️ 主管審核中心</h2>
-            <div class="card" style="display: flex; justify-content: flex-end;">
-                 <button id="bulkApproveBtn" class="btn" style="background:var(--accent); color:white; display:none;" onclick="bulkApprove()">一鍵批准所有申請</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h2 id="adminTitle">🛡️ 主管審核中心</h2>
+                <button id="bulkApproveBtn" class="btn btn-bulk" style="display: none;" onclick="bulkApprove()">一鍵批准</button>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間</th><th>總時數</th><th>證明</th><th>操作</th></tr>
+                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間區間</th><th>總時數</th><th>證明</th><th>操作</th></tr>
                     </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
-            <div style="display:flex; justify-content: center; gap: 15px; margin-top: 15px;">
-                <button class="btn-lang" onclick="changeAdminPage(-1)">◀ 上一頁</button>
+            <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+                <button class="btn btn-lang" onclick="changeAdminPage(-1)">上一頁</button>
                 <span id="adminPageInfo" style="line-height:35px; font-weight:700;">1 / 1</span>
-                <button class="btn-lang" onclick="changeAdminPage(1)">下一頁 ▶</button>
+                <button class="btn btn-lang" onclick="changeAdminPage(1)">下一頁</button>
             </div>
         </div>
 
@@ -329,7 +268,7 @@
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="請輸入工號" oninput="this.value = this.value.toUpperCase();">
+                    <input type="text" id="queryEmpId" placeholder="輸入工號" oninput="this.value = this.value.toUpperCase();">
                     <button class="btn btn-primary" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
                 </div>
                 <div id="personalResultArea" style="display:none; margin-top: 25px;">
@@ -345,7 +284,6 @@
     </div>
 
 <script type="module">
-    // --- 核心 Firebase 與 邏輯保持不變 (繼承自您的原始碼) ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -360,24 +298,39 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // [以下保留您原始代碼的所有邏輯內容，包含 ManagerEmails, CalcMinutes, saveToCloud 等...]
-    // (因代碼量大，此處僅摘錄關鍵串接處，請確保直接貼上時包含您原本所有的 function)
-
     const managerEmails = { "管理部": "it@tw.topdgi.com,lon.lin@tw.topdgi.com", "製造部": "mark.lu@tw.topdgi.com", "工程部": "tommy.yao@tw.topdgi.com", "SMT": "nick.ho@tw.topdgi.com", "DIP": "mark.lu@tw.topdgi.com,jackson.chan@tw.topdgi.com", "資材部": "mia.hou@tw.topdgi.com", "業務部": "wayne.lee@tw.topdgi.com", "品保部": "it@tw.topdgi.com" };
     const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
     const gmEmail = "wayne.lee@tw.topdgi.com";
-    
-    // 初始化月份
-    window.addEventListener('DOMContentLoaded', () => {
-        const now = new Date();
-        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
-        if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
-    });
 
-    // 將所有原本在 <script type="module"> 裡的 window.xxxx 函數完整保留...
-    // (包含 window.autoFetchName, window.saveToCloud, window.setShift, coreCalcMinutes 等)
+    // --- 全域變數 ---
+    let allRecords = [], personalRecords = [], filteredRecords = [], currentPendingDocs = [];
+    let currentPage = 1, adminCurrentPage = 1, rowsPerPage = 10;
+    let currentAdminDept = "", isApprovalListAuth = false;
 
+    const adminPasswords = { "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT", "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP", "hr888": "ALL", "GM888": "總經理" };
+    const leaveTypeTranslations = { '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác', '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù', '婚假': 'Nghỉ kết hôn', '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình' };
+    const reverseLeaveTranslations = Object.fromEntries(Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh]));
+
+    // --- 工具函數 ---
+    function formatDuration(minutes) {
+        if (isNaN(minutes)) return "0 時 0 分";
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return `${h} 時 ${m} 分`;
+    }
+    function safeGet(obj, keys, defaultVal = "") {
+        for (let key of keys) { if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key]; }
+        return defaultVal;
+    }
+    function getPhotoHtml(r) {
+        let html = '';
+        if (r.photo) html += `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">`;
+        if (r.photo2) html += `<img src="${r.photo2}" class="table-thumb" onclick="window.openLightbox('${r.photo2}')">`;
+        if (r.photo3) html += `<img src="${r.photo3}" class="table-thumb" onclick="window.openLightbox('${r.photo3}')">`;
+        return html || '<span style="color:#cbd5e1">-</span>';
+    }
+
+    // --- 介面控制 ---
     window.switchPage = (id) => {
         document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
         const page = document.getElementById('page-'+id), nav = document.getElementById('nav-'+id);
@@ -386,36 +339,79 @@
         if(id === 'search') window.loadAllRecords();
     };
 
-    // 格式化時間 (1 時 30 分)
-    function formatDuration(minutes) {
-        if (isNaN(minutes)) return "0 時 0 分";
-        const h = Math.floor(minutes / 60);
-        const m = minutes % 60;
-        return `${h} 時 ${m} 分`;
-    }
-
-    // [其餘邏輯 function 保持原樣...]
-    // (此處省略部分冗長邏輯，請務必沿用您原文中的邏輯部分)
-    
-    // --- 原有邏輯函數直接掛載到 window ---
-    window.autoFetchName = async () => { /* ...內容同您給的代碼... */ };
-    window.setShift = (s) => {
-        document.getElementById('hasSelectedShift').value = "true";
-        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
-        document.getElementById('shiftDayBtn').classList.toggle('shift-active', s === 'day');
-        document.getElementById('shiftMidBtn').classList.toggle('shift-active', s === 'middle');
-        const sd = document.getElementById('startDate').value;
-        if(s === 'day'){ 
-            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
-            if(sd) document.getElementById('endDate').value = sd; 
-        } else { 
-            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
-            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
+    window.changeLanguage = (lang) => {
+        document.querySelectorAll('[data-vi]').forEach(el => {
+            if (el.closest('#page-admin') && el.id !== 'adminTitle') return;
+            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
+            else { if (el.dataset.zh) el.innerText = el.dataset.zh; }
+        });
+        const leaveSelect = document.getElementById('leaveType');
+        if (leaveSelect) {
+            Array.from(leaveSelect.options).forEach(opt => {
+                if (lang === 'vi') { opt.text = leaveTypeTranslations[opt.value] || opt.value; }
+                else { opt.text = opt.value; }
+            });
         }
-        window.autoCalc();
     };
-    
-    // 計算核心邏輯
+
+    // --- 資料讀取與篩選 ---
+    window.autoFetchName = async () => {
+        const rawEmpId = document.getElementById('empId').value.trim();
+        const nameInput = document.getElementById('empName'), deptInput = document.getElementById('dept');
+        if (rawEmpId.length < 4) { nameInput.value = ""; return; }
+        try {
+            nameInput.value = "查詢中...";
+            let docRef = doc(db, "employees", rawEmpId.toUpperCase());
+            let docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) { docRef = doc(db, "employees", rawEmpId.toLowerCase()); docSnap = await getDoc(docRef); }
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                nameInput.value = data.name || "";
+                if(data.dept) deptInput.value = data.dept; 
+            } else { nameInput.value = "查無此人"; }
+        } catch (error) { nameInput.value = "系統錯誤"; }
+    };
+
+    window.loadAllRecords = async () => {
+        if (!isApprovalListAuth) {
+            const pw = prompt("請輸入密碼:");
+            if (pw !== "top") { alert("密碼錯誤！"); return; }
+            isApprovalListAuth = true;
+        }
+        try {
+            const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(100));
+            const snap = await getDocs(q);
+            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+            window.applyFilters();
+        } catch (e) { 
+            if (e.code === "resource-exhausted") document.getElementById('maintenance-overlay').style.display = 'flex';
+        }
+    };
+
+    window.applyFilters = () => {
+        const m = document.getElementById('filterMonth').value, d = document.getElementById('filterDept').value, s = document.getElementById('filterStatus').value;
+        filteredRecords = allRecords.filter(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']);
+            return (m ? sd.startsWith(m) : true) && (d ? r.dept === d : true) && (s ? r.status === s : true);
+        });
+        currentPage = 1; window.renderTable();
+    };
+
+    window.renderTable = () => {
+        const tbody = document.getElementById('allTableBody'), start = (currentPage - 1) * rowsPerPage, paginated = filteredRecords.slice(start, start + rowsPerPage);
+        tbody.innerHTML = paginated.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+            <td style="font-size:12px;">${sd === ed ? sd : sd+'~'+ed}</td>
+            <td>${r.displayDuration || formatDuration(r.duration)}</td>
+            <td>${getPhotoHtml(r)}</td>
+            <td class="status-badge ${r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending')}">${r.status}</td>
+            <td><button class="btn btn-lang" onclick="window.prepareEdit('${r.docId}', 'all')">修改</button></td></tr>`;
+        }).join('');
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
+    };
+
+    // --- 計算邏輯 (核心不可變動) ---
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
         let startDT = new Date(`${d1}T${t1}`), endDT = new Date(`${d2}T${t2}`);
@@ -451,8 +447,143 @@
         return { displayStr: display, totalMinutes: min };
     };
 
-    // 由於 script 標籤長度限制，其餘 saveToCloud, loadAdminData, exportExcel 等功能請依照您提供的代碼段落完整補齊即可運作。
-    // [此處省略您提供的其他 JavaScript 邏輯部分，請將它們完整貼回此處]
+    window.setShift = (s) => {
+        document.getElementById('hasSelectedShift').value = "true";
+        document.querySelectorAll('input[type="date"], input[type="time"]').forEach(el => el.disabled = false);
+        document.getElementById('shiftDayBtn').classList.toggle('shift-active', s === 'day');
+        document.getElementById('shiftMidBtn').classList.toggle('shift-active', s === 'middle');
+        const sd = document.getElementById('startDate').value;
+        if(s === 'day'){ 
+            document.getElementById('startTime').value="08:30"; document.getElementById('endTime').value="17:30"; 
+            if(sd) document.getElementById('endDate').value = sd; 
+        } else { 
+            document.getElementById('startTime').value="18:00"; document.getElementById('endTime').value="02:30"; 
+            if(sd) { let d = new Date(sd); d.setDate(d.getDate() + 1); document.getElementById('endDate').value = d.toISOString().split('T')[0]; } 
+        }
+        window.autoCalc();
+    };
+
+    // --- 存檔與上傳 ---
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image(); img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width, height = img.height, maxWidth = 1024;
+                    if (width > maxWidth) { height = (maxWidth / width) * height; width = maxWidth; }
+                    canvas.width = width; canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+            };
+        });
+    };
+
+    window.saveToCloud = async () => {
+        if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
+        const empId = document.getElementById('empId').value.trim(), rawLeaveType = document.getElementById('leaveType').value;
+        const leaveType = reverseLeaveTranslations[rawLeaveType] || rawLeaveType;
+        const photoFiles = document.getElementById('leaveImg').files;
+        if (!empId) return alert("請輸入工號！");
+        
+        const calcResult = window.autoCalc();
+        if (leaveType === "特休" && calcResult.totalMinutes < 60) return alert("❌ 特休需至少一小時！");
+        if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0 && !document.getElementById('editDocId').value) return alert("病假/家庭照顧假必傳證明！");
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true; btn.innerText = "處理中...";
+        try {
+            const entryData = { id: empId, name: document.getElementById('empName').value, dept: document.getElementById('dept').value, leaveType, sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value, eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value, reason: document.getElementById('reason').value, duration: calcResult.totalMinutes, displayDuration: calcResult.displayStr, updatedAt: serverTimestamp(), status: "審核中" };
+            if (photoFiles.length > 0) {
+                if (photoFiles[0]) entryData.photo = await compressImage(photoFiles[0]);
+                if (photoFiles[1]) entryData.photo2 = await compressImage(photoFiles[1]);
+                if (photoFiles[2]) entryData.photo3 = await compressImage(photoFiles[2]);
+            }
+            if (document.getElementById('editDocId').value) { await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData); }
+            else { entryData.createdAt = serverTimestamp(); await addDoc(collection(db, "formEntries"), entryData); sendEmailNotification(entryData); }
+            alert("送出成功！"); window.resetForm();
+        } catch (e) { alert("錯誤：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
+    };
+
+    function sendEmailNotification(data) {
+        let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
+        if (gmTargetIds.includes(data.id.toUpperCase())) recipients = gmEmail;
+        const subject = encodeURIComponent(`【請假】${data.dept}-${data.name} (${data.leaveType})`);
+        const body = encodeURIComponent(`🔔 新請假申請\n部門：${data.dept}\n姓名：${data.name}\n時數：${data.displayDuration}\n事由：${data.reason}`);
+        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
+    }
+
+    // --- 剩餘對接函數 ---
+    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
+    window.resetForm = () => { location.reload(); }; // 最保險的重置方式
+    window.changePage = (s) => { currentPage += s; window.renderTable(); };
+
+    // 主管審核與一鍵批准邏輯 (完整保留)
+    window.checkAdminAccess = () => {
+        const pw = prompt("密碼:");
+        if (adminPasswords[pw]) { currentAdminDept = adminPasswords[pw]; window.switchPage('admin'); }
+    };
+    window.loadAdminData = async () => {
+        const q = query(collection(db, "formEntries"), where("status", "==", "審核中"));
+        const snap = await getDocs(q);
+        currentPendingDocs = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => currentAdminDept === "ALL" || r.dept === currentAdminDept);
+        window.renderAdminTable();
+    };
+    window.renderAdminTable = () => {
+        const tbody = document.getElementById('adminTableBody');
+        document.getElementById('bulkApproveBtn').style.display = currentPendingDocs.length ? "inline-flex" : "none";
+        tbody.innerHTML = currentPendingDocs.map(r => `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate}<br>~${r.eDate}</td><td>${r.displayDuration}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" onclick="updateStatus('${r.docId}','批准')">准</button> <button class="btn btn-danger" onclick="updateStatus('${r.docId}','退')">退</button></td></tr>`).join('');
+    };
+    window.updateStatus = async (id, s) => {
+        await updateDoc(doc(db, "formEntries", id), { status: s, updatedAt: serverTimestamp() });
+        window.loadAdminData();
+    };
+    window.bulkApprove = async () => {
+        for (const r of currentPendingDocs) { await updateDoc(doc(db, "formEntries", r.docId), { status: "批准", updatedAt: serverTimestamp() }); }
+        alert("完成"); window.loadAdminData();
+    };
+
+    window.exportMonthExcel = async () => {
+        const m = document.getElementById('exportMonth').value;
+        const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
+        const snap = await getDocs(q);
+        let data = [["工號", "姓名", "部門", "假別", "時數", "日期"]];
+        snap.docs.forEach(d => {
+            const r = d.data();
+            if(r.sDate.startsWith(m)) data.push([r.id, r.name, r.dept, r.leaveType, r.displayDuration, r.sDate]);
+        });
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Report");
+        XLSX.writeFile(wb, `Leave_${m}.xlsx`);
+    };
+
+    window.searchPersonalRecords = async () => {
+        const id = document.getElementById('queryEmpId').value;
+        const q = query(collection(db, "formEntries"), where("id", "==", id.toUpperCase()));
+        const snap = await getDocs(q);
+        personalRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
+        document.getElementById('personalResultArea').style.display = "block";
+        document.getElementById('personalTableBody').innerHTML = personalRecords.map(r => `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td><td>${getPhotoHtml(r)}</td><td class="status-badge">${r.status}</td><td><button class="btn btn-lang" onclick="window.prepareEdit('${r.docId}','personal')">改</button></td></tr>`).join('');
+    };
+
+    window.prepareEdit = (id, src) => {
+        const r = (src === 'all' ? allRecords : personalRecords).find(x => x.docId === id);
+        window.switchPage('dashboard');
+        document.getElementById('editDocId').value = id;
+        document.getElementById('empId').value = r.id;
+        document.getElementById('empName').value = r.name;
+        document.getElementById('dept').value = r.dept;
+        document.getElementById('leaveType').value = r.leaveType;
+        document.getElementById('reason').value = r.reason;
+        window.setShift(r.sTime < "17:00" ? 'day' : 'middle');
+        document.getElementById('startDate').value = r.sDate;
+        document.getElementById('startTime').value = r.sTime;
+        document.getElementById('endDate').value = r.eDate;
+        document.getElementById('endTime').value = r.eTime;
+        document.getElementById('submitBtn').innerText = "更新申請";
+        document.getElementById('cancelEditBtn').style.display = "block";
+    };
 
 </script>
 </body>
