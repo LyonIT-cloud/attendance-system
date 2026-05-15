@@ -8,7 +8,7 @@
     <style>
         :root {
             /* 側邊欄基準 */
-            --sidebar-black: #05070a; 
+            --sidebar-black: #020408; /* 極深黑底，讓星光更明顯 */
             --main-bg: #f5f5f0; /* 米白色背景 */
             --primary: #3b82f6; 
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; 
@@ -38,7 +38,7 @@
             min-height: 100vh; 
         }
         
-        /* 側邊欄：徹底移除藍色背景，改為純黑星空 */
+        /* 側邊欄：徹底修正為高亮度繁星背景 */
         .sidebar { 
             width: 260px; 
             color: white; padding: 30px 20px; 
@@ -47,20 +47,25 @@
             transition: all 0.3s; 
             border-right: 1px solid rgba(255, 255, 255, 0.1);
             
-            /* 核心修正：移除藍色背景色，改用純黑與高對比星點 */
+            /* 核心修正：使用多層高對比星點漸層 */
             background-color: var(--sidebar-black) !important;
             background-image: 
-                radial-gradient(1px 1px at 20px 30px, white, rgba(0,0,0,0)),
-                radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 50px 160px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 80% 40%, #7ca9ff, rgba(0,0,0,0)),
-                radial-gradient(1px 1px at 100px 250px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 150px 350px, #fff, rgba(0,0,0,0)),
-                radial-gradient(1.5px 1.5px at 200px 100px, #fff, rgba(0,0,0,0)),
-                radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.25) 0%, transparent 70%),
-                radial-gradient(ellipse at top right, rgba(30, 58, 138, 0.3) 0%, transparent 60%) !important;
+                radial-gradient(1.5px 1.5px at 20px 30px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 45px 75px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 80px 140px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1.2px 1.2px at 130px 40px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 190px 90px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1.8px 1.8px at 220px 180px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 30px 240px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 100px 300px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1.5px 1.5px at 180px 360px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 240px 280px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(1.3px 1.3px at 60px 420px, #ffffff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 200px 480px, #ffffff, rgba(0,0,0,0)),
+                /* 底部微弱藍光 */
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15), transparent 80%) !important;
             background-repeat: repeat !important;
-            background-size: 250px 250px, 200px 200px, 150px 150px, 300px 300px, 250px 250px, 200px 200px, 150px 150px, 100% 100%, 100% 100% !important;
+            background-size: 260px 500px !important;
         }
 
         .sidebar h1 { 
@@ -68,7 +73,7 @@
             border-left: 5px solid var(--primary); 
             padding-left: 15px; letter-spacing: 2px;
             font-weight: 800;
-            text-shadow: 0 0 15px rgba(59, 130, 246, 1); /* 加強發光 */
+            text-shadow: 0 0 15px rgba(59, 130, 246, 1);
         }
         
         @media (max-width: 768px) {
@@ -306,7 +311,7 @@
 
         <div id="page-admin" class="page-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow);">
-                <h2 id="adminTitle" style="margin: 0; font-size: 20px; color: var(--sidebar-bg);">🛡️ 主管審核中心</h2>
+                <h2 id="adminTitle" style="margin: 0; font-size: 20px; color: var(--sidebar-black);">🛡️ 主管審核中心</h2>
                 <button id="bulkApproveBtn" class="btn btn-bulk" onclick="bulkApprove()" style="display: none;">一鍵批准所有申請</button>
             </div>
             <div class="table-wrapper">
