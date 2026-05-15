@@ -112,18 +112,23 @@
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         
-        /* 修改關鍵：拿掉純白色背景，改為透明卡片 */
+        /* 修改核心：將不透明白色改為 85% 半透明白色 + 毛玻璃效果 */
         .card { 
-            background: rgba(255, 255, 255, 0.85); /* 半透明白色 */
+            background: rgba(255, 255, 255, 0.85) !important; 
             padding: 20px; border-radius: 16px; 
             box-shadow: var(--card-shadow); margin-bottom: 25px; 
             border: 1px solid rgba(226, 232, 240, 0.5); 
-            backdrop-filter: blur(10px); /* 毛玻璃透視背景 */
+            backdrop-filter: blur(10px); 
             -webkit-backdrop-filter: blur(10px);
         }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
         label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #334155; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: rgba(255, 255, 255, 0.9); height: 48px; color: #1e293b; }
+        
+        /* 輸入框也調為微透明 */
+        input, select { 
+            width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 15px; 
+            box-sizing: border-box; background-color: rgba(255, 255, 255, 0.9); height: 48px; color: #1e293b; 
+        }
         input:disabled, select:disabled { background-color: rgba(241, 245, 249, 0.5); cursor: not-allowed; opacity: 0.8; color: #94a3b8; }
 
         .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
@@ -141,7 +146,6 @@
 
         .btn-excel { background: #16a34a; color: white; }
 
-        /* 強化早中班按鈕的區隔 */
         .shift-active { 
             border: 3px solid #1e40af !important; 
             background: #2563eb !important; 
@@ -184,7 +188,7 @@
         <div class="card" style="max-width: 90%; width: 420px; text-align: center;">
             <div style="font-size: 64px; margin-bottom: 20px;">🛠️</div>
             <h1 style="color: #1e293b; margin-bottom: 15px; font-size: 24px; font-weight: 800;">系統維護公告</h1>
-            <div style="text-align: left; background: rgba(248, 250, 252, 0.9); padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
+            <div style="text-align: left; background: rgba(248, 250, 252, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
                 <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
                     目前系統流量過載，正在進行緊急維護。<br>
                     預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
@@ -366,7 +370,7 @@
     </div>
 
 <script type="module">
-    // 完全保留您原始的所有 Firebase 邏輯與計算規則
+    // --- 以下為您原始的所有 Firebase 與核心邏輯，完整保留 ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
