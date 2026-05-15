@@ -8,10 +8,10 @@
     <style>
         :root {
             --sidebar-bg: #1e293b; 
-            --main-bg: #f5f5f0; /* 米白色背景碼 */
+            --main-bg: #f5f5f0; /* 米白色背景 */
             --primary: #3b82f6;
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; 
-            --text-main: #1e293b; /* 文字改回深色以適應淺底 */
+            --text-main: #1e293b; /* 深色文字 */
             --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             --approve-hover: #059669;
             --reject-hover: #dc2626;
@@ -27,7 +27,6 @@
             backdrop-filter: blur(5px);
         }
 
-        /* 背景修改：米白色 */
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
@@ -71,7 +70,6 @@
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         
-        /* 卡片改回實色以配合淺色背景 */
         .card { 
             background: #ffffff; 
             padding: 20px; border-radius: 16px; 
@@ -806,7 +804,6 @@
         const isEdit = !!document.getElementById('editDocId').value;
         const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
-        // --- 特休一小時限制邏輯 ---
         const calcResult = window.autoCalc();
         if (leaveType === "特休" && calcResult.totalMinutes < 60) {
             return alert("❌ 請特休需要至少一小時，否則無法送出申請。");
@@ -817,7 +814,7 @@
         }
 
         const btn = document.getElementById('submitBtn'); 
-        btn.disabled = true; btn.innerText = "正在壓縮圖片並處理中...";
+        btn.disabled = true; btn.innerText = "處理中...";
 
         try {
             const entryData = { 
