@@ -7,115 +7,137 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
-            --sidebar-bg: #1a1c2e; 
-            --sidebar-active: #3b82f6;
-            --main-bg: #fdf6f0; 
+            --sidebar-bg: #1e293b; 
+            --main-bg: #f5f5f0; /* 米白色背景碼 */
             --primary: #3b82f6;
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; 
-            --text-main: #2c3e50;
-            --card-radius: 20px;
+            --text-main: #1e293b; /* 文字改回深色以適應淺底 */
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --approve-hover: #059669;
+            --reject-hover: #dc2626;
+            --bulk-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
 
+        #maintenance-overlay {
+            display: none; 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(241, 245, 249, 0.95); z-index: 999999; 
+            flex-direction: column; align-items: center; justify-content: center; 
+            text-align: center; padding: 20px; box-sizing: border-box;
+            backdrop-filter: blur(5px);
+        }
+
+        /* 背景修改：米白色 */
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
             background: var(--main-bg); 
-            background-image: linear-gradient(rgba(253, 246, 240, 0.85), rgba(253, 246, 240, 0.85)), 
-                              url('https://www.transparenttextures.com/patterns/cubes.png');
             color: var(--text-main); 
             display: flex; 
+            flex-direction: row; 
             min-height: 100vh; 
         }
-
-        /* 側邊欄優化 */
-        .sidebar { 
-            width: 260px; background: var(--sidebar-bg); color: white; 
-            padding: 30px 15px; display: flex; flex-direction: column; flex-shrink: 0;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.1); z-index: 100;
-        }
-        .sidebar h1 { 
-            font-size: 22px; margin-bottom: 40px; text-align: center; font-weight: 800; letter-spacing: 2px;
-            background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
         
-        .nav-item { 
-            padding: 16px 20px; margin-bottom: 8px; border-radius: 12px; cursor: pointer; 
-            transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; 
+        .sidebar { 
+            width: 260px; 
+            background: var(--sidebar-bg); 
+            color: white; padding: 30px 20px; 
+            display: flex; flex-direction: column; 
+            flex-shrink: 0; z-index: 100; 
+            transition: all 0.3s; 
         }
-        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
-        .nav-item.active { background: var(--sidebar-active); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
-        .nav-admin { border: 1px dashed #475569; margin-top: 15px; color: #fbbf24; }
+        .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; }
+        
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
+            .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
+            .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
+            .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+            .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+            .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
+            .main-content { padding: 15px !important; }
+            .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
+        }
 
-        .main-content { flex: 1; padding: 40px; box-sizing: border-box; overflow-x: hidden; }
+        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
+        .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #1e293b; }
+        .nav-item { padding: 14px 18px; margin-bottom: 10px; border-radius: 10px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 12px; color: #94a3b8; font-weight: 500; }
+        .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+        .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+        .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
+        
+        .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         
+        /* 卡片改回實色以配合淺色背景 */
         .card { 
-            background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);
-            padding: 30px; border-radius: var(--card-radius); 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid white; 
+            background: #ffffff; 
+            padding: 20px; border-radius: 16px; 
+            box-shadow: var(--card-shadow); margin-bottom: 25px; 
+            border: 1px solid #e2e8f0; 
         }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
+        label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #64748b; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background-color: #ffffff; height: 48px; color: #1e293b; }
+        input:disabled, select:disabled { background-color: #f8fafc; cursor: not-allowed; opacity: 0.8; color: #64748b; }
 
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #64748b; }
-        
-        input, select { 
-            width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 14px; 
-            font-size: 15px; background: white; box-sizing: border-box;
-        }
-        input:disabled, select:disabled { background-color: #f8fafc; cursor: not-allowed; }
-
-        .btn { padding: 12px 24px; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-primary { background: var(--primary); color: white; width: 100%; height: 50px; }
-        .btn-success { background: var(--accent); color: white; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-success { background: var(--accent); color: white; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2); }
+        .btn-success:hover { background: var(--approve-hover); transform: translateY(-1px); }
         .btn-danger { background: var(--danger); color: white; }
-        .btn-bulk { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; }
-
-        #durationText { 
-            background: #eff6ff; color: var(--primary); padding: 15px; border-radius: 14px; 
-            text-align: center; font-weight: 800; margin: 20px 0; border: 1px dashed var(--primary);
+        .btn-danger:hover { background: var(--reject-hover); transform: translateY(-1px); }
+        
+        .btn-bulk { 
+            background: var(--bulk-gradient); color: white; padding: 10px 24px; border-radius: 12px; font-size: 15px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); border: 1px solid rgba(255,255,255,0.2);
         }
+        .btn-bulk:hover { transform: scale(1.02); filter: brightness(1.1); }
 
-        .shift-container { display: flex; gap: 15px; margin-top: 10px; }
-        .btn-shift { flex: 1; background: white; border: 2px solid #e2e8f0; color: #64748b; }
-        .shift-active { border-color: var(--primary); background: #eff6ff !important; color: var(--primary) !important; }
-
-        .table-wrapper { background: white; border-radius: 16px; overflow-x: auto; border: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; min-width: 850px; }
+        .btn-excel { background: #16a34a; color: white; }
+        .shift-active { border: 2px solid var(--primary) !important; background: #eff6ff !important; color: var(--primary) !important; }
+        
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #e2e8f0; background: #ffffff; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; min-width: 850px; color: var(--text-main); }
         th { background: #f8fafc; padding: 14px; text-align: left; font-size: 13px; color: #64748b; border-bottom: 1px solid #e2e8f0; }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
         
-        .status-badge { font-weight: 700; }
+        .status-badge { padding: 4px 0; font-size: 14px; font-weight: 700; white-space: nowrap; }
         .status-pending { color: var(--warning); }
         .status-approved { color: var(--accent); }
         .status-rejected { color: var(--danger); }
 
-        .table-thumb { width: 45px; height: 45px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #eee; }
-        .lang-switcher { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
-        .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .btn-action-s { background: transparent; border: none; padding: 4px 8px; font-size: 13px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        .btn-edit-link { color: var(--primary); border: 1px solid var(--primary); margin-right: 5px; }
+        .btn-delete-link { color: var(--danger); border: 1px solid var(--danger); }
 
-        #maintenance-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(241, 245, 249, 0.98); z-index: 999999;
-            flex-direction: column; align-items: center; justify-content: center; text-align: center;
-        }
-
-        @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .sidebar { width: 100%; padding: 15px; }
-            .main-content { padding: 20px; }
-            .form-grid { grid-template-columns: 1fr; }
-        }
+        .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: white; }
+        .table-thumb { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e2e8f0; margin: 2px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
     <div id="maintenance-overlay">
-        <div style="background: white; padding: 40px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 400px;">
-            <div style="font-size: 64px;">🛠️</div>
-            <h1 style="color: #1e293b;">系統維護公告</h1>
-            <p>流量過載維護中，預計 <span style="color:red; font-weight:800;">15:00</span> 恢復。</p>
+        <div style="background: white; padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; max-width: 90%; width: 420px;">
+            <div style="font-size: 64px; margin-bottom: 20px;">🛠️</div>
+            <h1 style="color: #1e293b; margin-bottom: 15px; font-size: 24px; font-weight: 800;">系統維護公告</h1>
+            <div style="text-align: left; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
+                <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
+                    目前系統流量過載，正在進行緊急維護。<br>
+                    預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
+                    造成不便，敬請見諒。
+                </p>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #f1f5f9; margin-bottom: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <p style="font-size: 14px; color: #94a3b8; margin: 0; font-weight: 600; letter-spacing: 1px;">鼎顓電子</p>
+                <p style="font-size: 11px; color: #cbd5e1; margin: 0;">CÔNG TY ĐỈNH CHUYÊN</p>
+            </div>
         </div>
     </div>
 
@@ -124,8 +146,8 @@
         <button class="btn-lang" onclick="changeLanguage('vi')">Tiếng Việt</button>
     </div>
 
-    <div id="imageLightbox" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); align-items:center; justify-content:center;" onclick="this.style.display='none'">
-        <img id="lightboxImg" style="max-width:95%; max-height:95%; border-radius:8px; border:3px solid white;" src="">
+    <div id="imageLightbox" class="img-modal" onclick="closeLightbox()">
+        <img id="lightboxImg" src="" alt="證明文件">
     </div>
 
     <div class="sidebar">
@@ -134,8 +156,9 @@
         <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</div>
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách">📅 核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
-        <div style="flex-grow: 1;"></div>
-        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" style="color: #a78bfa;">🕒 員工出勤系統</div>
+        <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
+        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" data-vi="🕒 Hệ thống điểm danh" style="color: #a78bfa;">🕒 員工出勤系統</div>
+        <div class="nav-item" onclick="window.open('../報修與需求單/index.html', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
     </div>
 
     <div class="main-content">
@@ -150,7 +173,7 @@
                     </div>
                     <div>
                         <label data-vi="員工姓名">員工姓名</label>
-                        <input type="text" id="empName" readonly placeholder="自動帶入">
+                        <input type="text" id="empName" readonly placeholder="輸入工號自動帶入">
                     </div>
                 </div>
                 <div class="form-grid">
@@ -171,12 +194,12 @@
                         </select>
                     </div>
                 </div>
-
-                <div style="margin-bottom: 20px;">
+                
+                <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0; margin-bottom: 20px;">
                     <label data-vi="Chọn ca làm việc">選擇班別</label>
-                    <div class="shift-container">
-                        <button class="btn btn-shift" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
-                        <button class="btn btn-shift" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班</button>
+                    <div style="display: flex; gap: 15px; margin-top: 10px;">
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('day')" id="shiftDayBtn">☀️ 早班</button>
+                        <button class="btn" style="flex: 1; background: #fff; border: 2px solid #e2e8f0;" onclick="setShift('middle')" id="shiftMidBtn">🌙 中班</button>
                     </div>
                     <input type="hidden" id="hasSelectedShift" value="false">
                 </div>
@@ -197,84 +220,88 @@
                         </div>
                     </div>
                 </div>
-                <div id="durationText">請點選班別後填寫時間</div>
+                <div id="durationText" style="color:var(--primary); font-weight:600; padding: 12px; background: #eff6ff; border-radius: 10px; margin: 15px 0; text-align: center; border: 1px dashed var(--primary);">請點選班別後填寫時間</div>
                 
                 <div><label data-vi="Lý do">請假事由</label><input type="text" id="reason" placeholder="請詳細說明原因"></div>
-                <div style="margin-top:20px;">
-                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳，最多3張)</span></label>
+                <div style="margin-top:15px;">
+                    <label data-vi="Tải ảnh bằng chứng">證明文件上傳 <span id="photoNote" style="color:red; font-size:12px;">(病假/家庭照顧假必傳，自動壓縮，最多3張)</span></label>
                     <input type="file" id="leaveImg" accept="image/*" multiple>
                     <div id="editPhotoPreview" style="margin-top:10px; display:none;">
+                        <p style="font-size:12px; color:#64748b;">現有證明：</p>
                         <div id="currentPhotosContainer" style="display: flex; gap: 5px;"></div>
                     </div>
                 </div>
                 <button id="submitBtn" class="btn btn-primary" onclick="saveToCloud()" style="margin-top:25px;" data-vi="Gửi đơn">確認送出申請</button>
-                <button id="cancelEditBtn" class="btn" style="margin-top:10px; width:100%; background:#e2e8f0; display:none;" onclick="resetForm()">取消修改</button>
+                <button id="cancelEditBtn" class="btn btn-danger" onclick="resetForm()" style="margin-top:10px; width:100%; display:none;">取消修改</button>
             </div>
         </div>
 
         <div id="page-search" class="page-content">
             <h2 data-vi="📅 Danh sách duyệt">📅 核准清單</h2>
-            <div class="card" style="display:flex; gap:10px; flex-wrap: wrap;">
-                <input type="month" id="filterMonth" onchange="applyFilters()" style="width: auto;">
-                <select id="filterDept" onchange="applyFilters()" style="width: auto;">
-                    <option value="">全部部門</option>
+            <div class="card" style="padding:15px; display:flex; gap:10px; flex-wrap: wrap; align-items:center;">
+                <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
+                <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả bộ phận">全部部門</option>
                     <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
                 </select>
-                <select id="filterStatus" onchange="applyFilters()" style="width: auto;">
-                    <option value="">全部狀態</option>
-                    <option value="審核中">審核中</option><option value="批准">批准</option><option value="退件">退件</option>
+                <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
+                    <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
+                    <option value="審核中">審核中</option>
+                    <option value="批准">批准</option>
+                    <option value="退件">退件</option>
                 </select>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>時間</th><th>時數</th><th>證明</th><th>狀態</th><th>操作</th></tr>
+                        <tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>請假區間</th><th>時數</th><th>證明</th><th>進度</th><th>假別修改</th></tr>
                     </thead>
                     <tbody id="allTableBody"></tbody>
                 </table>
             </div>
-            <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
-                <button class="btn btn-lang" onclick="changePage(-1)">上一頁</button>
-                <span id="pageInfo" style="line-height:35px; font-weight:700;">1 / 1</span>
-                <button class="btn btn-lang" onclick="changePage(1)">下一頁</button>
+            <div class="pagination-ctrl">
+                <button class="btn" onclick="changePage(-1)">上一頁</button>
+                <span id="pageInfo">1 / 1</span>
+                <button class="btn" onclick="changePage(1)">下一頁</button>
             </div>
-            <div class="card" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
+            <div class="card export-section" style="margin-top:20px; display:flex; align-items:center; gap:15px;">
                 <input type="month" id="exportMonth" style="width: 200px;">
-                <button class="btn btn-success" onclick="exportMonthExcel()">📥 導出 EXCEL</button>
+                <button class="btn btn-excel" onclick="exportMonthExcel()" style="width:auto;">📥 導出 EXCEL</button>
             </div>
         </div>
 
         <div id="page-admin" class="page-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h2 id="adminTitle">🛡️ 主管審核中心</h2>
-                <button id="bulkApproveBtn" class="btn btn-bulk" style="display: none;" onclick="bulkApprove()">一鍵批准</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px; border-radius: 16px; box-shadow: var(--card-shadow);">
+                <h2 id="adminTitle" style="margin: 0; font-size: 20px; color: var(--sidebar-bg);">🛡️ 主管審核中心</h2>
+                <button id="bulkApproveBtn" class="btn btn-bulk" onclick="bulkApprove()" style="display: none;">一鍵批准所有申請</button>
             </div>
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間區間</th><th>總時數</th><th>證明</th><th>操作</th></tr>
+                        <tr><th>部門</th><th>姓名 / 假別</th><th>時間區間</th><th>總時數</th><th>證明</th><th>核准操作</th></tr>
                     </thead>
                     <tbody id="adminTableBody"></tbody>
                 </table>
             </div>
-            <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
-                <button class="btn btn-lang" onclick="changeAdminPage(-1)">上一頁</button>
-                <span id="adminPageInfo" style="line-height:35px; font-weight:700;">1 / 1</span>
-                <button class="btn btn-lang" onclick="changeAdminPage(1)">下一頁</button>
+            <div class="pagination-ctrl">
+                <button class="btn" onclick="changeAdminPage(-1)">上一頁</button>
+                <span id="adminPageInfo">1 / 1</span>
+                <button class="btn" onclick="changeAdminPage(1)">下一頁</button>
             </div>
         </div>
 
         <div id="page-personal" class="page-content">
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
+                <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="輸入工號" oninput="this.value = this.value.toUpperCase();">
-                    <button class="btn btn-primary" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
+                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1" oninput="this.value = this.value.toUpperCase();">
+                    <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
                 </div>
-                <div id="personalResultArea" style="display:none; margin-top: 25px;">
+                <div id="personalResultArea" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
-                        <table>
-                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>操作</th></tr></thead>
+                        <table style="min-width: 600px;">
+                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>選項變更</th></tr></thead>
                             <tbody id="personalTableBody"></tbody>
                         </table>
                     </div>
@@ -298,72 +325,131 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const managerEmails = { "管理部": "it@tw.topdgi.com,lon.lin@tw.topdgi.com", "製造部": "mark.lu@tw.topdgi.com", "工程部": "tommy.yao@tw.topdgi.com", "SMT": "nick.ho@tw.topdgi.com", "DIP": "mark.lu@tw.topdgi.com,jackson.chan@tw.topdgi.com", "資材部": "mia.hou@tw.topdgi.com", "業務部": "wayne.lee@tw.topdgi.com", "品保部": "it@tw.topdgi.com" };
+    const managerEmails = {
+        "管理部": "it@tw.topdgi.com,lon.lin@tw.topdgi.com",
+        "製造部": "mark.lu@tw.topdgi.com",
+        "工程部": "tommy.yao@tw.topdgi.com",
+        "SMT": "nick.ho@tw.topdgi.com",
+        "DIP": "mark.lu@tw.topdgi.com,jackson.chan@tw.topdgi.com",
+        "資材部": "mia.hou@tw.topdgi.com",
+        "業務部": "wayne.lee@tw.topdgi.com",
+        "品保部": "it@tw.topdgi.com"
+    };
+
     const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
     const gmEmail = "wayne.lee@tw.topdgi.com";
 
-    // --- 全域變數 ---
-    let allRecords = [], personalRecords = [], filteredRecords = [], currentPendingDocs = [];
-    let currentPage = 1, adminCurrentPage = 1, rowsPerPage = 10;
-    let currentAdminDept = "", isApprovalListAuth = false;
+    function sendEmailNotification(data) {
+        let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
+        if (gmTargetIds.includes(data.id.toUpperCase())) { recipients = gmEmail; }
+        const subject = encodeURIComponent(`【請假通知】${data.dept}-${data.name} (${data.leaveType})`);
+        const body = encodeURIComponent(
+            `🔔 新請假申請通知\n` +
+            `--------------------------\n` +
+            `【部門】：${data.dept}\n` +
+            `【姓名】：${data.name}\n` +
+            `【工號】：${data.id}\n` +
+            `【假別】：${data.leaveType}\n` +
+            `【日期】：${data.sDate === data.eDate ? data.sDate : data.sDate + ' ~ ' + data.eDate}\n` +
+            `【時數】：${data.displayDuration}\n` +
+            `【事由】：${data.reason || "無"}\n` +
+            `--------------------------\n` +
+            `請登入系統核准。`
+        );
+        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
+    }
 
-    const adminPasswords = { "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT", "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP", "hr888": "ALL", "GM888": "總經理" };
-    const leaveTypeTranslations = { '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác', '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù', '婚假': 'Nghỉ kết hôn', '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình' };
-    const reverseLeaveTranslations = Object.fromEntries(Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh]));
+    let allRecords = []; 
+    let personalRecords = []; 
+    let filteredRecords = []; 
+    let currentPage = 1;
+    const rowsPerPage = 10;
+    let adminCurrentPage = 1;
+    let currentAdminDept = "";
+    let currentPendingDocs = []; 
+    let isApprovalListAuth = false; 
 
-    // --- 工具函數 ---
+    const adminPasswords = {
+        "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
+        "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP",
+        "hr888": "ALL", "GM888": "總經理"
+    };
+
+    const leaveTypeTranslations = {
+        '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác',
+        '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù', '婚假': 'Nghỉ kết hôn',
+        '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
+    };
+
+    const reverseLeaveTranslations = Object.fromEntries(
+        Object.entries(leaveTypeTranslations).map(([zh, vi]) => [vi, zh])
+    );
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const now = new Date();
+        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
+        if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
+    });
+
+    window.changeLanguage = (lang) => {
+        const elements = document.querySelectorAll('[data-vi]');
+        elements.forEach(el => {
+            if (el.closest('#page-admin') && el.id !== 'adminTitle') return;
+            if (lang === 'vi') {
+                if (!el.dataset.zh) el.dataset.zh = el.innerText; 
+                el.innerText = el.dataset.vi;
+            } else {
+                if (el.dataset.zh) el.innerText = el.dataset.zh;
+            }
+        });
+        const leaveSelect = document.getElementById('leaveType');
+        if (leaveSelect) {
+            Array.from(leaveSelect.options).forEach(opt => {
+                const zhValue = opt.value; 
+                if (lang === 'vi') { opt.text = leaveTypeTranslations[zhValue] || zhValue; }
+                else { opt.text = zhValue; }
+            });
+        }
+    };
+
     function formatDuration(minutes) {
         if (isNaN(minutes)) return "0 時 0 分";
         const h = Math.floor(minutes / 60);
         const m = minutes % 60;
         return `${h} 時 ${m} 分`;
     }
+
     function safeGet(obj, keys, defaultVal = "") {
         for (let key of keys) { if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key]; }
         return defaultVal;
     }
-    function getPhotoHtml(r) {
-        let html = '';
-        if (r.photo) html += `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">`;
-        if (r.photo2) html += `<img src="${r.photo2}" class="table-thumb" onclick="window.openLightbox('${r.photo2}')">`;
-        if (r.photo3) html += `<img src="${r.photo3}" class="table-thumb" onclick="window.openLightbox('${r.photo3}')">`;
-        return html || '<span style="color:#cbd5e1">-</span>';
-    }
 
-    // --- 介面控制 ---
-    window.switchPage = (id) => {
-        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
-        const page = document.getElementById('page-'+id), nav = document.getElementById('nav-'+id);
-        if(page) page.classList.add('active'); if(nav) nav.classList.add('active');
-        if(id === 'admin') window.loadAdminData();
-        if(id === 'search') window.loadAllRecords();
+    window.changePage = (step) => {
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        const newPage = currentPage + step;
+        if (newPage >= 1 && newPage <= totalPages) { currentPage = newPage; window.renderTable(); }
     };
 
-    window.changeLanguage = (lang) => {
-        document.querySelectorAll('[data-vi]').forEach(el => {
-            if (el.closest('#page-admin') && el.id !== 'adminTitle') return;
-            if (lang === 'vi') { if (!el.dataset.zh) el.dataset.zh = el.innerText; el.innerText = el.dataset.vi; }
-            else { if (el.dataset.zh) el.innerText = el.dataset.zh; }
-        });
-        const leaveSelect = document.getElementById('leaveType');
-        if (leaveSelect) {
-            Array.from(leaveSelect.options).forEach(opt => {
-                if (lang === 'vi') { opt.text = leaveTypeTranslations[opt.value] || opt.value; }
-                else { opt.text = opt.value; }
-            });
-        }
+    window.changeAdminPage = (step) => {
+        const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
+        const newPage = adminCurrentPage + step;
+        if (newPage >= 1 && newPage <= totalPages) { adminCurrentPage = newPage; window.renderAdminTable(); }
     };
 
-    // --- 資料讀取與篩選 ---
     window.autoFetchName = async () => {
         const rawEmpId = document.getElementById('empId').value.trim();
-        const nameInput = document.getElementById('empName'), deptInput = document.getElementById('dept');
+        const nameInput = document.getElementById('empName');
+        const deptInput = document.getElementById('dept');
         if (rawEmpId.length < 4) { nameInput.value = ""; return; }
         try {
             nameInput.value = "查詢中...";
             let docRef = doc(db, "employees", rawEmpId.toUpperCase());
             let docSnap = await getDoc(docRef);
-            if (!docSnap.exists()) { docRef = doc(db, "employees", rawEmpId.toLowerCase()); docSnap = await getDoc(docRef); }
+            if (!docSnap.exists()) {
+                docRef = doc(db, "employees", rawEmpId.toLowerCase());
+                docSnap = await getDoc(docRef);
+            }
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 nameInput.value = data.name || "";
@@ -374,8 +460,8 @@
 
     window.loadAllRecords = async () => {
         if (!isApprovalListAuth) {
-            const pw = prompt("請輸入密碼:");
-            if (pw !== "top") { alert("密碼錯誤！"); return; }
+            const pw = prompt("請輸入核准清單查看密碼:");
+            if (pw !== "top") { alert("密碼錯誤，無法載入資料！"); return; }
             isApprovalListAuth = true;
         }
         try {
@@ -384,34 +470,262 @@
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             window.applyFilters();
         } catch (e) { 
-            if (e.code === "resource-exhausted") document.getElementById('maintenance-overlay').style.display = 'flex';
+            if (e.message.includes("quota") || e.code === "resource-exhausted") {
+                document.getElementById('maintenance-overlay').style.display = 'flex';
+            }
         }
     };
 
     window.applyFilters = () => {
-        const m = document.getElementById('filterMonth').value, d = document.getElementById('filterDept').value, s = document.getElementById('filterStatus').value;
+        const m = document.getElementById('filterMonth').value;
+        const d = document.getElementById('filterDept').value;
+        const s = document.getElementById('filterStatus').value;
         filteredRecords = allRecords.filter(r => {
             const sd = safeGet(r, ['sDate', 'startDate']);
-            return (m ? sd.startsWith(m) : true) && (d ? r.dept === d : true) && (s ? r.status === s : true);
+            const matchMonth = m ? sd.startsWith(m) : true;
+            const matchDept = d ? r.dept === d : true;
+            const matchStatus = s ? r.status === s : true;
+            return matchMonth && matchDept && matchStatus;
         });
         currentPage = 1; window.renderTable();
     };
 
+    function getPhotoHtml(r) {
+        let html = '';
+        if (r.photo) html += `<img src="${r.photo}" class="table-thumb" onclick="window.openLightbox('${r.photo}')">`;
+        if (r.photo2) html += `<img src="${r.photo2}" class="table-thumb" onclick="window.openLightbox('${r.photo2}')">`;
+        if (r.photo3) html += `<img src="${r.photo3}" class="table-thumb" onclick="window.openLightbox('${r.photo3}')">`;
+        return html || '<span style="color:#cbd5e1">-</span>';
+    }
+
     window.renderTable = () => {
-        const tbody = document.getElementById('allTableBody'), start = (currentPage - 1) * rowsPerPage, paginated = filteredRecords.slice(start, start + rowsPerPage);
-        tbody.innerHTML = paginated.map(r => {
-            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
-            return `<tr><td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
-            <td style="font-size:12px;">${sd === ed ? sd : sd+'~'+ed}</td>
-            <td>${r.displayDuration || formatDuration(r.duration)}</td>
-            <td>${getPhotoHtml(r)}</td>
-            <td class="status-badge ${r.status==='批准'?'status-approved':(r.status==='退件'?'status-rejected':'status-pending')}">${r.status}</td>
-            <td><button class="btn btn-lang" onclick="window.prepareEdit('${r.docId}', 'all')">修改</button></td></tr>`;
-        }).join('');
-        document.getElementById('pageInfo').innerText = `${currentPage} / ${Math.ceil(filteredRecords.length/rowsPerPage)||1}`;
+        const tbody = document.getElementById('allTableBody');
+        const start = (currentPage - 1) * rowsPerPage;
+        const paginated = filteredRecords.slice(start, start + rowsPerPage);
+        if (paginated.length === 0) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">目前無相符資料</td></tr>'; }
+        else {
+            tbody.innerHTML = paginated.map(r => {
+                const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+                const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
+                const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
+                return `<tr>
+                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
+                    <td style="font-size:12px;">${dateRange}</td>
+                    <td>${r.displayDuration || formatDuration(r.duration)}</td>
+                    <td>${getPhotoHtml(r)}</td>
+                    <td class="status-badge ${statusClass}">${r.status}</td>
+                    <td>
+                        <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'all')">修改</button>
+                        <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        const totalPages = Math.ceil(filteredRecords.length / rowsPerPage) || 1;
+        document.getElementById('pageInfo').innerText = `${currentPage} / ${totalPages}`;
     };
 
-    // --- 計算邏輯 (核心不可變動) ---
+    window.exportMonthExcel = async () => {
+        if (!isApprovalListAuth) { alert("請先輸入密碼載入清單資料後再執行匯出！"); return; }
+        const exportMonth = document.getElementById('exportMonth').value;
+        if (!exportMonth) return alert("請選擇要匯出的月份！");
+        try {
+            const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
+            const snap = await getDocs(q);
+            let exportData = [["員工代號", "員工姓名", "假別", "出勤日期", "開始日期", "開始時間", "結束日期", "結束時間", "請假時數", "扣伙食費", "扣交通津貼", "事由", "備註(部門)", "批准時間"]];
+            snap.docs.forEach(docSnap => {
+                const r = docSnap.data();
+                const sDate = safeGet(r, ['sDate', 'startDate']);
+                if (!sDate || !sDate.startsWith(exportMonth)) return;
+                let empId = String(r.id || "").trim();
+                const firstChar = empId.charAt(0).toUpperCase(); 
+                if (['F', 'X', 'H', 'G'].includes(firstChar)) { empId = firstChar.toLowerCase() + empId.slice(1); }
+                const dMin = coreCalcMinutes(sDate, safeGet(r, ['sTime', 'startTime']), safeGet(r, ['eDate', 'endDate']), safeGet(r, ['eTime', 'endTime']));
+                const formattedDuration = String(Math.floor(dMin / 60)).padStart(3, '0') + ':' + String(dMin % 60).padStart(2, '0');
+                exportData.push([empId, r.name || "", r.leaveType || "", sDate, sDate, safeGet(r, ['sTime', 'startTime']), safeGet(r, ['eDate', 'endDate']), safeGet(r, ['eTime', 'endTime']), { t: 's', v: formattedDuration }, "", "", r.reason || "", r.dept || "", r.approveTime || ""]);
+            });
+            if (exportData.length <= 1) return alert(`該月份沒有已批准紀錄！`);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(exportData), "請假紀錄");
+            XLSX.writeFile(wb, `請假紀錄_${exportMonth}.xlsx`);
+        } catch (e) { alert("匯出失敗：" + e.message); }
+    };
+
+    window.prepareEdit = async (docId, source = 'all') => {
+        const record = (source === 'personal') ? personalRecords.find(r => r.docId === docId) : allRecords.find(r => r.docId === docId);
+        if(!record) return;
+        window.switchPage('dashboard');
+        document.getElementById('empId').disabled = true;
+        document.getElementById('dept').disabled = true;
+        document.getElementById('editDocId').value = docId;
+        document.getElementById('empId').value = record.id;
+        document.getElementById('empName').value = record.name;
+        document.getElementById('dept').value = record.dept;
+        const leaveVal = reverseLeaveTranslations[record.leaveType] || record.leaveType;
+        document.getElementById('leaveType').value = leaveVal;
+        document.getElementById('reason').value = record.reason || "";
+        window.setShift((record.sTime >= "07:00" && record.sTime <= "17:30") ? 'day' : 'middle');
+        document.getElementById('startDate').value = safeGet(record, ['sDate', 'startDate']);
+        document.getElementById('startTime').value = safeGet(record, ['sTime', 'startTime']);
+        document.getElementById('endDate').value = safeGet(record, ['eDate', 'endDate']);
+        document.getElementById('endTime').value = safeGet(record, ['eTime', 'endTime']);
+        if(record.photo || record.photo2 || record.photo3) {
+            document.getElementById('editPhotoPreview').style.display = 'block';
+            document.getElementById('currentPhotosContainer').innerHTML = getPhotoHtml(record);
+        }
+        document.getElementById('submitBtn').innerText = "確認更新申請";
+        document.getElementById('cancelEditBtn').style.display = 'block';
+        window.autoCalc(); window.scrollTo(0,0);
+    };
+
+    window.deleteRecord = async (docId) => {
+        if(!confirm("確定要銷假嗎？此動作無法復原。")) return;
+        try {
+            await deleteDoc(doc(db, "formEntries", docId));
+            alert("已成功銷假");
+            allRecords = allRecords.filter(r => r.docId !== docId);
+            personalRecords = personalRecords.filter(r => r.docId !== docId);
+            window.applyFilters();
+            if (document.getElementById('page-personal').classList.contains('active')) window.renderPersonalTable();
+        } catch (e) { alert("刪除失敗：" + e.message); }
+    };
+
+    window.resetForm = () => {
+        document.getElementById('editDocId').value = ""; 
+        document.getElementById('reason').value = "";
+        document.getElementById('empId').disabled = false;
+        document.getElementById('dept').disabled = false;
+        document.getElementById('editPhotoPreview').style.display = 'none';
+        document.getElementById('submitBtn').innerText = "確認送出申請";
+        document.getElementById('cancelEditBtn').style.display = 'none';
+        document.getElementById('leaveImg').value = "";
+    };
+
+    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
+    window.closeLightbox = () => { document.getElementById('imageLightbox').style.display = 'none'; };
+
+    window.switchPage = (id) => {
+        document.querySelectorAll('.page-content, .nav-item').forEach(el => el.classList.remove('active'));
+        const page = document.getElementById('page-'+id), nav = document.getElementById('nav-'+id);
+        if(page) page.classList.add('active'); if(nav) nav.classList.add('active');
+        if(id === 'admin') window.loadAdminData();
+        if(id === 'search') window.loadAllRecords();
+    };
+
+    window.checkAdminAccess = () => {
+        const pw = prompt("請輸入主管管理密碼:");
+        if (adminPasswords[pw]) { currentAdminDept = adminPasswords[pw]; window.switchPage('admin'); } 
+        else if (pw !== null) alert("密碼錯誤！");
+    };
+
+    window.loadAdminData = async () => {
+        const tbody = document.getElementById('adminTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+        try {
+            const q = query(collection(db, "formEntries"), where("status", "==", "審核中"), limit(100));
+            const snap = await getDocs(q);
+            const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
+            .filter(r => {
+                if (currentAdminDept === "總經理") { return gmTargetIds.includes(r.id.toUpperCase()); }
+                if (currentAdminDept === "ALL") return true;
+                return r.dept === currentAdminDept;
+            })
+            .sort((a, b) => {
+                const timeA = a.updatedAt?.toMillis() || 0;
+                const timeB = b.updatedAt?.toMillis() || 0;
+                return timeB - timeA; 
+            });
+            currentPendingDocs = filtered; 
+            adminCurrentPage = 1;
+            document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+            window.renderAdminTable();
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6">錯誤: ${e.message}</td></tr>`; }
+    };
+
+    window.renderAdminTable = () => {
+        const tbody = document.getElementById('adminTableBody');
+        const bulkBtn = document.getElementById('bulkApproveBtn');
+        const start = (adminCurrentPage - 1) * rowsPerPage;
+        const paginated = currentPendingDocs.slice(start, start + rowsPerPage);
+        if (currentPendingDocs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">目前無待審核資料</td></tr>';
+            bulkBtn.style.display = "none";
+            document.getElementById('adminPageInfo').innerText = "1 / 1";
+            return;
+        }
+        bulkBtn.style.display = "inline-flex";
+        bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
+        tbody.innerHTML = paginated.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
+            return `<tr>
+                <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
+                <td>${sd} ${st}<br>~${ed}</td>
+                <td>${r.displayDuration || formatDuration(r.duration)}</td>
+                <td>${getPhotoHtml(r)}</td>
+                <td>
+                    <button class="btn btn-success" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '批准')">批准</button> 
+                    <button class="btn btn-danger" style="padding:6px 15px;min-height:36px;" onclick="updateStatus('${r.docId}', '退件')">退件</button>
+                </td>
+            </tr>`;
+        }).join('');
+        const totalPages = Math.ceil(currentPendingDocs.length / rowsPerPage) || 1;
+        document.getElementById('adminPageInfo').innerText = `${adminCurrentPage} / ${totalPages}`;
+    };
+
+    window.updateStatus = async (docId, newStatus) => {
+        if (!confirm(`確定要${newStatus}此假單？`)) return;
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        await updateDoc(doc(db, "formEntries", docId), { status: newStatus, approveTime: timeStr, updatedAt: serverTimestamp() });
+        alert("處理成功"); window.loadAdminData(); 
+        if (isApprovalListAuth) window.loadAllRecords(); 
+    };
+
+    window.bulkApprove = async () => {
+        if (!currentPendingDocs.length || !confirm(`確定要一鍵批准這 ${currentPendingDocs.length} 筆申請嗎？`)) return;
+        const now = new Date();
+        const timeStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        for (const r of currentPendingDocs) {
+            await updateDoc(doc(db, "formEntries", r.docId), { status: "批准", approveTime: timeStr, updatedAt: serverTimestamp() });
+        }
+        alert("批次處理完成！"); window.loadAdminData();
+        if (isApprovalListAuth) window.loadAllRecords();
+    };
+
+    window.searchPersonalRecords = async () => {
+        const rawQueryId = document.getElementById('queryEmpId').value.trim();
+        if (!rawQueryId) return alert("請輸入工號！");
+        const tbody = document.getElementById('personalTableBody'), resultArea = document.getElementById('personalResultArea');
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">查詢中...</td></tr>';
+        resultArea.style.display = 'block';
+        try {
+            const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId)), q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
+            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            const resultMap = new Map();
+            [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
+            personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
+            window.renderPersonalTable();
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="7">查詢失敗：${e.message}</td></tr>`; }
+    };
+
+    window.renderPersonalTable = () => {
+        const tbody = document.getElementById('personalTableBody');
+        if (personalRecords.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; return; }
+        tbody.innerHTML = personalRecords.map(r => {
+            const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
+            const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
+            return `<tr>
+                <td style="font-weight:600;">${r.name}</td><td>${r.leaveType}</td>
+                <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
+                <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
+                <td>${getPhotoHtml(r)}</td><td class="status-badge ${statusClass}">${r.status}</td>
+                <td>
+                    <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'personal')">修改</button>
+                    <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
+                </td>
+            </tr>`;
+        }).join('');
+    };
+
     function coreCalcMinutes(d1, t1, d2, t2) {
         if(!d1 || !t1 || !d2 || !t2) return 0;
         let startDT = new Date(`${d1}T${t1}`), endDT = new Date(`${d2}T${t2}`);
@@ -463,15 +777,15 @@
         window.autoCalc();
     };
 
-    // --- 存檔與上傳 ---
     const compressImage = (file) => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader(); reader.readAsDataURL(file);
             reader.onload = (e) => {
                 const img = new Image(); img.src = e.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height, maxWidth = 1024;
+                    let width = img.width, height = img.height;
+                    const maxWidth = 1024;
                     if (width > maxWidth) { height = (maxWidth / width) * height; width = maxWidth; }
                     canvas.width = width; canvas.height = height;
                     canvas.getContext('2d').drawImage(img, 0, 0, width, height);
@@ -483,108 +797,55 @@
 
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
-        const empId = document.getElementById('empId').value.trim(), rawLeaveType = document.getElementById('leaveType').value;
+        const empId = document.getElementById('empId').value.trim();
+        const rawLeaveType = document.getElementById('leaveType').value;
         const leaveType = reverseLeaveTranslations[rawLeaveType] || rawLeaveType;
         const photoFiles = document.getElementById('leaveImg').files;
-        if (!empId) return alert("請輸入工號！");
         
-        const calcResult = window.autoCalc();
-        if (leaveType === "特休" && calcResult.totalMinutes < 60) return alert("❌ 特休需至少一小時！");
-        if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0 && !document.getElementById('editDocId').value) return alert("病假/家庭照顧假必傳證明！");
+        if (!empId) return alert("請輸入工號！");
+        const isEdit = !!document.getElementById('editDocId').value;
+        const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
-        const btn = document.getElementById('submitBtn');
-        btn.disabled = true; btn.innerText = "處理中...";
+        // --- 特休一小時限制邏輯 ---
+        const calcResult = window.autoCalc();
+        if (leaveType === "特休" && calcResult.totalMinutes < 60) {
+            return alert("❌ 請特休需要至少一小時，否則無法送出申請。");
+        }
+
+        if ((leaveType === "病假" || leaveType === "家庭照顧假") && photoFiles.length === 0 && !hasExistingPhoto) {
+             return alert("申請「病假」或「家庭照顧假」必須上傳證明文件照片！");
+        }
+
+        const btn = document.getElementById('submitBtn'); 
+        btn.disabled = true; btn.innerText = "正在壓縮圖片並處理中...";
+
         try {
-            const entryData = { id: empId, name: document.getElementById('empName').value, dept: document.getElementById('dept').value, leaveType, sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value, eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value, reason: document.getElementById('reason').value, duration: calcResult.totalMinutes, displayDuration: calcResult.displayStr, updatedAt: serverTimestamp(), status: "審核中" };
+            const entryData = { 
+                id: empId, name: document.getElementById('empName').value, dept: document.getElementById('dept').value, 
+                leaveType: leaveType, sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value, 
+                eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value, 
+                reason: document.getElementById('reason').value, duration: calcResult.totalMinutes, 
+                displayDuration: calcResult.displayStr, updatedAt: serverTimestamp() 
+            };
             if (photoFiles.length > 0) {
                 if (photoFiles[0]) entryData.photo = await compressImage(photoFiles[0]);
                 if (photoFiles[1]) entryData.photo2 = await compressImage(photoFiles[1]);
                 if (photoFiles[2]) entryData.photo3 = await compressImage(photoFiles[2]);
             }
-            if (document.getElementById('editDocId').value) { await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData); }
-            else { entryData.createdAt = serverTimestamp(); await addDoc(collection(db, "formEntries"), entryData); sendEmailNotification(entryData); }
-            alert("送出成功！"); window.resetForm();
-        } catch (e) { alert("錯誤：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
+            if (isEdit) {
+                entryData.status = "審核中";
+                await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
+            } else {
+                entryData.status = "審核中"; entryData.createdAt = serverTimestamp();
+                await addDoc(collection(db, "formEntries"), entryData);
+                sendEmailNotification(entryData);
+            }
+            alert("操作成功！"); window.resetForm();
+            if (isApprovalListAuth) window.loadAllRecords();
+            if (document.getElementById('page-personal').classList.contains('active')) window.searchPersonalRecords();
+            if (document.getElementById('page-admin').classList.contains('active')) window.loadAdminData();
+        } catch (e) { alert("失敗：" + e.message); } finally { btn.disabled = false; btn.innerText = "確認送出申請"; }
     };
-
-    function sendEmailNotification(data) {
-        let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
-        if (gmTargetIds.includes(data.id.toUpperCase())) recipients = gmEmail;
-        const subject = encodeURIComponent(`【請假】${data.dept}-${data.name} (${data.leaveType})`);
-        const body = encodeURIComponent(`🔔 新請假申請\n部門：${data.dept}\n姓名：${data.name}\n時數：${data.displayDuration}\n事由：${data.reason}`);
-        window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
-    }
-
-    // --- 剩餘對接函數 ---
-    window.openLightbox = (src) => { document.getElementById('lightboxImg').src = src; document.getElementById('imageLightbox').style.display = 'flex'; };
-    window.resetForm = () => { location.reload(); }; // 最保險的重置方式
-    window.changePage = (s) => { currentPage += s; window.renderTable(); };
-
-    // 主管審核與一鍵批准邏輯 (完整保留)
-    window.checkAdminAccess = () => {
-        const pw = prompt("密碼:");
-        if (adminPasswords[pw]) { currentAdminDept = adminPasswords[pw]; window.switchPage('admin'); }
-    };
-    window.loadAdminData = async () => {
-        const q = query(collection(db, "formEntries"), where("status", "==", "審核中"));
-        const snap = await getDocs(q);
-        currentPendingDocs = snap.docs.map(d => ({ docId: d.id, ...d.data() })).filter(r => currentAdminDept === "ALL" || r.dept === currentAdminDept);
-        window.renderAdminTable();
-    };
-    window.renderAdminTable = () => {
-        const tbody = document.getElementById('adminTableBody');
-        document.getElementById('bulkApproveBtn').style.display = currentPendingDocs.length ? "inline-flex" : "none";
-        tbody.innerHTML = currentPendingDocs.map(r => `<tr><td>${r.dept}</td><td>${r.name}<br>${r.leaveType}</td><td>${r.sDate}<br>~${r.eDate}</td><td>${r.displayDuration}</td><td>${getPhotoHtml(r)}</td><td><button class="btn btn-success" onclick="updateStatus('${r.docId}','批准')">准</button> <button class="btn btn-danger" onclick="updateStatus('${r.docId}','退')">退</button></td></tr>`).join('');
-    };
-    window.updateStatus = async (id, s) => {
-        await updateDoc(doc(db, "formEntries", id), { status: s, updatedAt: serverTimestamp() });
-        window.loadAdminData();
-    };
-    window.bulkApprove = async () => {
-        for (const r of currentPendingDocs) { await updateDoc(doc(db, "formEntries", r.docId), { status: "批准", updatedAt: serverTimestamp() }); }
-        alert("完成"); window.loadAdminData();
-    };
-
-    window.exportMonthExcel = async () => {
-        const m = document.getElementById('exportMonth').value;
-        const q = query(collection(db, "formEntries"), where("status", "==", "批准"));
-        const snap = await getDocs(q);
-        let data = [["工號", "姓名", "部門", "假別", "時數", "日期"]];
-        snap.docs.forEach(d => {
-            const r = d.data();
-            if(r.sDate.startsWith(m)) data.push([r.id, r.name, r.dept, r.leaveType, r.displayDuration, r.sDate]);
-        });
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Report");
-        XLSX.writeFile(wb, `Leave_${m}.xlsx`);
-    };
-
-    window.searchPersonalRecords = async () => {
-        const id = document.getElementById('queryEmpId').value;
-        const q = query(collection(db, "formEntries"), where("id", "==", id.toUpperCase()));
-        const snap = await getDocs(q);
-        personalRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-        document.getElementById('personalResultArea').style.display = "block";
-        document.getElementById('personalTableBody').innerHTML = personalRecords.map(r => `<tr><td>${r.name}</td><td>${r.leaveType}</td><td>${r.sDate}</td><td>${r.displayDuration}</td><td>${getPhotoHtml(r)}</td><td class="status-badge">${r.status}</td><td><button class="btn btn-lang" onclick="window.prepareEdit('${r.docId}','personal')">改</button></td></tr>`).join('');
-    };
-
-    window.prepareEdit = (id, src) => {
-        const r = (src === 'all' ? allRecords : personalRecords).find(x => x.docId === id);
-        window.switchPage('dashboard');
-        document.getElementById('editDocId').value = id;
-        document.getElementById('empId').value = r.id;
-        document.getElementById('empName').value = r.name;
-        document.getElementById('dept').value = r.dept;
-        document.getElementById('leaveType').value = r.leaveType;
-        document.getElementById('reason').value = r.reason;
-        window.setShift(r.sTime < "17:00" ? 'day' : 'middle');
-        document.getElementById('startDate').value = r.sDate;
-        document.getElementById('startTime').value = r.sTime;
-        document.getElementById('endDate').value = r.eDate;
-        document.getElementById('endTime').value = r.eTime;
-        document.getElementById('submitBtn').innerText = "更新申請";
-        document.getElementById('cancelEditBtn').style.display = "block";
-    };
-
 </script>
 </body>
 </html>
