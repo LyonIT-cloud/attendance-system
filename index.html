@@ -10,7 +10,7 @@
             /* 側邊欄基準色調 */
             --sidebar-bg: #0b1120; 
             --main-bg: #f5f5f0; /* 米白色背景 */
-            --primary: #3b82f6; /* 圖片中選取項目的鮮藍色 */
+            --primary: #3b82f6; /* 選取項目的鮮藍色 */
             --accent: #10b981; --danger: #ef4444; --warning: #f59e0b; 
             --text-main: #1e293b; 
             --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -38,23 +38,24 @@
             min-height: 100vh; 
         }
         
-        /* 側邊欄：嚴格限制星空背景僅在此區域 */
+        /* 修正後的側邊欄：強化星空背景視覺 */
         .sidebar { 
             width: 260px; 
-            background: var(--sidebar-bg); 
-            /* 模擬圖片中的星空、雲氣與光束質感 */
-            background-image: 
-                radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-                radial-gradient(circle at 85% 35%, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                radial-gradient(circle at 45% 75%, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px),
-                radial-gradient(ellipse at bottom left, rgba(59, 130, 246, 0.15) 0%, transparent 75%),
-                linear-gradient(165deg, #0b1120 0%, #111827 50%, #1e293b 100%);
-            background-size: 100px 100px, 200px 200px, 250px 250px, 100% 100%, 100% 100%;
             color: white; padding: 30px 20px; 
             display: flex; flex-direction: column; 
             flex-shrink: 0; z-index: 100; 
             transition: all 0.3s; 
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            
+            /* 強制背景：使用多層漸層模擬星空與雲霧感 */
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                radial-gradient(circle at 70% 10%, rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px),
+                radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+                radial-gradient(ellipse at center, rgba(59, 130, 246, 0.15) 0%, transparent 80%),
+                linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
+            background-size: 50px 50px, 100px 100px, 150px 150px, 200px 200px, 100% 100%, 100% 100% !important;
         }
 
         .sidebar h1 { 
@@ -62,7 +63,7 @@
             border-left: 5px solid var(--primary); 
             padding-left: 15px; letter-spacing: 2px;
             font-weight: 800;
-            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            text-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
         }
         
         @media (max-width: 768px) {
@@ -72,31 +73,29 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
         }
 
-        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: gap: 8px; }
+        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #1e293b; }
         
-        /* 選項樣式：符合圖片的高亮與發光感 */
         .nav-item { 
             padding: 14px 18px; margin-bottom: 12px; border-radius: 12px; 
             cursor: pointer; transition: all 0.3s; display: flex; align-items: center; 
-            gap: 12px; color: rgba(255, 255, 255, 0.65); font-weight: 500; 
+            gap: 12px; color: rgba(255, 255, 255, 0.7); font-weight: 500; 
         }
-        .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+        .nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
         .nav-item.active { 
             background: #3b82f6; 
             color: #ffffff; 
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); 
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.7); 
             font-weight: 700;
         }
         .nav-admin { border: 1px dashed rgba(251, 191, 36, 0.5); margin-top: 10px; color: #fbbf24; }
         
-        /* 右側主內容區：強制設定為米白色背景 */
         .main-content { 
             flex: 1; 
             padding: 40px; 
             overflow-x: hidden; 
             box-sizing: border-box; 
-            background-color: var(--main-bg); 
+            background-color: var(--main-bg); /* 確保右側純米白色 */
         }
 
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
