@@ -38,7 +38,7 @@
             min-height: 100vh; 
         }
         
-        /* 側邊欄：根據圖片改為星空深藍漸層與強發光效果 */
+        /* 側邊欄：嚴格限制星空背景僅在此區域 */
         .sidebar { 
             width: 260px; 
             background: var(--sidebar-bg); 
@@ -56,6 +56,7 @@
             transition: all 0.3s; 
             border-right: 1px solid rgba(255, 255, 255, 0.05);
         }
+
         .sidebar h1 { 
             font-size: 22px; margin-bottom: 40px; 
             border-left: 5px solid var(--primary); 
@@ -71,7 +72,7 @@
             .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
         }
 
-        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
+        .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: gap: 8px; }
         .btn-lang { background: white; border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #1e293b; }
         
         /* 選項樣式：符合圖片的高亮與發光感 */
@@ -89,7 +90,15 @@
         }
         .nav-admin { border: 1px dashed rgba(251, 191, 36, 0.5); margin-top: 10px; color: #fbbf24; }
         
-        .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
+        /* 右側主內容區：強制設定為米白色背景 */
+        .main-content { 
+            flex: 1; 
+            padding: 40px; 
+            overflow-x: hidden; 
+            box-sizing: border-box; 
+            background-color: var(--main-bg); 
+        }
+
         .page-content { display: none; max-width: 1000px; margin: 0 auto; }
         .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
         
