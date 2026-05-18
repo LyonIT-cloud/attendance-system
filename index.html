@@ -115,7 +115,11 @@
 
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
-        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 15px; background: rgba(255,255,255,0.05); }
+        
+        /* 優化上一頁下一頁按鈕比例 */
+        .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 15px; background: rgba(255,255,255,0.05); }
+        .pagination-ctrl .btn { width: 100px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+        
         .table-thumb { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); margin: 2px; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -444,12 +448,23 @@
         if (rawEmpId.length < 4) { nameInput.value = ""; return; }
         try {
             nameInput.value = "查詢中...";
-            let docRef = doc(db, "employees", rawEmpId.toUpperCase());
+            
+            // 1. 先用使用者原始輸入的字串格式進行首輪查詢
+            let docRef = doc(db, "employees", rawEmpId);
             let docSnap = await getDoc(docRef);
+            
+            // 2. 若找不到，改用全大寫匹配防錯
+            if (!docSnap.exists()) {
+                docRef = doc(db, "employees", rawEmpId.toUpperCase());
+                docSnap = await getDoc(docRef);
+            }
+            
+            // 3. 仍找不到，改用全小寫匹配防錯
             if (!docSnap.exists()) {
                 docRef = doc(db, "employees", rawEmpId.toLowerCase());
                 docSnap = await getDoc(docRef);
             }
+            
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 nameInput.value = data.name || "";
@@ -701,7 +716,7 @@
             const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId)), q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
             const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
             const resultMap = new Map();
-            [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
+            ...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
             personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
             window.renderPersonalTable();
         } catch (e) { tbody.innerHTML = `<tr><td colspan="7">查詢失敗：${e.message}</td></tr>`; }
