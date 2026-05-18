@@ -716,7 +716,7 @@
             const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId)), q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
             const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
             const resultMap = new Map();
-            ...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
+            [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
             personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
             window.renderPersonalTable();
         } catch (e) { tbody.innerHTML = `<tr><td colspan="7">查詢失敗：${e.message}</td></tr>`; }
