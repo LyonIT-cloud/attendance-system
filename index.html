@@ -99,9 +99,10 @@
         .btn-excel { background: #16a34a; color: white; }
         .shift-active { border: 2px solid var(--primary) !important; background: rgba(59, 130, 246, 0.2) !important; color: white !important; }
         
-        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); margin-top: 15px; }
+        /* 修正調深表格包覆層底色，避免星光背景太亮干擾文字讀取 */
+        .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid rgba(255,255,255,0.15); background: rgba(15, 23, 42, 0.75); margin-top: 15px; backdrop-filter: blur(10px); }
         table { width: 100%; border-collapse: collapse; min-width: 850px; color: white; }
-        th { background: rgba(255,255,255,0.1); padding: 14px; text-align: left; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { background: rgba(0, 0, 0, 0.3); padding: 14px; text-align: left; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.1); }
         td { padding: 14px; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         
         .status-badge { padding: 4px 0; font-size: 14px; font-weight: 700; white-space: nowrap; }
@@ -173,7 +174,7 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="例如: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
+                        <input type="text" id="empId" placeholder="example: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
                     </div>
                     <div>
                         <label data-vi="員工姓名">員工姓名</label>
