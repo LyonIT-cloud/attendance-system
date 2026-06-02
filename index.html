@@ -1,3 +1,8 @@
+這是完全保留你所有既有功能（包含語系切換、Firebase 整合、圖片壓縮、自動催審、Excel 導出等），並將確認無誤的 **Template ID (`ev7bugs`)**、**Service ID (`service_00f9709`)**、**Public Key (`yQaph9wMqrSPNhz8j`)** 完整嵌入的最終程式碼。
+
+請直接全選你原本的 HTML 檔案並全部覆蓋儲存：
+
+```html
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -372,8 +377,8 @@
             notice_type: isReminder ? "⚠️ 提示：此申請已停留在系統超過 48 小時未處理，請儘速核准。" : "🔔 新收到一筆員工請假申請項目。"
         };
 
-        // 已自動帶入您的 Service ID 與 Template ID
-        emailjs.send("service_00f9709", "template_dat1p", emailParams)
+        // 已完美同步 Service ID 與新範本 ID (ev7bugs)
+        emailjs.send("service_00f9709", "ev7bugs", emailParams)
             .then(() => {
                 console.log(isReminder ? `逾期催審信已自動發送至主管端` : `假單送出通知信已成功發送至主管端`);
             })
@@ -925,3 +930,5 @@
 </script>
 </body>
 </html>
+
+```
