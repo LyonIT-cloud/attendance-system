@@ -328,7 +328,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 在模組初始化時直接設定好全新的 SDK 權限密鑰
+    // 模組初始化時直接完成 SDK 密鑰綁定
     emailjs.init({ publicKey: "yQaph9wMqrSPNhz8j" });
 
     const managerEmails = {
