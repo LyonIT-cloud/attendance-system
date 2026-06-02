@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>鼎顓電子 - 員工出勤 management 系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script type="text/javascript">
         (function() {
-            // 請在此處填入您的 EmailJS Public Key (可在 EmailJS 後台取得)
-            emailjs.init("YOUR_EMAILJS_PUBLIC_KEY");
+            // 已自動綁定您的 Public Key
+            emailjs.init("yQaph9wMqrSPNhz8j");
         })();
     </script>
     <style>
@@ -348,7 +348,7 @@
     const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
     const gmEmail = "wayne.lee@tw.topdgi.com";
 
-    // 升級為無感自動化背景發信機制 (不彈出視窗，前端背景呼叫 EmailJS API)
+    // 整合完成的自動化背景發信機制
     function sendEmailNotification(data, isReminder = false) {
         let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
         if (gmTargetIds.includes(data.id.toUpperCase())) { recipients = gmEmail; }
@@ -372,8 +372,8 @@
             notice_type: isReminder ? "⚠️ 提示：此申請已停留在系統超過 48 小時未處理，請儘速核准。" : "🔔 新收到一筆員工請假申請項目。"
         };
 
-        // 呼叫 EmailJS 服務寄信 (請替換為您在 EmailJS 建立的 Service ID 與 Template ID)
-        emailjs.send("YOUR_EMAILJS_SERVICE_ID", "YOUR_EMAILJS_TEMPLATE_ID", emailParams)
+        // 已自動帶入您的 Service ID 與 Template ID
+        emailjs.send("service_00f9709", "template_dat1p", emailParams)
             .then(() => {
                 console.log(isReminder ? `逾期催審信已自動發送至主管端` : `假單送出通知信已成功發送至主管端`);
             })
@@ -385,10 +385,9 @@
     // 檢查是否有待審核且超過兩天(48小時)未批的假單並執行補寄催審
     async function checkAndSendOverdueReminders(deptFilter) {
         try {
-            const overdueThreshold = 2 * 24 * 60 * 60 * 1000; // 兩天的毫秒數
+            const overdueThreshold = 2 * 24 * 60 * 60 * 1000; 
             const now = Date.now();
             
-            // 撈取所有正在審核中的假單項目
             const q = query(collection(db, "formEntries"), where("status", "==", "審核中"));
             const snap = await getDocs(q);
             
@@ -396,20 +395,15 @@
                 const r = docSnap.data();
                 const docId = docSnap.id;
                 
-                // 部門權限篩選過濾
                 if (deptFilter !== "ALL" && deptFilter !== "總經理" && r.dept !== deptFilter) return;
                 if (deptFilter === "總經理" && !gmTargetIds.includes(r.id.toUpperCase())) return;
 
-                // 讀取假單寫入時間
-                let createdTime = r.updatedAt?.toMillis(); // 優先讀取更新/建立時的時間戳
+                let createdTime = r.updatedAt?.toMillis(); 
                 if (!createdTime) return;
 
-                // 超過 48 小時，且在此次登入期間「尚未執行過當日催審標記」以防頻繁打擾
                 if ((now - createdTime) > overdueThreshold && !r.lastRemindedAt) {
-                    // 背景補寄提醒郵件給該主管
                     sendEmailNotification({ docId, ...r }, true);
                     
-                    // 寫入提醒標記時間，避免今日主管重複整理網頁時重複觸發
                     await updateDoc(doc(db, "formEntries", docId), {
                         lastRemindedAt: serverTimestamp()
                     });
@@ -694,7 +688,6 @@
         if (adminPasswords[pw]) { 
             currentAdminDept = adminPasswords[pw]; 
             window.switchPage('admin'); 
-            // 在主管輸入完密碼成功切換到審核中心的那一刻，觸發背景比對，揪出超過兩天的假單補寄信件
             checkAndSendOverdueReminders(currentAdminDept);
         } 
         else if (pw !== null) alert("密碼錯誤！");
@@ -917,12 +910,10 @@
             if (isEdit) {
                 entryData.status = "審核中";
                 await updateDoc(doc(db, "formEntries", document.getElementById('editDocId').value), entryData);
-                // 修改假單完成後，背景同步發送最新修訂通知信
                 sendEmailNotification(entryData);
             } else {
                 entryData.status = "審核中"; entryData.createdAt = serverTimestamp();
                 await addDoc(collection(db, "formEntries"), entryData);
-                // 全新假單成立後，背景自動發送即時通知信給主管
                 sendEmailNotification(entryData);
             }
             alert("操作成功！"); window.resetForm();
@@ -934,5 +925,3 @@
 </script>
 </body>
 </html>
-
-```
