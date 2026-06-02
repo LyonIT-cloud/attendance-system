@@ -6,12 +6,6 @@
     <title>鼎顓電子 - 員工出勤 management 系統</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-    <script type="text/javascript">
-        (function() {
-            // 已自動綁定您的 Public Key
-            emailjs.init("yQaph9wMqrSPNhz8j");
-        })();
-    </script>
     <style>
         :root {
             --sidebar-bg: rgba(30, 41, 59, 0.8); --main-bg: transparent; --primary: #3b82f6;
@@ -304,7 +298,7 @@
             <div class="card">
                 <label data-vi="Nhập mã số">請輸入工號查詢</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="queryEmpId" placeholder="例如: D220008" style="flex:1" oninput="this.value = this.value.toUpperCase();">
+                    <input type="text" id="queryEmpId" placeholder="example: D220008" style="flex:1" oninput="this.value = this.value.toUpperCase();">
                     <button class="btn btn-success" onclick="searchPersonalRecords()" style="width: auto;">查詢</button>
                 </div>
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
@@ -334,6 +328,9 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // 在模組初始化時直接設定好全新的 SDK 權限密鑰
+    emailjs.init({ publicKey: "yQaph9wMqrSPNhz8j" });
+
     const managerEmails = {
         "管理部": "it@tw.topdgi.com,lon.lin@tw.topdgi.com",
         "製造部": "mark.lu@tw.topdgi.com",
@@ -348,7 +345,7 @@
     const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
     const gmEmail = "wayne.lee@tw.topdgi.com";
 
-    // 整合完成的自動化背景發信機制
+    // 整合完成的動態自動化發信機制
     function sendEmailNotification(data, isReminder = false) {
         let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
         if (gmTargetIds.includes(data.id.toUpperCase())) { recipients = gmEmail; }
@@ -372,7 +369,7 @@
             notice_type: isReminder ? "⚠️ 提示：此申請已停留在系統超過 48 小時未處理，請儘速核准。" : "🔔 新收到一筆員工請假申請項目。"
         };
 
-        // 已完美同步 Service ID 與新範本 ID (ev7bugs)
+        // 已修正發信方法與範本對應 ID (ev7bugs)
         emailjs.send("service_00f9709", "ev7bugs", emailParams)
             .then(() => {
                 console.log(isReminder ? `逾期催審信已自動發送至主管端` : `假單送出通知信已成功發送至主管端`);
