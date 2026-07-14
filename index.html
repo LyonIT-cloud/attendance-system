@@ -162,8 +162,7 @@
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách">📅 核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
-        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/attendance', '_blank')" data-vi="🕒 Hệ thống điểm danh" style="color: #a78bfa;">🕒 員工出勤系統</div>
-        <div class="nav-item" onclick="window.open('../報修與需求單/index.html', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
+        <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
     </div>
 
     <div class="main-content">
@@ -442,7 +441,6 @@
         if (newPage >= 1 && newPage <= totalPages) { adminCurrentPage = newPage; window.renderAdminTable(); }
     };
 
-    // 宣告一個全域計時器變數，用於防抖 (Debounce) 控制
     let fetchNameTimeout = null;
 
     window.autoFetchName = async () => {
@@ -451,27 +449,22 @@
         const deptInput = document.getElementById('dept');
         if (rawEmpId.length < 4) { nameInput.value = ""; return; }
         
-        // 每次使用者持續打字時，清除上一次的計時器，重新等待
         if (fetchNameTimeout) clearTimeout(fetchNameTimeout);
         
         nameInput.value = "輸入中...";
         
-        // 設定停下打字 250 毫秒後，才發出單次完整的 Firebase 查詢
         fetchNameTimeout = setTimeout(async () => {
             try {
                 nameInput.value = "查詢中...";
                 
-                // 1. 先用使用者原始輸入的字串格式進行首輪查詢
                 let docRef = doc(db, "employees", rawEmpId);
                 let docSnap = await getDoc(docRef);
                 
-                // 2. 若找不到，改用全大寫匹配防錯
                 if (!docSnap.exists()) {
                     docRef = doc(db, "employees", rawEmpId.toUpperCase());
                     docSnap = await getDoc(docRef);
                 }
                 
-                // 3. 仍找不到，改用全小寫匹配防錯
                 if (!docSnap.exists()) {
                     docRef = doc(db, "employees", rawEmpId.toLowerCase());
                     docSnap = await getDoc(docRef);
