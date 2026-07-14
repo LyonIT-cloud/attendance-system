@@ -130,7 +130,7 @@
             <h1 style="color: #1e293b; margin-bottom: 15px; font-size: 24px; font-weight: 800;">系統維護公告</h1>
             <div style="text-align: left; background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #f1f5f9;">
                 <p style="color: #475569; line-height: 1.8; margin: 0; font-weight: 500; font-size: 15px;">
-                    目前系統流量過載，正在進行緊急維護。<br>
+                    目前系統流量過載，正在進行 emergency 維護。<br>
                     預計恢復時間：<span style="color: #ef4444; font-weight: 800; font-size: 18px;">今日 15:00</span><br>
                     造成不便，敬請見諒。
                 </p>
@@ -160,7 +160,9 @@
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
-        <!-- 在報修單申請下方新增管理員選項 入口 -->
+        <!-- 在報修單申請下方新增薪資結算與考勤匯出選項 -->
+        <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/rules', '_blank')" data-vi="📊 Lương & Công" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); margin-top: 5px;">📊 薪資結算與考勤匯出</div>
+        <!-- 管理員權限入口 -->
         <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="⚙️ Quản trị" style="color: #f87171; border: 1px dashed rgba(248, 113, 113, 0.4); margin-top: 5px;">⚙️ 管理員權限</div>
     </div>
 
@@ -312,7 +314,7 @@
             </div>
         </div>
 
-        <!-- 新增管理員月份資料清理區塊面 -->
+        <!-- 管理員月份資料清理區塊面 -->
         <div id="page-data-admin" class="page-content">
             <h2>⚙️ 資料刪除管理員區</h2>
             <div class="card">
@@ -429,7 +431,7 @@
         }
     };
 
-    // 新增管理員驗證密碼邏輯
+    // 管理員驗證密碼邏輯
     window.checkDataAdminAccess = () => {
         const passwordInput = prompt("請輸入管理員核心權限密碼:");
         if (passwordInput === "admin") {
@@ -439,7 +441,7 @@
         }
     };
 
-    // 新增管理員月份資料批量清理
+    // 管理員月份資料批量清理
     window.performMonthlyDelete = async () => {
         const selectedMonth = document.getElementById('deleteMonthInput').value;
         if (!selectedMonth) return alert("操作終止：請先指定要處理的月份區間！");
