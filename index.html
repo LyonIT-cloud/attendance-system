@@ -24,7 +24,6 @@
             backdrop-filter: blur(5px);
         }
 
-        /* 修改背景為夜裡星光 */
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
@@ -99,7 +98,6 @@
         .btn-excel { background: #16a34a; color: white; }
         .shift-active { border: 2px solid var(--primary) !important; background: rgba(59, 130, 246, 0.2) !important; color: white !important; }
         
-        /* 修正調深表格包覆層底色，避免星光背景太亮干擾文字讀取 */
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid rgba(255,255,255,0.15); background: rgba(15, 23, 42, 0.75); margin-top: 15px; backdrop-filter: blur(10px); }
         table { width: 100%; border-collapse: collapse; min-width: 850px; color: white; }
         th { background: rgba(0, 0, 0, 0.3); padding: 14px; text-align: left; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.1); }
@@ -117,7 +115,6 @@
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         
-        /* 優化上一頁下一頁按鈕比例 */
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 15px; background: rgba(255,255,255,0.05); }
         .pagination-ctrl .btn { width: 100px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
         
@@ -163,6 +160,8 @@
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
+        <!-- 在報修單申請下方新增管理員選項 入口 -->
+        <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="⚙️ Quản trị" style="color: #f87171; border: 1px dashed rgba(248, 113, 113, 0.4); margin-top: 5px;">⚙️ 管理員權限</div>
     </div>
 
     <div class="main-content">
@@ -194,7 +193,7 @@
                         <select id="leaveType">
                             <option value="事假">事假</option><option value="病假">病假</option><option value="特休">特休</option><option value="公假">公假</option>
                             <option value="產假">產假</option><option value="陪產假">陪產假</option><option value="補休">補休</option><option value="婚假">婚假</option>
-                            <option value="生理假">生理假</option><option value="工傷假">工傷假</option><option value="家庭照顧假">家庭照顧假</option></option><option value="無薪假">無薪假</option>
+                            <option value="生理假">生理假</option><option value="工傷假">工傷假</option><option value="家庭照顧假">家庭照顧假</option><option value="無薪假">無薪假</option>
                         </select>
                     </div>
                 </div>
@@ -312,11 +311,23 @@
                 </div>
             </div>
         </div>
+
+        <!-- 新增管理員月份資料清理區塊面 -->
+        <div id="page-data-admin" class="page-content">
+            <h2>⚙️ 資料刪除管理員區</h2>
+            <div class="card">
+                <label style="color: #ef4444; font-weight: bold; font-size: 15px; margin-bottom: 12px;">⚠️ 核心警告：此動作將從資料庫永久刪除選定月份之所有紀錄，完成後不可復原！操作前請確保已導出資料備份。</label>
+                <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px; flex-wrap: wrap;">
+                    <input type="month" id="deleteMonthInput" style="width: 260px;">
+                    <button class="btn btn-danger" onclick="performMonthlyDelete()" style="width: auto; background: #ef4444; font-weight: bold;">🧹 執行指定月份清除</button>
+                </div>
+            </div>
+        </div>
     </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -400,6 +411,7 @@
         const elements = document.querySelectorAll('[data-vi]');
         elements.forEach(el => {
             if (el.closest('#page-admin') && el.id !== 'adminTitle') return;
+            if (el.closest('#page-data-admin')) return;
             if (lang === 'vi') {
                 if (!el.dataset.zh) el.dataset.zh = el.innerText; 
                 el.innerText = el.dataset.vi;
@@ -414,6 +426,67 @@
                 if (lang === 'vi') { opt.text = leaveTypeTranslations[zhValue] || zhValue; }
                 else { opt.text = zhValue; }
             });
+        }
+    };
+
+    // 新增管理員驗證密碼邏輯
+    window.checkDataAdminAccess = () => {
+        const passwordInput = prompt("請輸入管理員核心權限密碼:");
+        if (passwordInput === "admin") {
+            window.switchPage('data-admin');
+        } else if (passwordInput !== null) {
+            alert("驗證失敗！密碼不正確，存取遭拒。");
+        }
+    };
+
+    // 新增管理員月份資料批量清理
+    window.performMonthlyDelete = async () => {
+        const selectedMonth = document.getElementById('deleteMonthInput').value;
+        if (!selectedMonth) return alert("操作終止：請先指定要處理的月份區間！");
+        
+        const doubleCheck = confirm(`⚠️ 這是無法回復的操作！\n您確定要把 ${selectedMonth} 月份的所有歷史請假紀錄從資料庫連根拔除嗎？`);
+        if (!doubleCheck) return;
+
+        try {
+            const startStr = `${selectedMonth}-01`;
+            const [y, m] = selectedMonth.split('-').map(Number);
+            const nextMonthObj = new Date(y, m, 1);
+            const endStr = `${nextMonthObj.getFullYear()}-${String(nextMonthObj.getMonth() + 1).padStart(2, '0')}-01`;
+
+            const queryObj = query(
+                collection(db, "formEntries"),
+                where("sDate", ">=", startStr),
+                where("sDate", "<", endStr)
+            );
+            
+            const snapshot = await getDocs(queryObj);
+
+            if (snapshot.size === 0) {
+                alert(`通知：資料庫內查無 ${selectedMonth} 月份的請假申請紀錄。`);
+                return;
+            }
+
+            const snapshotDocs = snapshot.docs;
+            const singleBatchLimit = 400; 
+            let totalDeleted = 0;
+
+            for (let chunkIdx = 0; chunkIdx < snapshotDocs.length; chunkIdx += singleBatchLimit) {
+                const batchWorker = writeBatch(db);
+                const targetedChunk = snapshotDocs.slice(chunkIdx, chunkIdx + singleBatchLimit);
+                
+                targetedChunk.forEach(dDoc => {
+                    batchWorker.delete(dDoc.ref);
+                });
+                
+                await batchWorker.commit();
+                totalDeleted += targetedChunk.length;
+            }
+
+            alert(`清除完畢！已成功自雲端移除 ${selectedMonth} 月份共計 ${totalDeleted} 筆請假文件資料。`);
+            
+            if (isApprovalListAuth) window.loadAllRecords();
+        } catch (err) {
+            alert("批次資料抹除程序發生異常：" + err.message);
         }
     };
 
@@ -827,7 +900,6 @@
         const isEdit = !!document.getElementById('editDocId').value;
         const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
-        // --- 特休一小時限制邏輯 ---
         const calcResult = window.autoCalc();
         if (leaveType === "特休" && calcResult.totalMinutes < 60) {
             return alert("❌ 請特休需要至少一小時，否則無法送出申請。");
