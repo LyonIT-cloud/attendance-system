@@ -24,7 +24,6 @@
             backdrop-filter: blur(5px);
         }
 
-        /* 修改背景為夜裡星光 */
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
@@ -99,7 +98,6 @@
         .btn-excel { background: #16a34a; color: white; }
         .shift-active { border: 2px solid var(--primary) !important; background: rgba(59, 130, 246, 0.2) !important; color: white !important; }
         
-        /* 修正調深表格包覆層底色，避免星光背景太亮干擾文字讀取 */
         .table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid rgba(255,255,255,0.15); background: rgba(15, 23, 42, 0.75); margin-top: 15px; backdrop-filter: blur(10px); }
         table { width: 100%; border-collapse: collapse; min-width: 850px; color: white; }
         th { background: rgba(0, 0, 0, 0.3); padding: 14px; text-align: left; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,0.1); }
@@ -117,7 +115,6 @@
         .img-modal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .img-modal img { max-width: 95%; max-height: 95%; border-radius: 8px; border: 3px solid white; object-fit: contain; cursor: zoom-out; }
         
-        /* 優化上一頁下一頁按鈕比例 */
         .pagination-ctrl { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 15px; background: rgba(255,255,255,0.05); }
         .pagination-ctrl .btn { width: 100px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
         
@@ -163,8 +160,8 @@
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
-        <!-- 新增管理員權限入口 -->
-        <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="🛡️ Admin" style="color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); margin-top: 5px;">🛡️ 管理員權限</div>
+        <!-- 在報修單申請下方新增管理員選項 入口 -->
+        <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="⚙️ Quản trị" style="color: #f87171; border: 1px dashed rgba(248, 113, 113, 0.4); margin-top: 5px;">⚙️ 管理員權限</div>
     </div>
 
     <div class="main-content">
@@ -315,14 +312,14 @@
             </div>
         </div>
 
-        <!-- 新增的管理員數據清理頁面 -->
+        <!-- 新增管理員月份資料清理區塊面 -->
         <div id="page-data-admin" class="page-content">
-            <h2>🛡️ 資料刪除管理員</h2>
+            <h2>⚙️ 資料刪除管理員區</h2>
             <div class="card">
-                <label style="color: #f87171; font-weight: bold; font-size: 16px;">⚠️ 警告：此操作將會永久刪除所選月份的所有請假紀錄，且無法復原！</label>
-                <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px;">
-                    <input type="month" id="deleteMonthInput" style="width: 250px;">
-                    <button class="btn btn-danger" onclick="performMonthlyDelete()" style="width: auto; background: #ef4444;">💥 確認刪除該月所有資料</button>
+                <label style="color: #ef4444; font-weight: bold; font-size: 15px; margin-bottom: 12px;">⚠️ 核心警告：此動作將從資料庫永久刪除選定月份之所有紀錄，完成後不可復原！操作前請確保已導出資料備份。</label>
+                <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px; flex-wrap: wrap;">
+                    <input type="month" id="deleteMonthInput" style="width: 260px;">
+                    <button class="btn btn-danger" onclick="performMonthlyDelete()" style="width: auto; background: #ef4444; font-weight: bold;">🧹 執行指定月份清除</button>
                 </div>
             </div>
         </div>
@@ -432,65 +429,64 @@
         }
     };
 
-    // 新增：管理員權限密碼檢查與切換
+    // 新增管理員驗證密碼邏輯
     window.checkDataAdminAccess = () => {
-        const pw = prompt("請輸入管理員密碼:");
-        if (pw === "admin") {
+        const passwordInput = prompt("請輸入管理員核心權限密碼:");
+        if (passwordInput === "admin") {
             window.switchPage('data-admin');
-        } else if (pw !== null) {
-            alert("密碼錯誤！權限不足。");
+        } else if (passwordInput !== null) {
+            alert("驗證失敗！密碼不正確，存取遭拒。");
         }
     };
 
-    // 新增：按月份批次刪除功能
+    // 新增管理員月份資料批量清理
     window.performMonthlyDelete = async () => {
-        const targetMonth = document.getElementById('deleteMonthInput').value;
-        if (!targetMonth) return alert("請先選擇要刪除的月份！");
+        const selectedMonth = document.getElementById('deleteMonthInput').value;
+        if (!selectedMonth) return alert("操作終止：請先指定要處理的月份區間！");
         
-        if (!confirm(`最後確認：您真的要刪除 ${targetMonth} 月份的所有請假紀錄嗎？\n此操作將會從資料庫中永久抹除這些數據！`)) return;
+        const doubleCheck = confirm(`⚠️ 這是無法回復的操作！\n您確定要把 ${selectedMonth} 月份的所有歷史請假紀錄從資料庫連根拔除嗎？`);
+        if (!doubleCheck) return;
 
         try {
-            // 使用 range 查詢該月份起始與結束，提升大量數據時的執行效能
-            const startQueryDate = `${targetMonth}-01`;
-            // 計算下個月的第一天
-            const [year, month] = targetMonth.split('-').map(Number);
-            const nextMonthDate = new Date(year, month, 1);
-            const endQueryDate = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
+            const startStr = `${selectedMonth}-01`;
+            const [y, m] = selectedMonth.split('-').map(Number);
+            const nextMonthObj = new Date(y, m, 1);
+            const endStr = `${nextMonthObj.getFullYear()}-${String(nextMonthObj.getMonth() + 1).padStart(2, '0')}-01`;
 
-            const q = query(
+            const queryObj = query(
                 collection(db, "formEntries"),
-                where("sDate", ">=", startQueryDate),
-                where("sDate", "<", endQueryDate)
+                where("sDate", ">=", startStr),
+                where("sDate", "<", endStr)
             );
             
-            const snap = await getDocs(q);
+            const snapshot = await getDocs(queryObj);
 
-            if (snap.size === 0) {
-                alert(`${targetMonth} 月份查無任何請假紀錄資料。`);
+            if (snapshot.size === 0) {
+                alert(`通知：資料庫內查無 ${selectedMonth} 月份的請假申請紀錄。`);
                 return;
             }
 
-            // Firestore Batch 寫入單次限制 500 筆，若多於 500 筆則分組處理
-            const docsArray = snap.docs;
-            const batchSize = 400; // 保守設定單次 400 筆
-            let deletedCount = 0;
+            const snapshotDocs = snapshot.docs;
+            const singleBatchLimit = 400; 
+            let totalDeleted = 0;
 
-            for (let i = 0; i < docsArray.length; i += batchSize) {
-                const batch = writeBatch(db);
-                const chunk = docsArray.slice(i, i + batchSize);
-                chunk.forEach(docSnap => {
-                    batch.delete(docSnap.ref);
+            for (let chunkIdx = 0; chunkIdx < snapshotDocs.length; chunkIdx += singleBatchLimit) {
+                const batchWorker = writeBatch(db);
+                const targetedChunk = snapshotDocs.slice(chunkIdx, chunkIdx + singleBatchLimit);
+                
+                targetedChunk.forEach(dDoc => {
+                    batchWorker.delete(dDoc.ref);
                 });
-                await batch.commit();
-                deletedCount += chunk.length;
+                
+                await batchWorker.commit();
+                totalDeleted += targetedChunk.length;
             }
 
-            alert(`成功！已完全清除 ${targetMonth} 月份共 ${deletedCount} 筆歷史請假紀錄。`);
+            alert(`清除完畢！已成功自雲端移除 ${selectedMonth} 月份共計 ${totalDeleted} 筆請假文件資料。`);
             
-            // 重新刷新現有清單快取
             if (isApprovalListAuth) window.loadAllRecords();
-        } catch (e) {
-            alert("資料清理程序執行失敗：" + e.message);
+        } catch (err) {
+            alert("批次資料抹除程序發生異常：" + err.message);
         }
     };
 
@@ -904,7 +900,6 @@
         const isEdit = !!document.getElementById('editDocId').value;
         const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
-        // --- 特休一小時限制邏輯 ---
         const calcResult = window.autoCalc();
         if (leaveType === "特休" && calcResult.totalMinutes < 60) {
             return alert("❌ 請特休需要至少一小時，否則無法送出申請。");
