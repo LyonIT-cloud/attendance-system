@@ -159,7 +159,7 @@
                 <h3 style="margin: 0; color: white;">👥 各部門已建立人員名單</h3>
                 <button class="btn btn-danger" onclick="closeMemberListModal()" style="padding: 6px 12px; min-height: auto;">關閉</button>
             </div>
-            <!-- 需求 1：呈現既有總人數與部門最新人數統計 -->
+            <!-- 呈現既有總人數與部門最新人數統計 -->
             <div id="memberCountInfo" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-weight: 600; color: #93c5fd;">
                 載入中統計...
             </div>
@@ -408,7 +408,7 @@
     let allRecords = []; 
     let personalRecords = []; 
     let filteredRecords = []; 
-    let allEmployeesCache = []; 
+    let allEmployeesCache = null; // 改用 null 作為尚未載入標記
     let currentPage = 1;
     const rowsPerPage = 10;
     let adminCurrentPage = 1;
@@ -437,24 +437,28 @@
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
-        loadEmployeesData(); 
+        // 移除自動預先載入，改為按需讀取以大幅降低讀取次數
     });
 
     async function loadEmployeesData() {
+        if (allEmployeesCache !== null) return; // 若已經載入過則直接使用快取，不再向資料庫讀取
         try {
             const snap = await getDocs(collection(db, "employees"));
             allEmployeesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } catch (e) {
             console.error("載入員工清單失敗", e);
+            allEmployeesCache = [];
         }
     }
 
-    // 需求 1：開啟部門成員彈窗並更新總人數與部門人數統計
+    // 開啟部門成員彈窗（點擊時才觸發撈取，並透過快取避免重複讀取）
     window.openMemberListModal = async () => {
         document.getElementById('memberListModal').style.display = 'flex';
-        if (allEmployeesCache.length === 0) {
-            await loadEmployeesData();
-        }
+        document.getElementById('modalMemberTableBody').innerHTML = '<tr><td colspan="3" style="text-align:center;">讀取中...</td></tr>';
+        document.getElementById('memberCountInfo').innerText = '載入中統計...';
+        
+        await loadEmployeesData();
+        
         document.getElementById('modalDeptFilter').value = ""; // 預設全部部門
         renderModalMembers(allEmployeesCache);
     };
@@ -464,6 +468,7 @@
     };
 
     window.filterModalMembers = () => {
+        if (!allEmployeesCache) return;
         const selectedDept = document.getElementById('modalDeptFilter').value;
         const filtered = selectedDept ? allEmployeesCache.filter(e => e.dept === selectedDept) : allEmployeesCache;
         renderModalMembers(filtered);
@@ -474,8 +479,7 @@
         const infoBar = document.getElementById('memberCountInfo');
         const selectedDept = document.getElementById('modalDeptFilter').value;
         
-        // 呈現既有總人數與部門最新人數
-        const totalCount = allEmployeesCache.length;
+        const totalCount = allEmployeesCache ? allEmployeesCache.length : 0;
         if (selectedDept) {
             infoBar.innerHTML = `📊 【${selectedDept}】目前最新人數：<span style="color:#ffffff; font-size:16px;">${list.length}</span> 人 (全公司總人數：${totalCount} 人)`;
         } else {
@@ -602,7 +606,6 @@
 
     let fetchNameTimeout = null;
 
-    // 需求 2：打上工號自動帶入後，鎖定姓名與部門無法自行更改
     window.autoFetchName = async () => {
         const rawEmpId = document.getElementById('empId').value.trim();
         const nameInput = document.getElementById('empName');
@@ -641,7 +644,7 @@
                     nameInput.value = data.name || "";
                     if(data.dept) {
                         deptInput.value = data.dept; 
-                        deptInput.disabled = true; // 鎖定部門
+                        deptInput.disabled = true; 
                     }
                 } else { 
                     nameInput.value = "查無此人"; 
@@ -747,7 +750,6 @@
         } catch (e) { alert("匯出失敗：" + e.message); }
     };
 
-    // 需求 3：修改假單時確實鎖定工號、姓名與部門，不允許自行更改
     window.prepareEdit = async (docId, source = 'all') => {
         const record = (source === 'personal') ? personalRecords.find(r => r.docId === docId) : allRecords.find(r => r.docId === docId);
         if(!record) return;
@@ -756,8 +758,8 @@
         const empIdInput = document.getElementById('empId');
         const deptSelect = document.getElementById('dept');
         
-        empIdInput.disabled = true; // 鎖定工號
-        deptSelect.disabled = true; // 鎖定部門
+        empIdInput.disabled = true; 
+        deptSelect.disabled = true; 
         
         document.getElementById('editDocId').value = docId;
         empIdInput.value = record.id;
