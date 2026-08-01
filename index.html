@@ -27,7 +27,7 @@
         body { 
             margin: 0; 
             font-family: 'Inter', "Microsoft JhengHei", sans-serif; 
-            background: url('https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop') no-repeat center center fixed; 
+            background: url('starry-bg.jpg') no-repeat center center fixed; 
             background-size: cover;
             color: var(--text-main); 
             display: flex; 
@@ -152,17 +152,44 @@
         <img id="lightboxImg" src="" alt="證明文件">
     </div>
 
+    <!-- 員工名單檢視互動視窗 -->
+    <div id="memberListModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; backdrop-filter:blur(5px);">
+        <div style="background: rgba(30, 41, 59, 0.95); padding: 25px; border-radius: 16px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: white;">👥 各部門已建立人員名單</h3>
+                <button class="btn btn-danger" onclick="closeMemberListModal()" style="padding: 6px 12px; min-height: auto;">關閉</button>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <select id="modalDeptFilter" onchange="filterModalMembers()" style="width: 200px;">
+                    <option value="">全部部門</option>
+                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
+                    <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                </select>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>部門</th><th>工號</th><th>姓名</th></tr>
+                    </thead>
+                    <tbody id="modalMemberTableBody">
+                        <tr><td colspan="3" style="text-align:center;">載入中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="sidebar">
         <h1 data-vi="CÔNG TY ĐỈNH CHUYÊN">鼎顓電子</h1>
         <div id="nav-dashboard" class="nav-item active" onclick="switchPage('dashboard')" data-vi="📝 Nghỉ phép">📝 請假申請</div>
+        <!-- 需求 4：在請假申請下方新增一個選項檢視各部門人員 -->
+        <div class="nav-item" onclick="openMemberListModal()" data-vi="👥 Danh sách nhân viên" style="color: #38bdf8;">👥 部門現有成員</div>
         <div id="nav-personal" class="nav-item" onclick="switchPage('personal')" data-vi="🔍 Tra cứu">🔍 個人紀錄查詢</div>
         <div id="nav-search" class="nav-item" onclick="switchPage('search')" data-vi="📅 Danh sách">📅 核准清單</div>
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
-        <!-- 在報修單申請下方新增薪資結算與考勤匯出選項 -->
         <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/rules', '_blank')" data-vi="📊 Lương & Công" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); margin-top: 5px;">📊 薪資結算與考勤匯出</div>
-        <!-- 管理員權限入口 -->
         <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="⚙️ Quản trị" style="color: #f87171; border: 1px dashed rgba(248, 113, 113, 0.4); margin-top: 5px;">⚙️ 管理員權限</div>
     </div>
 
@@ -295,6 +322,7 @@
             </div>
         </div>
 
+        <!-- 需求 3：個人紀錄查詢要呈現出部門與工號 -->
         <div id="page-personal" class="page-content">
             <h2 data-vi="🔍 Tra cứu cá nhân">🔍 個人紀錄查詢</h2>
             <div class="card">
@@ -306,7 +334,7 @@
                 <div id="personalResultArea" style="display:none; margin-top: 20px;">
                     <div class="table-wrapper">
                         <table style="min-width: 600px;">
-                            <thead><tr><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>選項變更</th></tr></thead>
+                            <thead><tr><th>部門</th><th>工號</th><th>姓名</th><th>假別</th><th>區間</th><th>時數</th><th>證明</th><th>狀態</th><th>選項變更</th></tr></thead>
                             <tbody id="personalTableBody"></tbody>
                         </table>
                     </div>
@@ -314,7 +342,6 @@
             </div>
         </div>
 
-        <!-- 管理員月份資料清理區塊面 -->
         <div id="page-data-admin" class="page-content">
             <h2>⚙️ 資料刪除管理員區</h2>
             <div class="card">
@@ -379,6 +406,7 @@
     let allRecords = []; 
     let personalRecords = []; 
     let filteredRecords = []; 
+    let allEmployeesCache = []; // 用於部門成員清單
     let currentPage = 1;
     const rowsPerPage = 10;
     let adminCurrentPage = 1;
@@ -407,7 +435,52 @@
         const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (document.getElementById('filterMonth')) document.getElementById('filterMonth').value = yearMonth;
         if (document.getElementById('exportMonth')) document.getElementById('exportMonth').value = yearMonth;
+        loadEmployeesData(); // 預先載入員工資料供彈窗使用
     });
+
+    // 載入員工資料庫快取
+    async function loadEmployeesData() {
+        try {
+            const snap = await getDocs(collection(db, "employees"));
+            allEmployeesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            console.error("載入員工清單失敗", e);
+        }
+    }
+
+    // 需求 4：開啟與過濾部門現有成員彈窗
+    window.openMemberListModal = async () => {
+        document.getElementById('memberListModal').style.display = 'flex';
+        if (allEmployeesCache.length === 0) {
+            await loadEmployeesData();
+        }
+        renderModalMembers(allEmployeesCache);
+    };
+
+    window.closeMemberListModal = () => {
+        document.getElementById('memberListModal').style.display = 'none';
+    };
+
+    window.filterModalMembers = () => {
+        const selectedDept = document.getElementById('modalDeptFilter').value;
+        const filtered = selectedDept ? allEmployeesCache.filter(e => e.dept === selectedDept) : allEmployeesCache;
+        renderModalMembers(filtered);
+    };
+
+    function renderModalMembers(list) {
+        const tbody = document.getElementById('modalMemberTableBody');
+        if (list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">查無成員資料</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(emp => `
+            <tr>
+                <td>${emp.dept || '-'}</td>
+                <td><b>${emp.id || '-'}</b></td>
+                <td>${emp.name || '-'}</td>
+            </tr>
+        `).join('');
+    }
 
     window.changeLanguage = (lang) => {
         const elements = document.querySelectorAll('[data-vi]');
@@ -431,7 +504,6 @@
         }
     };
 
-    // 管理員驗證密碼邏輯
     window.checkDataAdminAccess = () => {
         const passwordInput = prompt("請輸入管理員核心權限密碼:");
         if (passwordInput === "admin") {
@@ -441,7 +513,6 @@
         }
     };
 
-    // 管理員月份資料批量清理
     window.performMonthlyDelete = async () => {
         const selectedMonth = document.getElementById('deleteMonthInput').value;
         if (!selectedMonth) return alert("操作終止：請先指定要處理的月份區間！");
@@ -791,7 +862,7 @@
         const rawQueryId = document.getElementById('queryEmpId').value.trim();
         if (!rawQueryId) return alert("請輸入工號！");
         const tbody = document.getElementById('personalTableBody'), resultArea = document.getElementById('personalResultArea');
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">查詢中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">查詢中...</td></tr>';
         resultArea.style.display = 'block';
         try {
             const q1 = query(collection(db, "formEntries"), where("id", "==", rawQueryId)), q2 = query(collection(db, "formEntries"), where("id", "==", rawQueryId.toUpperCase()));
@@ -800,20 +871,25 @@
             [...snap1.docs, ...snap2.docs].forEach(d => resultMap.set(d.id, { docId: d.id, ...d.data() }));
             personalRecords = Array.from(resultMap.values()).sort((a, b) => (safeGet(b, ['sDate', 'startDate']) || "").localeCompare(safeGet(a, ['sDate', 'startDate']) || ""));
             window.renderPersonalTable();
-        } catch (e) { tbody.innerHTML = `<tr><td colspan="7">查詢失敗：${e.message}</td></tr>`; }
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="9">查詢失敗：${e.message}</td></tr>`; }
     };
 
+    // 需求 3：個人紀錄查詢呈現部門與工號
     window.renderPersonalTable = () => {
         const tbody = document.getElementById('personalTableBody');
-        if (personalRecords.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; return; }
+        if (personalRecords.length === 0) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:20px;">查無紀錄</td></tr>`; return; }
         tbody.innerHTML = personalRecords.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
             const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
             return `<tr>
-                <td style="font-weight:600;">${r.name}</td><td>${r.leaveType}</td>
+                <td>${r.dept || '-'}</td>
+                <td style="font-weight:600;">${r.id || '-'}</td>
+                <td>${r.name}</td>
+                <td>${r.leaveType}</td>
                 <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
                 <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
-                <td>${getPhotoHtml(r)}</td><td class="status-badge ${statusClass}">${r.status}</td>
+                <td>${getPhotoHtml(r)}</td>
+                <td class="status-badge ${statusClass}">${r.status}</td>
                 <td>
                     <button class="btn-action-s btn-edit-link" onclick="window.prepareEdit('${r.docId}', 'personal')">修改</button>
                     <button class="btn-action-s btn-delete-link" onclick="window.deleteRecord('${r.docId}')">銷假</button>
@@ -894,11 +970,22 @@
     window.saveToCloud = async () => {
         if(document.getElementById('hasSelectedShift').value !== "true") return alert("請先點選班別！");
         const empId = document.getElementById('empId').value.trim();
+        const empNameVal = document.getElementById('empName').value.trim();
+        const deptVal = document.getElementById('dept').value;
+
+        // 需求 2：防呆驗證，未出現部門、查無此人或姓名空白則無法送出
+        if (!empId) return alert("請輸入工號！");
+        if (!empNameVal || empNameVal === "查無此人" || empNameVal === "輸入中..." || empNameVal === "查詢中..." || empNameVal === "系統錯誤") {
+            return alert("❌ 無法送出：查無此人或尚未確認正確的員工姓名與部門！請重新確認工號。");
+        }
+        if (!deptVal) {
+            return alert("❌ 無法送出：請選擇所屬部門！");
+        }
+
         const rawLeaveType = document.getElementById('leaveType').value;
         const leaveType = reverseLeaveTranslations[rawLeaveType] || rawLeaveType;
         const photoFiles = document.getElementById('leaveImg').files;
         
-        if (!empId) return alert("請輸入工號！");
         const isEdit = !!document.getElementById('editDocId').value;
         const hasExistingPhoto = document.getElementById('currentPhotosContainer').innerHTML.includes('img');
 
@@ -916,7 +1003,7 @@
 
         try {
             const entryData = { 
-                id: empId, name: document.getElementById('empName').value, dept: document.getElementById('dept').value, 
+                id: empId, name: empNameVal, dept: deptVal, 
                 leaveType: leaveType, sDate: document.getElementById('startDate').value, sTime: document.getElementById('startTime').value, 
                 eDate: document.getElementById('endDate').value, eTime: document.getElementById('endTime').value, 
                 reason: document.getElementById('reason').value, duration: calcResult.totalMinutes, 
