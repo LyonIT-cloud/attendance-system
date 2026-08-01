@@ -160,7 +160,9 @@
         <div id="nav-admin" class="nav-item nav-admin" onclick="checkAdminAccess()" data-vi="🛡️ Quản lý">🛡️ 主管審核中心</div>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 5px; padding-top: 10px;"></div>
         <div class="nav-item" onclick="window.open('https://lyonit-cloud.github.io/repair-system/', '_blank')" data-vi="🔧 Đơn báo sửa" style="color: #60a5fa;">🔧 報修單申請</div>
+        <!-- 在報修單申請下方新增薪資結算與考勤匯出選項 -->
         <div class="nav-item" onclick="window.open('https://hr-app-jet-one.vercel.app/rules', '_blank')" data-vi="📊 Lương & Công" style="color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); margin-top: 5px;">📊 薪資結算與考勤匯出</div>
+        <!-- 管理員權限入口 -->
         <div id="nav-data-admin" class="nav-item" onclick="checkDataAdminAccess()" data-vi="⚙️ Quản trị" style="color: #f87171; border: 1px dashed rgba(248, 113, 113, 0.4); margin-top: 5px;">⚙️ 管理員權限</div>
     </div>
 
@@ -312,6 +314,7 @@
             </div>
         </div>
 
+        <!-- 管理員月份資料清理區塊面 -->
         <div id="page-data-admin" class="page-content">
             <h2>⚙️ 資料刪除管理員區</h2>
             <div class="card">
@@ -428,6 +431,7 @@
         }
     };
 
+    // 管理員驗證密碼邏輯
     window.checkDataAdminAccess = () => {
         const passwordInput = prompt("請輸入管理員核心權限密碼:");
         if (passwordInput === "admin") {
@@ -437,6 +441,7 @@
         }
     };
 
+    // 管理員月份資料批量清理
     window.performMonthlyDelete = async () => {
         const selectedMonth = document.getElementById('deleteMonthInput').value;
         if (!selectedMonth) return alert("操作終止：請先指定要處理的月份區間！");
@@ -599,10 +604,8 @@
                 const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
                 const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']);
                 const dateRange = (sd === ed) ? sd : `${sd}~${ed}`;
-                const displayDept = (r.dept && r.dept.trim() !== "") ? r.dept : '<span style="color: #f87171;">未分配部門</span>';
-                const displayName = (r.name && r.name.trim() !== "") ? r.name : '<span style="color: #f87171;">查無此人</span>';
                 return `<tr>
-                    <td>${displayDept}</td><td>${r.id || '-'}</td><td>${displayName}</td><td>${r.leaveType}</td>
+                    <td>${r.dept}</td><td>${r.id}</td><td>${r.name}</td><td>${r.leaveType}</td>
                     <td style="font-size:12px;">${dateRange}</td>
                     <td>${r.displayDuration || formatDuration(r.duration)}</td>
                     <td>${getPhotoHtml(r)}</td>
@@ -718,7 +721,7 @@
             const snap = await getDocs(q);
             const filtered = snap.docs.map(d => ({ docId: d.id, ...d.data() }))
             .filter(r => {
-                if (currentAdminDept === "總經理") { return gmTargetIds.includes((r.id || "").toUpperCase()); }
+                if (currentAdminDept === "總經理") { return gmTargetIds.includes(r.id.toUpperCase()); }
                 if (currentAdminDept === "ALL") return true;
                 return r.dept === currentAdminDept;
             })
@@ -749,11 +752,8 @@
         bulkBtn.innerText = `✅ 一鍵批准 ${currentPendingDocs.length} 筆`;
         tbody.innerHTML = paginated.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
-            // 針對主管審核中心進行防呆：避免部門沒出現或姓名顯示查無此人時版面異常
-            const displayDept = (r.dept && r.dept.trim() !== "") ? r.dept : '<span style="color: #f87171;">未分配部門</span>';
-            const displayName = (r.name && r.name.trim() !== "") ? r.name : '<span style="color: #f87171;">查無此人</span>';
             return `<tr>
-                <td>${displayDept}</td><td><b>${displayName}</b><br>${r.leaveType}</td>
+                <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
                 <td>${sd} ${st}<br>~${ed}</td>
                 <td>${r.displayDuration || formatDuration(r.duration)}</td>
                 <td>${getPhotoHtml(r)}</td>
@@ -809,9 +809,8 @@
         tbody.innerHTML = personalRecords.map(r => {
             const sd = safeGet(r, ['sDate', 'startDate']), ed = safeGet(r, ['eDate', 'endDate']), st = safeGet(r, ['sTime', 'startTime']), et = safeGet(r, ['eTime', 'endTime']);
             const statusClass = r.status === '批准' ? 'status-approved' : (r.status === '退件' ? 'status-rejected' : 'status-pending');
-            const displayName = (r.name && r.name.trim() !== "") ? r.name : '<span style="color: #f87171;">查無此人</span>';
             return `<tr>
-                <td style="font-weight:600;">${displayName}</td><td>${r.leaveType}</td>
+                <td style="font-weight:600;">${r.name}</td><td>${r.leaveType}</td>
                 <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
                 <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
                 <td>${getPhotoHtml(r)}</td><td class="status-badge ${statusClass}">${r.status}</td>
