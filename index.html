@@ -680,11 +680,24 @@
             isApprovalListAuth = true;
         }
         try {
+            // 1. 維持原本抓取最新 100 筆的機制（保護讀取量）
             const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(100));
             const snap = await getDocs(q);
-            allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-            
-            // 檢查並計算超過 7 天未審核的單子
+            const recordsMap = new Map();
+            snap.docs.forEach(d => recordsMap.set(d.id, { docId: d.id, ...d.data() }));
+
+            // 2. 額外補抓「狀態為審核中」的單子，確保即使是超過 100 筆或超過 7 天的舊單也能被安全撈進來
+            const pendingQuery = query(collection(db, "formEntries"), where("status", "==", "審核中"));
+            const pendingSnap = await getDocs(pendingQuery);
+            pendingSnap.docs.forEach(d => {
+                if (!recordsMap.has(d.id)) {
+                    recordsMap.set(d.id, { docId: d.id, ...d.data() });
+                }
+            });
+
+            allRecords = Array.from(recordsMap.values());
+
+            // 3. 檢查並計算超過 7 天未審核的單子
             checkOverduePendingRecords();
 
             window.applyFilters();
@@ -695,7 +708,7 @@
         }
     };
 
-    // 強化版：檢查 7 天以上未審核紀錄（相容各種時間格式或以起始日期推算）
+    // 檢查 7 天以上未審核紀錄
     function checkOverduePendingRecords() {
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
@@ -703,7 +716,6 @@
         const overdueList = allRecords.filter(r => {
             if (r.status !== "審核中") return false;
             
-            // 嘗試解析時間物件、毫秒數、或直接拿起始日期 (sDate) 作為判定基準
             let timeObj = null;
             const rawTime = r.updatedAt || r.createdAt;
             
@@ -714,7 +726,6 @@
             } else if (typeof rawTime === 'string') {
                 timeObj = new Date(rawTime);
             } else if (r.sDate) {
-                // 如果沒有更新/建立時間，直接用假單填寫的起始日期 (sDate) 往前推算
                 timeObj = new Date(r.sDate);
             }
 
