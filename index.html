@@ -362,7 +362,21 @@
         </div>
 
         <div id="page-data-admin" class="page-content">
-            <h2>⚙️ 資料刪除管理員區</h2>
+            <h2>⚙️ 資料管理員區</h2>
+            
+            <!-- 新增：批次匯入人員 Excel 名單區塊 -->
+            <div class="card" style="margin-bottom: 25px;">
+                <h3 style="color: #38bdf8; margin-top: 0; margin-bottom: 12px;">📂 批次匯入／更新員工名單 (Excel)</h3>
+                <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6; margin-bottom: 15px;">
+                    請上傳包含 <b style="color:white;">部門、工號、姓名</b> 欄位的 Excel 檔案 (`.xlsx` / `.xls`)。<br>
+                    系統將自動以工號比對：已存在的工號會自動更新部門與姓名，新的工號則會自動新增。
+                </p>
+                <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" id="employeeExcelFile" accept=".xlsx, .xls" style="flex: 1; min-width: 250px; background: rgba(255,255,255,0.9); padding: 8px;">
+                    <button class="btn btn-success" onclick="uploadEmployeeExcel()" style="width: auto; font-weight: bold;">📤 開始解析並同步至雲端</button>
+                </div>
+            </div>
+
             <div class="card">
                 <label style="color: #ef4444; font-weight: bold; font-size: 15px; margin-bottom: 12px;">⚠️ 核心警告：此動作將從資料庫永久刪除選定月份之所有紀錄，完成後不可復原！操作前請確保已導出資料備份。</label>
                 <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px; flex-wrap: wrap;">
@@ -375,7 +389,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, setDoc, doc, getDoc, query, orderBy, where, deleteDoc, serverTimestamp, limit, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAzRmuyxGJSip4k2VANAuUtuJLf25Ft9Pc",
@@ -472,6 +486,7 @@
         document.getElementById('modalMemberTableBody').innerHTML = '<tr><td colspan="3" style="text-align:center;">讀取中...</td></tr>';
         document.getElementById('memberCountInfo').innerText = '載入中統計...';
         
+        allEmployeesCache = null; // 強制重新撈取最新
         await loadEmployeesData();
         
         document.getElementById('modalDeptFilter').value = "";
@@ -513,6 +528,68 @@
             </tr>
         `).join('');
     }
+
+    // 新增：批次匯入員工 Excel 檔案功能
+    window.uploadEmployeeExcel = async () => {
+        const fileInput = document.getElementById('employeeExcelFile');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            return alert("請先選擇要上傳的員工 Excel 檔案！");
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                if (!jsonData || jsonData.length === 0) {
+                    return alert("❌ 錯誤：Excel 檔案內容為空或格式無法辨識！");
+                }
+
+                let successCount = 0;
+                let batch = writeBatch(db);
+                let batchCounter = 0;
+
+                for (let row of jsonData) {
+                    // 自動兼容各種可能的欄位名稱 (部門/dept, 工號/id, 姓名/name)
+                    const dept = String(row['部門'] || row['dept'] || row['Dept'] || '').trim();
+                    const empId = String(row['工號'] || row['id'] || row['EmpId'] || row['ID'] || '').trim().toUpperCase();
+                    const name = String(row['姓名'] || row['name'] || row['Name'] || '').trim();
+
+                    if (empId && name) {
+                        const empRef = doc(db, "employees", empId);
+                        batch.set(empRef, { dept: dept, name: name, updatedAt: serverTimestamp() }, { merge: true });
+                        successCount++;
+                        batchCounter++;
+
+                        // Firestore batch 限制一次最多 400 筆
+                        if (batchCounter >= 400) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            batchCounter = 0;
+                        }
+                    }
+                }
+
+                if (batchCounter > 0) {
+                    await batch.commit();
+                }
+
+                allEmployeesCache = null; // 清除快取，確保下次開啟自動載入最新
+                alert(`🎉 成功同步！已完成 ${successCount} 筆員工資料的匯入／更新。`);
+                fileInput.value = "";
+            } catch (err) {
+                alert("❌ 解析或上傳 Excel 發生異常：" + err.message);
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    };
 
     window.changeLanguage = (lang) => {
         const elements = document.querySelectorAll('[data-vi]');
@@ -680,13 +757,11 @@
             isApprovalListAuth = true;
         }
         try {
-            // 1. 維持原本抓取最新 100 筆的機制（保護讀取量）
             const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(100));
             const snap = await getDocs(q);
             const recordsMap = new Map();
             snap.docs.forEach(d => recordsMap.set(d.id, { docId: d.id, ...d.data() }));
 
-            // 2. 額外補抓「狀態為審核中」的單子，確保即使是超過 100 筆或超過 7 天的舊單也能被安全撈進來
             const pendingQuery = query(collection(db, "formEntries"), where("status", "==", "審核中"));
             const pendingSnap = await getDocs(pendingQuery);
             pendingSnap.docs.forEach(d => {
@@ -696,10 +771,7 @@
             });
 
             allRecords = Array.from(recordsMap.values());
-
-            // 3. 檢查並計算超過 7 天未審核的單子
             checkOverduePendingRecords();
-
             window.applyFilters();
         } catch (e) { 
             if (e.message.includes("quota") || e.code === "resource-exhausted") {
@@ -708,7 +780,6 @@
         }
     };
 
-    // 檢查 7 天以上未審核紀錄
     function checkOverduePendingRecords() {
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
