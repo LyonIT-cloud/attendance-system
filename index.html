@@ -273,7 +273,7 @@
         <div id="page-search" class="page-content">
             <h2 data-vi="📅 Danh sách duyệt">📅 核准清單</h2>
             
-            <!-- 新增：7天以上未審核假單快捷提醒專區 -->
+            <!-- 超過 7 天未審核假單快捷提醒專區 -->
             <div id="overdueWarningCard" class="card" style="display:none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: #f87171; font-size: 16px;">⚠️ 超過 7 天尚未審核的待處理假單</h3>
@@ -680,12 +680,11 @@
             isApprovalListAuth = true;
         }
         try {
-            // 維持原有的 100 筆限制保護讀取量
             const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(100));
             const snap = await getDocs(q);
             allRecords = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
             
-            // 檢查並計算超過 7 天仍未審核的單子
+            // 檢查並計算超過 7 天未審核的單子
             checkOverduePendingRecords();
 
             window.applyFilters();
@@ -696,16 +695,30 @@
         }
     };
 
-    // 檢查 7 天以上未審核紀錄並顯示提示區
+    // 強化版：檢查 7 天以上未審核紀錄（相容各種時間格式或以起始日期推算）
     function checkOverduePendingRecords() {
         const now = new Date();
         const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
 
         const overdueList = allRecords.filter(r => {
             if (r.status !== "審核中") return false;
-            // 若有 updatedAt 則用 updatedAt，否則用 createdAt
-            const timeObj = r.updatedAt?.toDate ? r.updatedAt.toDate() : (r.createdAt?.toDate ? r.createdAt.toDate() : null);
-            if (!timeObj) return false;
+            
+            // 嘗試解析時間物件、毫秒數、或直接拿起始日期 (sDate) 作為判定基準
+            let timeObj = null;
+            const rawTime = r.updatedAt || r.createdAt;
+            
+            if (rawTime?.toDate) {
+                timeObj = rawTime.toDate();
+            } else if (typeof rawTime === 'number') {
+                timeObj = new Date(rawTime);
+            } else if (typeof rawTime === 'string') {
+                timeObj = new Date(rawTime);
+            } else if (r.sDate) {
+                // 如果沒有更新/建立時間，直接用假單填寫的起始日期 (sDate) 往前推算
+                timeObj = new Date(r.sDate);
+            }
+
+            if (!timeObj || isNaN(timeObj.getTime())) return false;
             return timeObj < sevenDaysAgo;
         });
 
@@ -732,7 +745,6 @@
         }
     }
 
-    // 點擊快捷篩選直接帶入審核中與部門
     window.filterByOverdue = (dept, id) => {
         document.getElementById('filterDept').value = dept;
         document.getElementById('filterStatus').value = "審核中";
