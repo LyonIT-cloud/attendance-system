@@ -711,19 +711,16 @@ function coreCalcMinutes(d1, t1, d2, t2) {
     const breakStartStr = isDayShift ? "12:00" : "00:00", breakEndStr = isDayShift ? "13:00" : "00:30";
     let totalMinutes = 0, iterDate = new Date(d1), lastDate = new Date(d2);
     while (iterDate <= lastDate) {
-        let dayOfWeek = iterDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            let dayStr = iterDate.toISOString().split('T')[0], shiftStart = new Date(`${dayStr}T${sWorkTime}`), shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
-            if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
-            let actualStart = new Date(Math.max(startDT, shiftStart)), actualEnd = new Date(Math.min(endDT, shiftEnd));
-            if (actualStart < actualEnd) {
-                let diffMins = (actualEnd - actualStart) / (1000 * 60);
-                let bS = new Date(`${dayStr}T${breakStartStr}`), bE = new Date(`${dayStr}T${breakEndStr}`);
-                if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
-                let intersectStart = new Date(Math.max(actualStart, bS)), intersectEnd = new Date(Math.min(actualEnd, bE));
-                if (intersectStart < intersectEnd) diffMins -= (intersectEnd - intersectStart) / (1000 * 60);
-                totalMinutes += diffMins;
-            }
+        let dayStr = iterDate.toISOString().split('T')[0], shiftStart = new Date(`${dayStr}T${sWorkTime}`), shiftEnd = new Date(`${dayStr}T${eWorkTime}`);
+        if (!isDayShift) shiftEnd.setDate(shiftEnd.getDate() + 1);
+        let actualStart = new Date(Math.max(startDT, shiftStart)), actualEnd = new Date(Math.min(endDT, shiftEnd));
+        if (actualStart < actualEnd) {
+            let diffMins = (actualEnd - actualStart) / (1000 * 60);
+            let bS = new Date(`${dayStr}T${breakStartStr}`), bE = new Date(`${dayStr}T${breakEndStr}`);
+            if (!isDayShift) { bS.setDate(bS.getDate() + 1); bE.setDate(bE.getDate() + 1); }
+            let intersectStart = new Date(Math.max(actualStart, bS)), intersectEnd = new Date(Math.min(actualEnd, bE));
+            if (intersectStart < intersectEnd) diffMins -= (intersectEnd - intersectStart) / (1000 * 60);
+            totalMinutes += diffMins;
         }
         iterDate.setDate(iterDate.getDate() + 1);
     }
