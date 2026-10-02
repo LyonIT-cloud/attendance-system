@@ -23,7 +23,7 @@ const managerEmails = {
     "品保部": "it@tw.topdgi.com"
 };
 
-const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
+const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134", "D220075"];
 const gmEmail = "wayne.lee@tw.topdgi.com";
 
 function sendEmailNotification(data) {
