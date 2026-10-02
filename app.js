@@ -23,7 +23,7 @@ const managerEmails = {
     "品保部": "it@tw.topdgi.com"
 };
 
-const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
+const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134", "D220075"];
 const gmEmail = "wayne.lee@tw.topdgi.com";
 
 // 🌟 17位主管完整清單
@@ -37,7 +37,7 @@ const managerList = [
     { id: "D220234", name: "盧清正" },
     { id: "D220235", name: "戴聖德" },
     { id: "D220034", name: "鄭融聖" },
-    { id: "D220282", name: "林家慶" },
+    { id: "D220075", name: "吳家慶" },
     { id: "D220284", name: "何志鴻" },
     { id: "D220052", name: "詹勝心" },
     { id: "D220292", name: "黃保順" },
