@@ -610,7 +610,7 @@ window.checkAdminAccess = () => {
     else if (pw !== null) alert("密碼錯誤！");
 };
 
-// 🌟 載入 17 位主管今日出勤與請假即時燈號（已避開複合索引限制）
+// 🌟 載入 17 位主管今日出勤與請假即時燈號（純前端過濾，無須 Firebase 索引）
 window.loadManagerStatusBoard = async () => {
     const container = document.getElementById('managerStatusContainer');
     if (!container) return;
@@ -619,24 +619,25 @@ window.loadManagerStatusBoard = async () => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
 
-        // 僅使用單一範圍查詢，避開 Firebase 複合索引要求
-        const q = query(
-            collection(db, "formEntries"),
-            where("sDate", "<=", todayStr)
-        );
+        // 直接抓取最近的請假紀錄，完全不使用複雜的 where 條件查詢，避免索引報錯
+        const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(200));
         const snap = await getDocs(q);
         
         const leaveMap = new Map();
         snap.docs.forEach(docSnap => {
             const data = docSnap.data();
-            // 在前端進行結束日期與狀態的二次篩選
-            if (data.eDate >= todayStr && (data.status === "批准" || data.status === "審核中")) {
+            const sDate = safeGet(data, ['sDate', 'startDate']);
+            const eDate = safeGet(data, ['eDate', 'endDate']);
+            const status = data.status;
+
+            // 在前端檢查今天是否落在請假區間內，且狀態為「批准」或「審核中」
+            if (sDate && eDate && sDate <= todayStr && eDate >= todayStr && (status === "批准" || status === "審核中")) {
                 const empId = String(data.id || "").trim().toUpperCase();
                 leaveMap.set(empId, {
                     leaveType: data.leaveType,
-                    status: data.status,
-                    sDate: data.sDate,
-                    eDate: data.eDate
+                    status: status,
+                    sDate: sDate,
+                    eDate: eDate
                 });
             }
         });
