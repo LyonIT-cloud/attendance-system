@@ -211,6 +211,18 @@
                 <h2 id="adminTitle" style="margin: 0; font-size: 20px; color: white;">🛡️ 主管審核中心</h2>
                 <button id="bulkApproveBtn" class="btn btn-bulk" onclick="bulkApprove()" style="display: none;">一鍵批准所有申請</button>
             </div>
+
+            <!-- 🌟 總經理專屬：17 位主管今日即時出勤與請假燈號看板 (預設隱藏，輸入 GM888 登入時自動展開) -->
+            <div id="managerStatusCard" class="card" style="display: none; margin-bottom: 25px; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.15);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #38bdf8; font-size: 16px;">📊 全體 17 位主管今日出勤動態 (總經理專屬)</h3>
+                    <button class="btn btn-primary" onclick="loadManagerStatusBoard()" style="padding: 4px 10px; min-height: auto; font-size: 12px; width: auto;">🔄 重新整理燈號</button>
+                </div>
+                <div id="managerStatusContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    <!-- 動態插入 17 位主管卡片 -->
+                </div>
+            </div>
+
             <div class="table-wrapper">
                 <table>
                     <thead>
