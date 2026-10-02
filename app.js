@@ -610,7 +610,7 @@ window.checkAdminAccess = () => {
     else if (pw !== null) alert("密碼錯誤！");
 };
 
-// 🌟 載入 17 位主管今日出勤與請假即時燈號
+// 🌟 載入 17 位主管今日出勤與請假即時燈號（已避開複合索引限制）
 window.loadManagerStatusBoard = async () => {
     const container = document.getElementById('managerStatusContainer');
     if (!container) return;
@@ -619,24 +619,26 @@ window.loadManagerStatusBoard = async () => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
 
+        // 僅使用單一範圍查詢，避開 Firebase 複合索引要求
         const q = query(
             collection(db, "formEntries"),
-            where("sDate", "<=", todayStr),
-            where("eDate", ">=", todayStr),
-            where("status", "in", ["批准", "審核中"])
+            where("sDate", "<=", todayStr)
         );
         const snap = await getDocs(q);
         
         const leaveMap = new Map();
         snap.docs.forEach(docSnap => {
             const data = docSnap.data();
-            const empId = String(data.id || "").trim().toUpperCase();
-            leaveMap.set(empId, {
-                leaveType: data.leaveType,
-                status: data.status,
-                sDate: data.sDate,
-                eDate: data.eDate
-            });
+            // 在前端進行結束日期與狀態的二次篩選
+            if (data.eDate >= todayStr && (data.status === "批准" || data.status === "審核中")) {
+                const empId = String(data.id || "").trim().toUpperCase();
+                leaveMap.set(empId, {
+                    leaveType: data.leaveType,
+                    status: data.status,
+                    sDate: data.sDate,
+                    eDate: data.eDate
+                });
+            }
         });
 
         container.innerHTML = managerList.map(mgr => {
