@@ -23,8 +23,29 @@ const managerEmails = {
     "品保部": "it@tw.topdgi.com"
 };
 
-const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134", "D220075"];
+const gmTargetIds = ["D220013", "D220002", "D220067", "D220282", "D220134"];
 const gmEmail = "wayne.lee@tw.topdgi.com";
+
+// 🌟 17位主管完整清單
+const managerList = [
+    { id: "D220002", name: "林憲隆" },
+    { id: "D220010", name: "侯雅齡" },
+    { id: "D220013", name: "李政原" },
+    { id: "D220018", name: "李志毅" },
+    { id: "D220021", name: "姚鈞堯" },
+    { id: "D220026", name: "陳漳智" },
+    { id: "D220234", name: "盧清正" },
+    { id: "D220235", name: "戴聖德" },
+    { id: "D220034", name: "鄭融聖" },
+    { id: "D220282", name: "林家慶" },
+    { id: "D220284", name: "何志鴻" },
+    { id: "D220052", name: "詹勝心" },
+    { id: "D220292", name: "黃保順" },
+    { id: "T260011", name: "張睿堂" },
+    { id: "D220067", name: "賴德維" },
+    { id: "D220119", name: "蔡宗翰" },
+    { id: "D220123", name: "李志瑋" }
+];
 
 function sendEmailNotification(data) {
     let recipients = managerEmails[data.dept] || "it@tw.topdgi.com";
@@ -589,9 +610,80 @@ window.checkAdminAccess = () => {
     else if (pw !== null) alert("密碼錯誤！");
 };
 
+// 🌟 載入 17 位主管今日出勤與請假即時燈號
+window.loadManagerStatusBoard = async () => {
+    const container = document.getElementById('managerStatusContainer');
+    if (!container) return;
+    container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #cbd5e1; padding: 15px;">載入主管動態中...</div>';
+
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const q = query(
+            collection(db, "formEntries"),
+            where("sDate", "<=", todayStr),
+            where("eDate", ">=", todayStr),
+            where("status", "in", ["批准", "審核中"])
+        );
+        const snap = await getDocs(q);
+        
+        const leaveMap = new Map();
+        snap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const empId = String(data.id || "").trim().toUpperCase();
+            leaveMap.set(empId, {
+                leaveType: data.leaveType,
+                status: data.status,
+                sDate: data.sDate,
+                eDate: data.eDate
+            });
+        });
+
+        container.innerHTML = managerList.map(mgr => {
+            const upperId = mgr.id.toUpperCase();
+            const leaveInfo = leaveMap.get(upperId);
+            const isOnLeave = !!leaveInfo;
+
+            const statusDot = isOnLeave ? '🔴' : '🟢';
+            const statusText = isOnLeave ? `休假中 (${leaveInfo.leaveType})` : '在席 / 上班';
+            const cardBg = isOnLeave ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.08)';
+            const borderColor = isOnLeave ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+
+            return `
+                <div style="background: ${cardBg}; border: 1px solid ${borderColor}; padding: 12px 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold; color: white; font-size: 15px;">${mgr.name}</span>
+                        <span style="font-size: 12px; color: #94a3b8;">${mgr.id}</span>
+                    </div>
+                    <div style="font-size: 13px; color: ${isOnLeave ? '#f87171' : '#34d399'}; display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+                        <span>${statusDot}</span>
+                        <span style="font-weight: 600;">${statusText}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (e) {
+        console.error("載入主管動態失敗", e);
+        container.innerHTML = `<div style="color: #f87171; text-align: center;">載入失敗: ${e.message}</div>`;
+    }
+};
+
 window.loadAdminData = async () => {
     const tbody = document.getElementById('adminTableBody');
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
+    
+    // 🌟 如果是總經理登入 (GM888)，顯示 17 位主管燈號看板
+    const mgrBoardCard = document.getElementById('managerStatusCard');
+    if (mgrBoardCard) {
+        if (currentAdminDept === "總經理") {
+            mgrBoardCard.style.display = "block";
+            window.loadManagerStatusBoard();
+        } else {
+            mgrBoardCard.style.display = "none";
+        }
+    }
+
     try {
         const q = query(collection(db, "formEntries"), where("status", "==", "審核中"), limit(100));
         const snap = await getDocs(q);
@@ -690,7 +782,7 @@ window.renderPersonalTable = () => {
             <td style="font-weight:600;">${r.id || '-'}</td>
             <td>${r.name}</td>
             <td>${r.leaveType}</td>
-            <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd} ${st} ~ ${ed} ${et}`}</td>
+            <td style="font-size:12px;">${(sd === ed) ? `${sd} ${st}~${et}` : `${sd}${st} ~ ${ed}${et}`}</td>
             <td style="font-weight:bold; color:var(--primary);">${r.displayDuration || formatDuration(r.duration)}</td>
             <td>${getPhotoHtml(r)}</td>
             <td class="status-badge ${statusClass}">${r.status}</td>
