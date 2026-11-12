@@ -50,8 +50,17 @@
             <div style="margin-bottom: 15px;">
                 <select id="modalDeptFilter" onchange="filterModalMembers()" style="width: 200px;">
                     <option value="">全部部門</option>
-                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
-                    <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                    <option>管理部</option>
+                    <option>製一課</option>
+                    <option>製二部</option>
+                    <option>製二課</option>
+                    <option>製造課</option>
+                    <option>工程部</option>
+                    <option>SMT課</option>
+                    <option>資材部</option>
+                    <option>業務部</option>
+                    <option>品保部</option>
+                    <option>維修課</option>
                 </select>
             </div>
             <div class="table-wrapper">
@@ -88,7 +97,7 @@
                 <div class="form-grid">
                     <div>
                         <label data-vi="Mã số nhân viên">人員工號</label>
-                        <input type="text" id="empId" placeholder="example: D220119" oninput="this.value = this.value.toUpperCase(); autoFetchName();">
+                        <input type="text" id="empId" placeholder="example: D220119" oninput="autoFetchName();">
                     </div>
                     <div>
                         <label data-vi="員工姓名">員工姓名</label>
@@ -100,8 +109,17 @@
                         <label data-vi="Bộ phận">所屬部門</label>
                         <select id="dept">
                             <option value="">--選擇部門--</option>
-                            <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option>
-                            <option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                            <option>管理部</option>
+                            <option>製一課</option>
+                            <option>製二部</option>
+                            <option>製二課</option>
+                            <option>製造課</option>
+                            <option>工程部</option>
+                            <option>SMT課</option>
+                            <option>資材部</option>
+                            <option>業務部</option>
+                            <option>品保部</option>
+                            <option>維修課</option>
                         </select>
                     </div>
                     <div>
@@ -178,7 +196,17 @@
                 <input type="month" id="filterMonth" onchange="applyFilters()" style="width: 140px;">
                 <select id="filterDept" onchange="applyFilters()" style="width: 120px;">
                     <option value="" data-vi="Tất cả bộ phận">全部部門</option>
-                    <option>管理部</option><option>製造部</option><option>工程部</option><option>SMT</option><option>資材部</option><option>業務部</option><option>DIP</option><option>品保部</option>
+                    <option>管理部</option>
+                    <option>製一課</option>
+                    <option>製二部</option>
+                    <option>製二課</option>
+                    <option>製造課</option>
+                    <option>工程部</option>
+                    <option>SMT課</option>
+                    <option>資材部</option>
+                    <option>業務部</option>
+                    <option>品保部</option>
+                    <option>維修課</option>
                 </select>
                 <select id="filterStatus" onchange="applyFilters()" style="width: 120px;">
                     <option value="" data-vi="Tất cả trạng thái">全部狀態</option>
