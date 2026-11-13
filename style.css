@@ -22,39 +22,26 @@ body {
     background: url('background.jpg') no-repeat center center fixed; 
     background-size: cover;
     color: var(--text-main); 
-    display: flex; 
-    flex-direction: row; 
     min-height: 100vh; 
 }
 
 .sidebar { 
     width: 260px; 
     height: 100vh;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
     overflow-y: auto;
     box-sizing: border-box;
     background: var(--sidebar-bg); 
     color: white; padding: 30px 20px; 
     display: flex; flex-direction: column; 
-    flex-shrink: 0; z-index: 100; 
+    z-index: 100; 
     transition: all 0.3s; 
     backdrop-filter: blur(10px);
     border-right: 1px solid rgba(255,255,255,0.1);
 }
 .sidebar h1 { font-size: 20px; margin-bottom: 30px; border-left: 5px solid var(--primary); padding-left: 15px; letter-spacing: 1px; color: #ffffff; }
-
-@media (max-width: 768px) {
-    body { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; position: static; overflow-y: visible; padding: 15px; box-sizing: border-box; }
-    .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
-    .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
-    .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
-    .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
-    .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
-    .main-content { padding: 15px !important; }
-    .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
-}
 
 .lang-switcher { position: fixed; top: 15px; right: 20px; z-index: 1000; display: flex; gap: 8px; }
 .btn-lang { background: rgba(255,255,255,0.95); border: 1px solid #cbd5e1; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #1e293b; }
@@ -63,11 +50,22 @@ body {
 .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
 .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
 
-.main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
+.main-content { margin-left: 260px; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
 .main-content h2 { color: #0f172a; text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95); }
 #adminTitle { color: #0f172a !important; font-weight: 700; text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95); }
 .page-content { display: none; max-width: 1000px; margin: 0 auto; }
 .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
+
+@media (max-width: 768px) {
+    .sidebar { width: 100%; height: auto; position: static; overflow-y: visible; padding: 15px; box-sizing: border-box; }
+    .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
+    .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
+    .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+    .nav-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+    .nav-admin { border: 1px dashed #475569; margin-top: 10px; color: #fbbf24; }
+    .main-content { margin-left: 0; padding: 15px !important; }
+    .form-grid { grid-template-columns: 1fr !important; gap: 15px !important; }
+}
 
 .card { 
     background: rgba(255, 255, 255, 0.85); 
