@@ -181,9 +181,9 @@ window.uploadEmployeeExcel = async () => {
                 return alert("❌ 錯誤：Excel 檔案內容為空或格式無法辨識！");
             }
 
-            let successCount = 0;
-            let batch = writeBatch(db);
-            let batchCounter = 0;
+            // 1. 整理本次 Excel 名單內所有的有效工號與資料
+            const excelEmpIds = new Set();
+            const excelEmpData = new Map();
 
             for (let row of jsonData) {
                 const dept = String(row['部門'] || row['dept'] || row['Dept'] || '').trim();
@@ -192,16 +192,50 @@ window.uploadEmployeeExcel = async () => {
                 const name = String(row['姓名'] || row['name'] || row['Name'] || '').trim();
 
                 if (empId && name) {
-                    const empRef = doc(db, "employees", empId);
-                    batch.set(empRef, { dept: dept, name: name, updatedAt: serverTimestamp() }, { merge: true });
-                    successCount++;
-                    batchCounter++;
+                    excelEmpIds.add(empId);
+                    excelEmpData.set(empId, { dept, name });
+                }
+            }
 
-                    if (batchCounter >= 400) {
-                        await batch.commit();
-                        batch = writeBatch(db);
-                        batchCounter = 0;
-                    }
+            if (excelEmpIds.size === 0) {
+                return alert("❌ 錯誤：Excel 內找不到有效的「工號」與「姓名」資料！");
+            }
+
+            // 2. 取得目前雲端資料庫的所有工號，比對出不在本次名單內的人員
+            const cloudSnap = await getDocs(collection(db, "employees"));
+            const cloudEmpIds = new Set(cloudSnap.docs.map(d => d.id));
+            const idsToDelete = [...cloudEmpIds].filter(id => !excelEmpIds.has(id));
+
+            let successCount = 0;
+            let deletedCount = 0;
+            let batch = writeBatch(db);
+            let batchCounter = 0;
+
+            // 3. 新增或更新名單內人員
+            for (let [empId, info] of excelEmpData.entries()) {
+                const empRef = doc(db, "employees", empId);
+                batch.set(empRef, { dept: info.dept, name: info.name, updatedAt: serverTimestamp() }, { merge: true });
+                successCount++;
+                batchCounter++;
+
+                if (batchCounter >= 400) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    batchCounter = 0;
+                }
+            }
+
+            // 4. 自動刪除未在本次 Excel 名單內的人員
+            for (let empId of idsToDelete) {
+                const empRef = doc(db, "employees", empId);
+                batch.delete(empRef);
+                deletedCount++;
+                batchCounter++;
+
+                if (batchCounter >= 400) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    batchCounter = 0;
                 }
             }
 
@@ -210,7 +244,7 @@ window.uploadEmployeeExcel = async () => {
             }
 
             allEmployeesCache = null; 
-            alert(`🎉 成功同步！已完成 ${successCount} 筆員工資料的匯入／更新。`);
+            alert(`🎉 成功同步！\n- 已匯入／更新：${successCount} 筆\n- 已自動刪除未在名單內人員：${deletedCount} 筆`);
             fileInput.value = "";
         } catch (err) {
             alert("❌ 解析或上傳 Excel 發生異常：" + err.message);
