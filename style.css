@@ -29,6 +29,11 @@ body {
 
 .sidebar { 
     width: 260px; 
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    box-sizing: border-box;
     background: var(--sidebar-bg); 
     color: white; padding: 30px 20px; 
     display: flex; flex-direction: column; 
@@ -41,7 +46,7 @@ body {
 
 @media (max-width: 768px) {
     body { flex-direction: column; }
-    .sidebar { width: 100%; padding: 15px; box-sizing: border-box; }
+    .sidebar { width: 100%; height: auto; position: static; overflow-y: visible; padding: 15px; box-sizing: border-box; }
     .sidebar h1 { font-size: 18px; margin-bottom: 15px; text-align: center; border: none; padding: 0; }
     .nav-item { padding: 12px !important; font-size: 14px; margin-bottom: 5px !important; justify-content: center; }
     .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
@@ -60,6 +65,7 @@ body {
 
 .main-content { flex: 1; padding: 40px; overflow-x: hidden; box-sizing: border-box; }
 .main-content h2 { color: #0f172a; text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95); }
+#adminTitle { color: #0f172a !important; font-weight: 700; text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95); }
 .page-content { display: none; max-width: 1000px; margin: 0 auto; }
 .page-content.active { display: block; animation: fadeIn 0.4s ease-out; }
 
