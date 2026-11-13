@@ -87,7 +87,7 @@ const adminPasswords = {
 const leaveTypeTranslations = {
     '事假': 'Nghỉ việc riêng', '病假': 'Nghỉ ốm', '特休': 'Nghỉ phép năm', '公假': 'Nghỉ công tác',
     '產假': 'Nghỉ thai sản', '陪產假': 'Nghỉ chế độ thai sản (nam)', '補休': 'Nghỉ bù', '婚假': 'Nghỉ kết hôn',
-    '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao動', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
+    '生理假': 'Nghỉ kinh nguyệt', '工傷假': 'Nghỉ tai nạn lao động', '家庭照顧假': 'Nghỉ chăm sóc gia đình'
 };
 
 const reverseLeaveTranslations = Object.fromEntries(
@@ -736,7 +736,10 @@ window.loadAdminData = async () => {
         });
         currentPendingDocs = filtered; 
         adminCurrentPage = 1;
-        document.getElementById('adminTitle').innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        const adminTitleEl = document.getElementById('adminTitle');
+        adminTitleEl.innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        adminTitleEl.style.color = '#0f172a';
+        adminTitleEl.style.fontWeight = '700';
         window.renderAdminTable();
     } catch (e) { tbody.innerHTML = `<tr><td colspan="6">錯誤: ${e.message}</td></tr>`; }
 };
@@ -757,7 +760,7 @@ window.renderAdminTable = () => {
     tbody.innerHTML = paginated.map(r => {
         const sd = safeGet(r, ['sDate', 'startDate']), st = safeGet(r, ['sTime', 'startTime']), ed = safeGet(r, ['eDate', 'endDate']);
         return `<tr>
-            <td>${r.dept}</td><td><b>${r.name}</b><br>${r.leaveType}</td>
+            <td>${r.dept}</td><td><b>${r.name}</b> <span style="font-size: 13px; color: #94a3b8; font-weight: normal;">(${r.id || '-'})</span><br>${r.leaveType}</td>
             <td>${sd} ${st}<br>~${ed}</td>
             <td>${r.displayDuration || formatDuration(r.duration)}</td>
             <td>${getPhotoHtml(r)}</td>
