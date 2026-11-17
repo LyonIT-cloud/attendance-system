@@ -78,6 +78,9 @@ let currentAdminDept = "";
 let currentPendingDocs = []; 
 let isApprovalListAuth = false; 
 
+// 🌟 製造部 (mfg888) 管轄的課別清單
+const mfgSubDepts = ["製造部", "製造課", "製一課", "製二課"];
+
 const adminPasswords = {
     "mgt888": "管理部", "mfg888": "製造部", "eng888": "工程部", "smt888": "SMT",
     "qa888": "品保部", "log888": "資材部", "sales888": "業務部", "dip888": "DIP",
@@ -187,7 +190,6 @@ window.uploadEmployeeExcel = async () => {
 
             for (let row of jsonData) {
                 const dept = String(row['部門'] || row['dept'] || row['Dept'] || '').trim();
-                // 🌟 這裡已移除 .toUpperCase()，完整保留 Excel 內英文的大小寫
                 const empId = String(row['工號'] || row['id'] || row['EmpId'] || row['ID'] || '').trim();
                 const name = String(row['姓名'] || row['name'] || row['Name'] || '').trim();
 
@@ -202,14 +204,13 @@ window.uploadEmployeeExcel = async () => {
                 return alert("❌ 錯誤：Excel 內找不到有效的「工號」與「姓名」資料！");
             }
 
-            // 2. 抓出資料庫現有所有人，比對出不在本次 Excel 內的工號（例如 T260026）
+            // 2. 抓出資料庫現有所有人，比對出不在本次 Excel 內的工號
             const cloudSnap = await getDocs(collection(db, "employees"));
             const deletePromises = [];
 
             cloudSnap.docs.forEach(d => {
                 const docId = d.id.trim();
                 const upperDocId = docId.toUpperCase();
-                // 只要不在這次 Excel 名單內，或大小寫與 Excel 不一致的舊資料，全部刪除
                 if (!excelUpperIds.has(upperDocId) || !excelEmpData.has(docId)) {
                     deletePromises.push(deleteDoc(doc(db, "employees", d.id)));
                 }
@@ -639,8 +640,18 @@ window.switchPage = (id) => {
 
 window.checkAdminAccess = () => {
     const pw = prompt("請輸入主管管理密碼:");
-    if (adminPasswords[pw]) { currentAdminDept = adminPasswords[pw]; window.switchPage('admin'); } 
+    if (adminPasswords[pw]) { 
+        currentAdminDept = adminPasswords[pw]; 
+        const subFilter = document.getElementById('mfgSubDeptFilter');
+        if (subFilter) subFilter.value = "ALL"; // 每次重新登入時重置為看全部製造單位
+        window.switchPage('admin'); 
+    } 
     else if (pw !== null) alert("密碼錯誤！");
+};
+
+// 🌟 製造部主管切換課別下拉選單時重新篩選清單
+window.onMfgSubDeptChange = () => {
+    window.loadAdminData();
 };
 
 // 🌟 載入 17 位主管今日出勤與請假即時燈號（純前端過濾，無須 Firebase 索引）
@@ -652,7 +663,6 @@ window.loadManagerStatusBoard = async () => {
     try {
         const todayStr = new Date().toISOString().split('T')[0];
 
-        // 直接抓取最近的請假紀錄，完全不使用複雜的 where 條件查詢，避免索引報錯
         const q = query(collection(db, "formEntries"), orderBy("updatedAt", "desc"), limit(200));
         const snap = await getDocs(q);
         
@@ -663,7 +673,6 @@ window.loadManagerStatusBoard = async () => {
             const eDate = safeGet(data, ['eDate', 'endDate']);
             const status = data.status;
 
-            // 在前端檢查今天是否落在請假區間內，且狀態為「批准」或「審核中」
             if (sDate && eDate && sDate <= todayStr && eDate >= todayStr && (status === "批准" || status === "審核中")) {
                 const empId = String(data.id || "").trim().toUpperCase();
                 leaveMap.set(empId, {
@@ -720,6 +729,18 @@ window.loadAdminData = async () => {
         }
     }
 
+    // 🌟 控制製造部 (mfg888) 課別篩選下拉選單的顯示狀態
+    const mfgSubFilter = document.getElementById('mfgSubDeptFilter');
+    let selectedMfgSub = "ALL";
+    if (mfgSubFilter) {
+        if (currentAdminDept === "製造部") {
+            mfgSubFilter.style.display = "inline-block";
+            selectedMfgSub = mfgSubFilter.value || "ALL";
+        } else {
+            mfgSubFilter.style.display = "none";
+        }
+    }
+
     try {
         const q = query(collection(db, "formEntries"), where("status", "==", "審核中"), limit(100));
         const snap = await getDocs(q);
@@ -727,6 +748,12 @@ window.loadAdminData = async () => {
         .filter(r => {
             if (currentAdminDept === "總經理") { return gmTargetIds.includes(r.id.toUpperCase()); }
             if (currentAdminDept === "ALL") return true;
+            if (currentAdminDept === "製造部") {
+                if (selectedMfgSub === "ALL") {
+                    return mfgSubDepts.includes(r.dept);
+                }
+                return r.dept === selectedMfgSub;
+            }
             return r.dept === currentAdminDept;
         })
         .sort((a, b) => {
@@ -737,7 +764,10 @@ window.loadAdminData = async () => {
         currentPendingDocs = filtered; 
         adminCurrentPage = 1;
         const adminTitleEl = document.getElementById('adminTitle');
-        adminTitleEl.innerText = `🛡️ 審核中心 (${currentAdminDept})`;
+        const titleSuffix = (currentAdminDept === "製造部" && selectedMfgSub !== "ALL") 
+            ? `製造部 - ${selectedMfgSub}` 
+            : currentAdminDept;
+        adminTitleEl.innerText = `🛡️ 審核中心 (${titleSuffix})`;
         adminTitleEl.style.color = '#0f172a';
         adminTitleEl.style.fontWeight = '700';
         window.renderAdminTable();
