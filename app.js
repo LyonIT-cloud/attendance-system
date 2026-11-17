@@ -184,7 +184,6 @@ window.uploadEmployeeExcel = async () => {
                 return alert("❌ 錯誤：Excel 檔案內容為空或格式無法辨識！");
             }
 
-            // 1. 整理本次 Excel 名單（統一轉大寫做比對，但寫入時保留原始大小寫）
             const excelUpperIds = new Set();
             const excelEmpData = new Map();
 
@@ -204,7 +203,6 @@ window.uploadEmployeeExcel = async () => {
                 return alert("❌ 錯誤：Excel 內找不到有效的「工號」與「姓名」資料！");
             }
 
-            // 2. 抓出資料庫現有所有人，比對出不在本次 Excel 內的工號
             const cloudSnap = await getDocs(collection(db, "employees"));
             const deletePromises = [];
 
@@ -216,11 +214,9 @@ window.uploadEmployeeExcel = async () => {
                 }
             });
 
-            // 3. 執行刪除不在名單內的人員
             await Promise.all(deletePromises);
             const deletedCount = deletePromises.length;
 
-            // 4. 寫入或更新本次名單內的人員
             let successCount = 0;
             let batch = writeBatch(db);
             let batchCounter = 0;
@@ -643,18 +639,16 @@ window.checkAdminAccess = () => {
     if (adminPasswords[pw]) { 
         currentAdminDept = adminPasswords[pw]; 
         const subFilter = document.getElementById('mfgSubDeptFilter');
-        if (subFilter) subFilter.value = "製造課"; // 每次登入預設選擇「製造課」
+        if (subFilter) subFilter.value = "製造課"; 
         window.switchPage('admin'); 
     } 
     else if (pw !== null) alert("密碼錯誤！");
 };
 
-// 🌟 製造部主管切換課別下拉選單時重新篩選清單
 window.onMfgSubDeptChange = () => {
     window.loadAdminData();
 };
 
-// 🌟 載入 17 位主管今日出勤與請假即時燈號（純前端過濾，無須 Firebase 索引）
 window.loadManagerStatusBoard = async () => {
     const container = document.getElementById('managerStatusContainer');
     if (!container) return;
@@ -718,7 +712,6 @@ window.loadAdminData = async () => {
     const tbody = document.getElementById('adminTableBody');
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">讀取中...</td></tr>';
     
-    // 🌟 如果是總經理登入 (GM888)，顯示 17 位主管燈號看板
     const mgrBoardCard = document.getElementById('managerStatusCard');
     if (mgrBoardCard) {
         if (currentAdminDept === "總經理") {
@@ -729,7 +722,6 @@ window.loadAdminData = async () => {
         }
     }
 
-    // 🌟 控制製造部 (mfg888) 課別篩選下拉選單的顯示狀態
     const mfgSubFilter = document.getElementById('mfgSubDeptFilter');
     let selectedMfgSub = "製造課";
     if (mfgSubFilter) {
@@ -753,6 +745,10 @@ window.loadAdminData = async () => {
                     return r.dept === "製造課" || r.dept === "製造部";
                 }
                 return r.dept === selectedMfgSub;
+            }
+            // 🌟 修復 SMT 課比對：同時支援 "SMT" 與 "SMT課"
+            if (currentAdminDept === "SMT") {
+                return r.dept === "SMT" || r.dept === "SMT課";
             }
             return r.dept === currentAdminDept;
         })
