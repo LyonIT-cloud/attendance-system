@@ -643,7 +643,7 @@ window.checkAdminAccess = () => {
     if (adminPasswords[pw]) { 
         currentAdminDept = adminPasswords[pw]; 
         const subFilter = document.getElementById('mfgSubDeptFilter');
-        if (subFilter) subFilter.value = "ALL"; // 每次重新登入時重置為看全部製造單位
+        if (subFilter) subFilter.value = "製造課"; // 每次登入預設選擇「製造課」
         window.switchPage('admin'); 
     } 
     else if (pw !== null) alert("密碼錯誤！");
@@ -731,11 +731,11 @@ window.loadAdminData = async () => {
 
     // 🌟 控制製造部 (mfg888) 課別篩選下拉選單的顯示狀態
     const mfgSubFilter = document.getElementById('mfgSubDeptFilter');
-    let selectedMfgSub = "ALL";
+    let selectedMfgSub = "製造課";
     if (mfgSubFilter) {
         if (currentAdminDept === "製造部") {
             mfgSubFilter.style.display = "inline-block";
-            selectedMfgSub = mfgSubFilter.value || "ALL";
+            selectedMfgSub = mfgSubFilter.value || "製造課";
         } else {
             mfgSubFilter.style.display = "none";
         }
@@ -749,8 +749,8 @@ window.loadAdminData = async () => {
             if (currentAdminDept === "總經理") { return gmTargetIds.includes(r.id.toUpperCase()); }
             if (currentAdminDept === "ALL") return true;
             if (currentAdminDept === "製造部") {
-                if (selectedMfgSub === "ALL") {
-                    return mfgSubDepts.includes(r.dept);
+                if (selectedMfgSub === "製造課") {
+                    return r.dept === "製造課" || r.dept === "製造部";
                 }
                 return r.dept === selectedMfgSub;
             }
@@ -764,7 +764,7 @@ window.loadAdminData = async () => {
         currentPendingDocs = filtered; 
         adminCurrentPage = 1;
         const adminTitleEl = document.getElementById('adminTitle');
-        const titleSuffix = (currentAdminDept === "製造部" && selectedMfgSub !== "ALL") 
+        const titleSuffix = (currentAdminDept === "製造部") 
             ? `製造部 - ${selectedMfgSub}` 
             : currentAdminDept;
         adminTitleEl.innerText = `🛡️ 審核中心 (${titleSuffix})`;
